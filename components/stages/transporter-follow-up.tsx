@@ -139,7 +139,7 @@ export default function TransporterFollowUp() {
 
                         const liftNo = row[2]; // Column C (Unit Tracking No.)
                         const followUpData = transportMap.get(liftNo);
-                        const expectedDate = followUpData?.expectedDate || "";
+                        const expectedDate = row[34] || ""; // Column AI (index 34) from RECEIVING-ACCOUNTS
                         const latestRemarks = followUpData?.remarks || "";
 
                         return {
@@ -248,7 +248,7 @@ export default function TransporterFollowUp() {
     const pendingColumns = [
         { key: "indentNumber", label: "Indent No" },
         { key: "itemName", label: "Item Name" },
-        { key: "plannedDate", label: "Planned" },
+        { key: "plannedDate", label: "Expected Date" },
         { key: "totalFollowUps", label: "Total Follow-Ups" },
         { key: "expectedDate", label: "Last Follow-Up Date" },
         { key: "remarks", label: "Remarks" },
@@ -266,7 +266,7 @@ export default function TransporterFollowUp() {
     const historyColumns = [
         { key: "indentNumber", label: "Indent No" },
         { key: "itemName", label: "Item Name" },
-        { key: "plannedDate", label: "Planned" },
+        { key: "plannedDate", label: "Expected Date" },
         { key: "actualDate", label: "Actual" },
         { key: "totalFollowUps", label: "Total Follow-Ups" },
         { key: "expectedDate", label: "Last Follow-Up Date" },
@@ -359,7 +359,7 @@ export default function TransporterFollowUp() {
 
         // Validate Expected Date when status is Intransit
         if (formData.status === "Intransit" && !formData.expectedDate) {
-            toast.error("Last Follow-Up Date is required when status is Intransit");
+            toast.error("Next Follow-Up is required when status is Intransit");
             return;
         }
 
@@ -392,10 +392,14 @@ export default function TransporterFollowUp() {
 
                 await fetch(`${SHEET_API_URL}`, { method: "POST", body: params });
 
-                // If status is "Received", update "RECEIVING-ACCOUNTS"
-                if (formData.status === "Received" && record.rowIndex) {
-                    const updateRow = new Array(95).fill("");
-                    updateRow[89] = timestamp; // Column CL (Index 89)
+                // Update "RECEIVING-ACCOUNTS" with Next Follow-Up (Column AI) and Actual Date if Received
+                if (record.rowIndex) {
+                    const updateRow = new Array(120).fill(""); // Use 120 to be safe
+                    updateRow[34] = formData.expectedDate || ""; // Column AI (Next Follow-Up)
+                    
+                    if (formData.status === "Received") {
+                        updateRow[89] = timestamp; // Column CL (Actual Date)
+                    }
 
                     const updateParams = new URLSearchParams();
                     updateParams.append("action", "update");
@@ -761,7 +765,7 @@ export default function TransporterFollowUp() {
                                 {/* Expected Date - Only show when Status is Intransit */}
                                 {formData.status === "Intransit" && (
                                     <div>
-                                        <Label className="text-xs mb-1 block">Last Follow-Up Date <span className="text-red-500">*</span></Label>
+                                        <Label className="text-xs mb-1 block">Next Follow-Up <span className="text-red-500">*</span></Label>
                                         <Input
                                             type="date"
                                             value={formData.expectedDate}

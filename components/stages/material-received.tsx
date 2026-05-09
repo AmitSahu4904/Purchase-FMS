@@ -130,6 +130,9 @@ const HISTORY_COLUMNS = [
     { key: "paymentAmountHydra", label: "Hydra Amt" },
     { key: "paymentAmountLabour", label: "Labour Amt" },
     { key: "paymentAmountHamali", label: "Hamali Amt" },
+    { key: "damagedQty", label: "Damaged Qty" },
+    { key: "damageReason", label: "Damage Reason" },
+    { key: "damageImage", label: "Damage Image" },
 ] as const;
 
 export default function Stage7() {
@@ -291,6 +294,9 @@ export default function Stage7() {
                                 paymentAmountLabour: row[31] || "",// AF
                                 paymentAmountHamali: row[32] || "",// AG
                                 receiptLiftNumber: row[2] || "",  // C: Reuse Lift No
+                                damagedQty: row[116] || "",
+                                damageReason: row[117] || "",
+                                damageImage: row[118] || "",
                             }
                         };
                     });
@@ -347,6 +353,10 @@ export default function Stage7() {
         remarks: "",
         pkgAmount: "",
         pkgGST: "",
+        damageReceived: "no",
+        damagedQty: "",
+        damageReason: "",
+        damageImage: null as File | null,
     });
 
     // Build a fast lookup map for records
@@ -406,6 +416,10 @@ export default function Stage7() {
                 warrantyExpiry: "",
                 productExpiry: "",
                 receivedItemImage: null,
+                damageReceived: "no",
+                damagedQty: "",
+                damageReason: "",
+                damageImage: null,
                 index: rec?.rowIndex || 0
             };
         });
@@ -440,13 +454,17 @@ export default function Stage7() {
             // Parallelize processing of all bulk items
             await Promise.all(bulkItems.map(async (item) => {
                 // For each item, upload its specific image and handle QR concurrently
-                const imageUploadPromise = item.receivedItemImage
-                    ? uploadFileToDrive(item.receivedItemImage, SHEET_API_URL, folderId)
-                    : Promise.resolve("");
+                const itemImgUrl = item.receivedItemImage
+                    ? await uploadFileToDrive(item.receivedItemImage, SHEET_API_URL, folderId)
+                    : "";
 
-                const itemImgUrl = await imageUploadPromise;
+                // Damage Image
+                let damageImageUrl = "";
+                if (item.damageImage) {
+                    damageImageUrl = await uploadFileToDrive(item.damageImage, SHEET_API_URL, folderId);
+                }
 
-                const rowArray = new Array(116).fill("");
+                const rowArray = new Array(120).fill("");
                 rowArray[20] = timestamp;               // U: Actual6
                 rowArray[22] = "independent";         // W: Invoice Type
                 rowArray[23] = commonData.invoiceDate;  // X
@@ -466,6 +484,11 @@ export default function Stage7() {
                 rowArray[105] = item.duration || "";       // DB: Duration
                 rowArray[106] = item.warrantyExpiry || ""; // DC: Warranty Expiry
                 rowArray[107] = item.productExpiry || "";  // DD: Product Expiry
+
+                // Damage Columns
+                rowArray[116] = item.damagedQty || "";   // DM
+                rowArray[117] = item.damageReason || ""; // DN
+                rowArray[118] = damageImageUrl;          // DO
 
                 const params = new URLSearchParams();
                 params.append("action", "update");
@@ -550,7 +573,7 @@ export default function Stage7() {
             const [billUrl, imageUrl] = await Promise.all([billPromise, imagePromise]);
 
             const timestamp = getFmsTimestamp();
-            const rowArray = new Array(116).fill("");
+            const rowArray = new Array(120).fill("");
 
             rowArray[20] = timestamp;               // U: Actual6
             rowArray[22] = "independent";         // W: Invoice Type
@@ -571,6 +594,15 @@ export default function Stage7() {
             rowArray[105] = form.duration || "";       // DB: Duration
             rowArray[106] = form.warrantyExpiry || ""; // DC: Warranty Expiry
             rowArray[107] = form.productExpiry || "";  // DD: Product Expiry
+
+            // Damage Data
+            let damageImageUrl = "";
+            if (form.damageImage) {
+                damageImageUrl = await uploadFileToDrive(form.damageImage, SHEET_API_URL, folderId);
+            }
+            rowArray[116] = form.damagedQty || "";  // DM
+            rowArray[117] = form.damageReason || ""; // DN
+            rowArray[118] = damageImageUrl;          // DO
 
             const params = new URLSearchParams();
             params.append("action", "update");
@@ -1050,7 +1082,8 @@ export default function Stage7() {
 
                                                         if (
                                                             col.key === "receivedItemImage" ||
-                                                            col.key === "billAttachment"
+                                                            col.key === "billAttachment" ||
+                                                            col.key === "damageImage"
                                                         ) {
                                                             const file = historyData[col.key];
                                                             let fileUrl = typeof file === "string" ? file : undefined;
@@ -1142,6 +1175,14 @@ export default function Stage7() {
                                                 <TableHead className="w-[120px]">QC Required <span className="text-red-500">*</span></TableHead>
                                                 <TableHead className="w-[150px]">Item Image</TableHead>
                                                 <TableHead className="w-[120px]">Warranty</TableHead>
+                                                <TableHead className="w-[120px]">Damage Received</TableHead>
+                                                {bulkItems.some(i => i.damageReceived === "yes") && (
+                                                    <>
+                                                        <TableHead className="w-[100px]">Damaged Qty</TableHead>
+                                                        <TableHead className="w-[150px]">Reason</TableHead>
+                                                        <TableHead className="w-[150px]">Damage Image</TableHead>
+                                                    </>
+                                                )}
                                                 {bulkItems.some(i => i.warrantyClaim === "yes") && (
                                                     <>
                                                         <TableHead className="w-[100px]">Duration (M)</TableHead>
@@ -1232,14 +1273,14 @@ export default function Stage7() {
                                                     </TableCell>
                                                     <TableCell>
                                                         <Select
-                                                            value={item.warrantyClaim}
+                                                            value={item.damageReceived}
                                                             onValueChange={(v) => {
                                                                 const newItems = [...bulkItems];
-                                                                newItems[idx].warrantyClaim = v;
+                                                                newItems[idx].damageReceived = v;
                                                                 if (v === "no") {
-                                                                    newItems[idx].duration = "";
-                                                                    newItems[idx].warrantyExpiry = "";
-                                                                    newItems[idx].productExpiry = "";
+                                                                    newItems[idx].damagedQty = "";
+                                                                    newItems[idx].damageReason = "";
+                                                                    newItems[idx].damageImage = null;
                                                                 }
                                                                 setBulkItems(newItems);
                                                             }}
@@ -1251,6 +1292,80 @@ export default function Stage7() {
                                                             </SelectContent>
                                                         </Select>
                                                     </TableCell>
+                                                    {bulkItems.some(i => i.damageReceived === "yes") && (
+                                                        <>
+                                                            <TableCell>
+                                                                {item.damageReceived === "yes" ? (
+                                                                    <Input
+                                                                        type="number"
+                                                                        value={item.damagedQty}
+                                                                        onChange={(e) => {
+                                                                            const newItems = [...bulkItems];
+                                                                            newItems[idx].damagedQty = e.target.value;
+                                                                            setBulkItems(newItems);
+                                                                        }}
+                                                                        className="h-8"
+                                                                        placeholder="Qty"
+                                                                    />
+                                                                ) : "-"}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {item.damageReceived === "yes" ? (
+                                                                    <Input
+                                                                        value={item.damageReason}
+                                                                        onChange={(e) => {
+                                                                            const newItems = [...bulkItems];
+                                                                            newItems[idx].damageReason = e.target.value;
+                                                                            setBulkItems(newItems);
+                                                                        }}
+                                                                        className="h-8"
+                                                                        placeholder="Reason"
+                                                                    />
+                                                                ) : "-"}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {item.damageReceived === "yes" ? (
+                                                                    <div className="space-y-1">
+                                                                        <input
+                                                                            id={`bulkDamageImage-${idx}`}
+                                                                            type="file"
+                                                                            accept="image/*"
+                                                                            onChange={(e) => {
+                                                                                const newItems = [...bulkItems];
+                                                                                newItems[idx].damageImage = e.target.files?.[0] || null;
+                                                                                setBulkItems(newItems);
+                                                                            }}
+                                                                            className="hidden"
+                                                                        />
+                                                                        {!item.damageImage ? (
+                                                                            <label
+                                                                                htmlFor={`bulkDamageImage-${idx}`}
+                                                                                className="flex items-center justify-center h-8 border border-dashed rounded cursor-pointer hover:bg-gray-50 px-2"
+                                                                            >
+                                                                                <Upload className="w-3 h-3 mr-1" />
+                                                                                <span className="text-[10px]">Upload</span>
+                                                                            </label>
+                                                                        ) : (
+                                                                            <div className="flex items-center justify-between gap-1 p-1 bg-gray-50 border rounded">
+                                                                                <span className="text-[10px] truncate max-w-[60px]">{item.damageImage.name}</span>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => {
+                                                                                        const newItems = [...bulkItems];
+                                                                                        newItems[idx].damageImage = null;
+                                                                                        setBulkItems(newItems);
+                                                                                    }}
+                                                                                    className="text-red-600"
+                                                                                >
+                                                                                    <X className="w-3 h-3" />
+                                                                                </button>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                ) : "-"}
+                                                            </TableCell>
+                                                        </>
+                                                    )}
                                                     {bulkItems.some(i => i.warrantyClaim === "yes") && (
                                                         <>
                                                             <TableCell>
@@ -1595,7 +1710,6 @@ export default function Stage7() {
                                         </SelectContent>
                                     </Select>
                                 </div>
-
                                 <div className="space-y-2">
                                     <Label>Product Expiry</Label>
                                     <div className="flex items-center gap-2">
@@ -1608,6 +1722,82 @@ export default function Stage7() {
                                     </div>
                                 </div>
                             </div>
+
+                            <div className="space-y-4">
+                                <h3 className="font-medium text-sm border-b pb-2">Damage Information</h3>
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div className="space-y-2">
+                                        <Label>Damage Received</Label>
+                                        <Select
+                                            value={form.damageReceived}
+                                            onValueChange={(v) => {
+                                                const newForm = { ...form, damageReceived: v };
+                                                if (v === "no") {
+                                                    newForm.damagedQty = "";
+                                                    newForm.damageReason = "";
+                                                    newForm.damageImage = null;
+                                                }
+                                                setForm(newForm);
+                                            }}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="yes">Yes</SelectItem>
+                                                <SelectItem value="no">No</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {form.damageReceived === "yes" && (
+                                <div className="grid grid-cols-3 gap-4 bg-red-50 p-4 rounded-lg">
+                                    <div className="space-y-2">
+                                        <Label>Damaged Qty</Label>
+                                        <Input
+                                            type="number"
+                                            value={form.damagedQty}
+                                            onChange={(e) => setForm({ ...form, damagedQty: e.target.value })}
+                                            placeholder="0"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Reason</Label>
+                                        <Input
+                                            value={form.damageReason}
+                                            onChange={(e) => setForm({ ...form, damageReason: e.target.value })}
+                                            placeholder="Why is it damaged?"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Damage Image</Label>
+                                        <input
+                                            id="damageImage"
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={(e) => setForm({ ...form, damageImage: e.target.files?.[0] || null })}
+                                            className="hidden"
+                                        />
+                                        <label
+                                            htmlFor="damageImage"
+                                            className="flex items-center justify-center w-full h-10 border border-dashed border-red-300 rounded cursor-pointer hover:bg-red-100"
+                                        >
+                                            <Upload className="w-4 h-4 mr-2 text-red-500" />
+                                            <span className="text-sm">Upload</span>
+                                        </label>
+                                        {form.damageImage && (
+                                            <div className="mt-1 flex items-center justify-between text-xs text-red-700">
+                                                <span className="truncate">{form.damageImage.name}</span>
+                                                <button type="button" onClick={() => setForm({ ...form, damageImage: null })}>
+                                                    <X className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
 
                             {form.warrantyClaim === "yes" && (
                                 <div className="grid grid-cols-2 gap-4 bg-amber-50 p-4 rounded-lg">
