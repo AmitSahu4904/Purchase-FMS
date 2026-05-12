@@ -1,7 +1,7 @@
 import {
     PlusCircle, CheckCircle2, Users, MessagesSquare, FileEdit,
     Phone, Package, ClipboardCheck, FileText, Upload, ShieldCheck,
-    CornerUpLeft, CreditCard, Truck, TruckIcon, ShieldAlert, LayoutGrid
+    CornerUpLeft, CreditCard, Truck, TruckIcon, ShieldAlert, LayoutGrid, AlertCircle
 } from "lucide-react";
 
 export const STAGES = [
@@ -19,10 +19,11 @@ export const STAGES = [
     { num: 8.5, name: "Submit Invoice (HO)", slug: "submit-invoice-ho", icon: FileText },
     { num: 9, name: "Submit Invoice", slug: "submit-invoice", icon: Upload },
     { num: 10, name: "Verification by Accounts", slug: "verification", icon: ShieldCheck },
-    { num: 11, name: "QC Requirement", slug: "qc-requirement", icon: ClipboardCheck },
+    { num: 11, name: "Material Testing", slug: "qc-requirement", icon: ClipboardCheck },
     { num: 12, name: "Purchase Return", slug: "purchase-return", icon: CornerUpLeft },
     { num: 13, name: "Return Approval", slug: "return-approval", icon: CornerUpLeft },
     { num: 14, name: "Vendor Payment", slug: "vendor-payment", icon: CreditCard },
     { num: 15, name: "Freight Payments", slug: "freight-payments", icon: Truck },
     { num: 16, name: "IMS", slug: "ims", icon: LayoutGrid },
+    { num: 17, name: "Damaged Records", slug: "damaged-records", icon: AlertCircle },
 ];

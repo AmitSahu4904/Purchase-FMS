@@ -23,9 +23,9 @@ export default function Sidebar() {
   // Helper to check if a page is allowed
   const isPageAllowed = (pageName: string) => {
     if (!pageAccess || pageAccess.length === 0) return true; // Show all if no restrictions
-    if (pageName === "IMS") return true; // Always show IMS
+    if (pageName === "IMS" || pageName === "Damaged Records") return true; // Always show IMS and Damaged Records
     if (pageName === "Verification by Accounts") return pageAccess.includes("Verification") || pageAccess.includes("Verification by Accounts");
-    return pageAccess.includes(pageName);
+    return pageAccess.includes(pageName) || (pageName === "Material Testing" && pageAccess.includes("QC Requirement"));
   };
 
   const filteredStages = STAGES.filter(stage => isPageAllowed(stage.name));
