@@ -377,7 +377,7 @@ export default function Stage8() {
         promises.push(postToPartialQC(row));
         const newTotalResolved = currentResolved + parseFloat(formData.rejectQty || "0");
         if (newTotalResolved >= receivedQty) {
-          promises.push(updateCell(selectedRecord.rowIndex, 62, mDYYYY));
+         // promises.push(updateCell(selectedRecord.rowIndex, 62, mDYYYY));
           toast.success("QC Rejection Complete — all quantity resolved!");
         } else {
           toast.success("Partial Rejection recorded.");
@@ -402,7 +402,7 @@ export default function Stage8() {
 
         const newTotalResolved = currentResolved + parseFloat(formData.approvedQty || "0");
         if (newTotalResolved >= receivedQty) {
-          promises.push(updateCell(selectedRecord.rowIndex, 62, mDYYYY));
+          //promises.push(updateCell(selectedRecord.rowIndex, 62, mDYYYY));
           toast.success("QC Full Approval Recorded!");
         } else {
           toast.success("Partial QC Recorded.");
