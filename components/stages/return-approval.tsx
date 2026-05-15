@@ -127,6 +127,9 @@ export default function Stage13() {
                         itemName: row[7] || "",
                         invoiceNumber: row[24] || "-",
                         poNumber: row[4],
+                        damageQty: row[116] || "0",
+                        damageReason: row[117] || "-",
+                        damageImage: row[118] || "",
                     });
                 });
             }
@@ -547,6 +550,9 @@ export default function Stage13() {
                                                     <th className="px-4 py-4 font-semibold text-slate-900 whitespace-nowrap">Return Qty</th>
                                                     <th className="px-4 py-4 font-semibold text-slate-900 whitespace-nowrap">Status</th>
                                                     <th className="px-4 py-4 font-semibold text-slate-900 whitespace-nowrap">Planned</th>
+                                                    <th className="px-4 py-4 font-semibold text-slate-900 whitespace-nowrap">Damage Qty</th>
+                                                    <th className="px-4 py-4 font-semibold text-slate-900 whitespace-nowrap">Reason</th>
+                                                    <th className="px-4 py-4 font-semibold text-slate-900 whitespace-nowrap">Image</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
@@ -580,6 +586,15 @@ export default function Stage13() {
                                                             </span>
                                                         </td>
                                                         <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDate(rec.data.plannedDate)}</td>
+                                                        <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{safeValue(rec.data.damageQty)}</td>
+                                                        <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{safeValue(rec.data.damageReason)}</td>
+                                                        <td className="px-4 py-3 whitespace-nowrap">
+                                                            {rec.data.damageImage ? (
+                                                                <a href={rec.data.damageImage} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors text-xs font-medium whitespace-nowrap">
+                                                                    <FileText className="w-3.5 h-3.5" /> View
+                                                                </a>
+                                                            ) : "-"}
+                                                        </td>
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -617,6 +632,9 @@ export default function Stage13() {
                                                     <th className="px-4 py-4 font-semibold text-slate-900 whitespace-nowrap">DN Number</th>
                                                     <th className="px-4 py-4 font-semibold text-slate-900 whitespace-nowrap">Image</th>
                                                     <th className="px-4 py-4 font-semibold text-slate-900 whitespace-nowrap">Remarks</th>
+                                                    <th className="px-4 py-4 font-semibold text-slate-900 whitespace-nowrap">Damage Qty</th>
+                                                    <th className="px-4 py-4 font-semibold text-slate-900 whitespace-nowrap">Reason</th>
+                                                    <th className="px-4 py-4 font-semibold text-slate-900 whitespace-nowrap">Image</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
@@ -644,6 +662,15 @@ export default function Stage13() {
                                                             ) : "-"}
                                                         </td>
                                                         <td className="px-4 py-3 text-slate-600 max-w-[200px] truncate whitespace-nowrap">{rec.data.remarks}</td>
+                                                        <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{safeValue(rec.data.damageQty)}</td>
+                                                        <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{safeValue(rec.data.damageReason)}</td>
+                                                        <td className="px-4 py-3 whitespace-nowrap">
+                                                            {rec.data.damageImage ? (
+                                                                <a href={rec.data.damageImage} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors text-xs font-medium whitespace-nowrap">
+                                                                    <FileText className="w-3.5 h-3.5" /> View
+                                                                </a>
+                                                            ) : "-"}
+                                                        </td>
                                                     </tr>
                                                 ))}
                                             </tbody>

@@ -53,6 +53,9 @@ const PENDING_COLUMNS = [
   { key: "totalApproved", label: "Approved" },
   { key: "totalRejected", label: "Rejected" },
   { key: "pendingQty", label: "Pending Qty" },
+  { key: "damageQty", label: "Damage Qty" },
+  { key: "damageReason", label: "Reason" },
+  { key: "damageImage", label: "Image" },
 ];
 
 const HISTORY_COLUMNS = [
@@ -67,9 +70,12 @@ const HISTORY_COLUMNS = [
   { key: "approvedQty", label: "Approved Qty" },
   { key: "rejectedQty", label: "Rejected Qty" },
   { key: "remarks", label: "Remarks" },
+  { key: "damageQty", label: "Damage Qty" },
+  { key: "damageReason", label: "Reason" },
+  { key: "damageImage", label: "Image" },
 ];
 
-const FILE_FIELDS = new Set(["poCopy", "receivedItemImage", "billAttachment", "rejectPhoto"]);
+const FILE_FIELDS = new Set(["poCopy", "receivedItemImage", "billAttachment", "rejectPhoto", "damageImage"]);
 const AMOUNT_FIELDS = new Set(["freightAmount", "advanceAmount", "basicValue", "totalWithTax", "ratePerQty", "paymentAmountHydra", "paymentAmountLabour", "paymentAmountHamali"]);
 
 export default function Stage8() {
@@ -174,6 +180,9 @@ export default function Stage8() {
                 totalApproved,
                 totalRejected,
                 pendingQty,
+                damageQty: row[116] || "0",
+                damageReason: row[117] || "-",
+                damageImage: row[118] || "",
               },
             };
           });
@@ -235,6 +244,9 @@ export default function Stage8() {
             rejectedQty: pRow[7] || "0",
             qcStatus: pRow[5] || "-",
             remarks: pRow[6] || "-",
+            damageQty: parentData.damageQty || "-",
+            damageReason: parentData.damageReason || "-",
+            damageImage: parentData.damageImage || "",
           },
         };
       })

@@ -35,6 +35,9 @@ const PENDING_COLUMNS = [
   { key: "vendor", label: "Vendor" },
   { key: "invoiceNumber", label: "Invoice No" },
   { key: "plan6", label: "Planned" },
+  { key: "damageQty", label: "Damage Qty" },
+  { key: "damageReason", label: "Reason" },
+  { key: "damageImage", label: "Image" },
 ];
 
 const HISTORY_COLUMNS = [
@@ -51,6 +54,9 @@ const HISTORY_COLUMNS = [
   { key: "returnStatus", label: "Status" },
   { key: "returnItemImage", label: "Item Img" },
   { key: "creditNoteImage", label: "Credit Note" },
+  { key: "damageQty", label: "Damage Qty" },
+  { key: "damageReason", label: "Reason" },
+  { key: "damageImage", label: "Image" },
 ];
 
 // Helper functions
@@ -155,6 +161,9 @@ export default function Stage12() {
             vendor: row[3],
             invoiceNumber: row[24],
             poNumber: row[4],
+            damageQty: row[116] || "0",
+            damageReason: row[117] || "-",
+            damageImage: row[118] || "",
           });
         });
       }
