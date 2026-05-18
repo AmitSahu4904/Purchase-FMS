@@ -51,15 +51,13 @@ const CLOSURE_PENDING_COLUMNS = [
 const HISTORY_COLUMNS = [
     { key: "indentNo", label: "Indent No." },
     { key: "liftNo", label: "Unit Tracking No." },
+    { key: "vendorName", label: "Vendor Name" },
+    { key: "itemName", label: "Item Name" },
+    { key: "invoiceDate", label: "Invoice Date" },
     { key: "serialNo", label: "Serial No." },
-    { key: "invoiceNo", label: "Invoice No." },
-    { key: "issueDescription", label: "Issue Description" },
-    { key: "claimType", label: "Claim Type" },
-    {key: "status", label: "Status"},
-    {key: "invoiceCopy", label: "Invoice Copy"},
-    {key: "photoVideo", label: "Photo/Video"},
-    {key: "closureDate", label: "Closure Date"},
-    {key: "remarks", label: "Remarks"},
+    { key: "warrantyEnd", label: "Warranty End" },
+    { key: "planned", label: "Planned" },
+    { key: "actual", label: "Actual" },
 ];
 
 // --- Optimized Row Component ---
@@ -148,7 +146,9 @@ export default function WarrantyClaim() {
                     .filter(({ row }: any) => row[0] && String(row[0]).trim() !== "");
 
                 allRows.forEach(({ row, sheetIndex }: any) => {
+                    const plannedValue = String(row[8] || "").trim(); // I
                     const actualValue = String(row[9] || "").trim(); // J
+                    const hasPlan = plannedValue !== "" && plannedValue !== "-";
                     const hasActual = actualValue !== "" && actualValue !== "-";
 
                     const data = {
@@ -160,15 +160,17 @@ export default function WarrantyClaim() {
                         itemName: row[5] || "",               // F
                         invoiceDate: row[6] || "",            // G
                         warrantyEnd: row[7] || "",            // H
-                        planned: row[8] || "",                // I
-                        actual: actualValue,                   // J
+                        planned: plannedValue,                // I
+                        actual: actualValue,                  // J
                     };
 
                     const id = `w_${data.indentNo}_${data.liftNo}_${data.serialNo}`;
                     warrantyMap.set(id, data);
 
-                    if (!hasActual) {
+                    if (hasPlan && !hasActual) {
                         pending.push({ id, sheetIndex, data });
+                    } else if (hasPlan && hasActual) {
+                        history.push({ id, sheetIndex, data });
                     }
                 });
             }
@@ -210,9 +212,8 @@ export default function WarrantyClaim() {
                         data: itemData
                     };
 
-                    if (status.toLowerCase() === "closure") {
-                        history.push(rec);
-                    } else {
+                    // Only push active claims to closurePending. History is now populated from WARRANTY sheet.
+                    if (status.toLowerCase() !== "closure") {
                         closurePending.push(rec);
                     }
                 });
