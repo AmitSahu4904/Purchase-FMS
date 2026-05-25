@@ -46,10 +46,10 @@ export default function OrderCancelPage() {
       const minute = parts.length > 4 ? Number(parts[4]) : 0
       const second = parts.length > 5 ? Number(parts[5]) : 0
 
-      // Format to dd/mm/yyyy hh:mm:ss
+      // Format to dd-mm-yyyy hh:mm:ss
       const pad = (n: number) => String(n).padStart(2, '0')
 
-      return `${pad(day)}/${pad(month + 1)}/${year} ${pad(hour)}:${pad(minute)}:${pad(second)}`
+      return `${pad(day)}-${pad(month + 1)}-${year} ${pad(hour)}:${pad(minute)}:${pad(second)}`
     } catch (error) {
       return dateString
     }
@@ -160,9 +160,9 @@ export default function OrderCancelPage() {
       formData.append("sheetName", SHEET_NAME)
       formData.append("action", "insert")
 
-      // Create row data for the cancellation with timestamp in DD/MM/YYYY format
+      // Create row data for the cancellation with timestamp in DD-MM-YYYY format
       const today = new Date()
-      const timestamp = `${today.getDate().toString().padStart(2, '0')}/${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getFullYear()} ${today.getHours().toString().padStart(2, '0')}:${today.getMinutes().toString().padStart(2, '0')}:${today.getSeconds().toString().padStart(2, '0')}`
+      const timestamp = `'${today.getDate().toString().padStart(2, '0')}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getFullYear()} ${today.getHours().toString().padStart(2, '0')}:${today.getMinutes().toString().padStart(2, '0')}:${today.getSeconds().toString().padStart(2, '0')}`
 
       const rowData = [
         timestamp,       // Column A - Timestamp (DD/MM/YYYY HH:MM:SS)
