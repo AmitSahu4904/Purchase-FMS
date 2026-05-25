@@ -162,7 +162,7 @@ export default function OrderCancelPage() {
 
       // Create row data for the cancellation with timestamp in YYYY-MM-DD HH:MM:SS format
       const today = new Date()
-      const timestamp = `'${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')} ${today.getHours().toString().padStart(2, '0')}:${today.getMinutes().toString().padStart(2, '0')}:${today.getSeconds().toString().padStart(2, '0')}`
+      const timestamp = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')} ${today.getHours().toString().padStart(2, '0')}:${today.getMinutes().toString().padStart(2, '0')}:${today.getSeconds().toString().padStart(2, '0')}`
 
       const rowData = [
         timestamp,       // Column A - Timestamp (DD/MM/YYYY HH:MM:SS)
