@@ -31,28 +31,39 @@ export default function OrderCancelPage() {
   // Helper function to parse Google Sheets date format and display as YYYY-MM-DD HH:MM:SS
   const parseGoogleSheetsDate = (dateString: any) => {
     if (!dateString) return "—"
-    if (typeof dateString !== "string") return dateString
-    if (!dateString.startsWith("Date(")) return dateString
-
-    try {
-      // Extract numbers inside Date()
-      const parts = dateString.slice(5, -1).split(",")
-      if (parts.length < 3) return dateString
-
-      const year = Number(parts[0])
-      const month = Number(parts[1]) // zero based
-      const day = Number(parts[2])
-      const hour = parts.length > 3 ? Number(parts[3]) : 0
-      const minute = parts.length > 4 ? Number(parts[4]) : 0
-      const second = parts.length > 5 ? Number(parts[5]) : 0
-
-      // Format to YYYY-MM-DD HH:MM:SS
-      const pad = (n: number) => String(n).padStart(2, '0')
-
-      return `${year}-${pad(month + 1)}-${pad(day)} ${pad(hour)}:${pad(minute)}:${pad(second)}`
-    } catch (error) {
-      return dateString
+    
+    let d: Date
+    if (dateString instanceof Date) {
+      d = dateString
+    } else if (typeof dateString === "string") {
+      if (dateString.startsWith("Date(")) {
+        try {
+          const parts = dateString.slice(5, -1).split(",")
+          if (parts.length < 3) return dateString
+          const year = Number(parts[0])
+          const month = Number(parts[1]) // zero based
+          const day = Number(parts[2])
+          const hour = parts.length > 3 ? Number(parts[3]) : 0
+          const minute = parts.length > 4 ? Number(parts[4]) : 0
+          const second = parts.length > 5 ? Number(parts[5]) : 0
+          d = new Date(year, month, day, hour, minute, second)
+        } catch {
+          return dateString
+        }
+      } else {
+        const parsed = new Date(dateString)
+        if (!isNaN(parsed.getTime())) {
+          d = parsed
+        } else {
+          return dateString
+        }
+      }
+    } else {
+      return String(dateString)
     }
+
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
   }
 
   const fetchCancelledOrders = async () => {
