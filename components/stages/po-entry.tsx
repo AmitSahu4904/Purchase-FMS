@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import { useWorkflow } from "@/lib/workflow-context";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -13,10 +12,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -24,7 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Upload, X, Shield, ShieldCheck, CheckCircle2, Loader2, ClipboardList, History, Search } from "lucide-react";
+import { FileText, Upload, X, Shield, ShieldCheck, Loader2, ClipboardList, History, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Popover,
@@ -63,7 +60,6 @@ const formatGSTDisplay = (gst: any) => {
 };
 
 export default function Stage5() {
-  const { moveToNextStage, updateRecord } = useWorkflow();
   const [open, setOpen] = useState(false);
   const [selectedRecordIds, setSelectedRecordIds] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<"pending" | "history">("pending");
@@ -557,7 +553,7 @@ export default function Stage5() {
             </div>
             <div className="h-8 w-px bg-slate-200 mx-2" />
             <div className="flex items-center gap-4">
-              <Label className="text-sm font-medium">Show Columns:</Label>
+              <Label className="text-sm font-medium hidden md:inline-block">Show Columns:</Label>
               <ColumnSelector />
             </div>
           </div>

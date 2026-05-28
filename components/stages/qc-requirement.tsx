@@ -18,14 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileText, Loader2, Search, ClipboardCheck, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
@@ -344,16 +337,6 @@ export default function Stage8() {
         approvedQtyJson = JSON.stringify(srnData);
       }
 
-      const updateCell = async (row: number, col: number, value: string) => {
-        const params = new URLSearchParams();
-        params.append("action", "updateCell");
-        params.append("sheetName", "RECEIVING-ACCOUNTS");
-        params.append("rowIndex", row.toString());
-        params.append("columnIndex", col.toString());
-        params.append("value", value);
-        const res = await fetch(SHEET_API_URL!, { method: "POST", body: params });
-        return res.json();
-      };
 
       const postToPartialQC = async (row: any[]) => {
         const p = new URLSearchParams();
@@ -442,7 +425,7 @@ export default function Stage8() {
     return `${day}-${month}-${year}`;
   };
 
-  const safeValue = useCallback((record: any, key: string, isHistory = false) => {
+  const safeValue = useCallback((record: any, key: string) => {
     try {
       const data = record?.data;
       if (!data) return "-";
@@ -626,7 +609,7 @@ export default function Stage8() {
                             <tr key={record.id} className="hover:bg-slate-50/80 transition-colors">
                               {HISTORY_COLUMNS.map((col) => (
                                 <td key={col.key} className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                                  {safeValue(record, col.key, true)}
+                                  {safeValue(record, col.key)}
                                 </td>
                               ))}
                             </tr>

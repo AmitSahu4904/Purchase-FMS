@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -251,14 +251,7 @@ export default function OrderCancelPage() {
     }
   }
 
-  if (loading && cancelledOrders.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-[calc(100vh-10rem)] gap-4">
-        <Loader2 className="w-10 h-10 animate-spin text-red-600" />
-        <p className="text-muted-foreground animate-pulse font-medium">Fetching Cancelled Orders...</p>
-      </div>
-    )
-  }
+
 
   if (error) {
     return (
@@ -341,36 +334,47 @@ export default function OrderCancelPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredCancelledOrders.map((order) => (
-                  <TableRow key={order.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 group">
-                    <TableCell className="text-[11px] text-slate-500 font-mono py-4">
-                      {parseGoogleSheetsDate(order.timestamp)}
-                    </TableCell>
-                    <TableCell className="font-medium text-slate-900 py-4">
-                      {order.orderNumber}
-                    </TableCell>
-                    <TableCell className="py-4">
-                      <Badge variant="secondary" className="bg-slate-100 text-slate-800 border-slate-200">{order.cancelStage}</Badge>
-                    </TableCell>
-                    <TableCell className="py-4">
-                      <Badge
-                        variant={
-                          order.cancelReason === "Customer Request"
-                            ? "default"
-                            : order.cancelReason === "Quality Issues"
-                            ? "destructive"
-                            : "secondary"
-                        }
-                      >
-                        {order.cancelReason}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center font-semibold text-slate-700 py-4">
-                      {order.qty || "—"}
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-48 text-center">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Loader2 className="w-8 h-8 animate-spin text-red-600" />
+                        <span className="text-slate-500 font-medium">Loading cancelled orders...</span>
+                      </div>
                     </TableCell>
                   </TableRow>
-                ))}
-                {filteredCancelledOrders.length === 0 && (
+                ) : (
+                  filteredCancelledOrders.map((order) => (
+                    <TableRow key={order.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 group">
+                      <TableCell className="text-[11px] text-slate-500 font-mono py-4">
+                        {parseGoogleSheetsDate(order.timestamp)}
+                      </TableCell>
+                      <TableCell className="font-medium text-slate-900 py-4">
+                        {order.orderNumber}
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <Badge variant="secondary" className="bg-slate-100 text-slate-800 border-slate-200">{order.cancelStage}</Badge>
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <Badge
+                          variant={
+                            order.cancelReason === "Customer Request"
+                              ? "default"
+                              : order.cancelReason === "Quality Issues"
+                              ? "destructive"
+                              : "secondary"
+                          }
+                        >
+                          {order.cancelReason}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center font-semibold text-slate-700 py-4">
+                        {order.qty || "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+                {!loading && filteredCancelledOrders.length === 0 && (
                   <TableRow>
                     <TableCell
                       colSpan={5}

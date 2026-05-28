@@ -54,12 +54,12 @@ import {
   cn,
   getFmsTimestamp
 } from "@/lib/utils";
-import { Check, ChevronsUpDown } from "lucide-react";
+
 
 // ─── Pure utilities (defined outside component to avoid re-creation) ─────────
 
 
-const formatDateTime = (date?: Date | string | null): string => formatDate(date as any);
+
 
 const formatDateDash = (date: any) => {
   if (!date || date === "-" || date === "—") return "-";
@@ -88,7 +88,7 @@ export default function Stage3() {
 
   const [sheetRecords, setSheetRecords] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [open, setOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"pending" | "history">("pending");
@@ -189,7 +189,6 @@ export default function Stage3() {
     }
     setIsLoading(true);
     try {
-      console.log("Stage 3 Fetching from:", SHEET_API_URL);
       const res = await fetch(`${SHEET_API_URL}?sheet=INDENT-LIFT&action=getAll`);
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
 
@@ -351,8 +350,6 @@ export default function Stage3() {
     });
 
     if (newVendors.length > 0) {
-      console.log("Saving new vendors:", newVendors);
-
       // Optimistically update local state
       setVendorList(prev => [...prev, ...newVendors]);
 
@@ -380,7 +377,6 @@ export default function Stage3() {
           method: "POST",
           body: params,
         });
-        console.log("New vendors saved to Dropdown sheet");
       } catch (e) {
         console.error("Failed to save new vendors:", e);
       }
@@ -391,9 +387,6 @@ export default function Stage3() {
     e.preventDefault();
     if ((!selectedRecord && selectedIds.size === 0) || !currentRecord) return;
 
-    // Capture state for background execution
-    const recordToUpdate = { ...currentRecord };
-    const selectionId = selectedRecord;
     const submissionData = { ...formData };
     const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI;
 
@@ -465,7 +458,7 @@ export default function Stage3() {
         }
       }
 
-      const now = new Date();
+
 
       // Process all selected IDs
       // If opened via button (bulk), use selectedIds. If opened via row click (legacy/fallback), use selectedRecord
@@ -591,14 +584,7 @@ export default function Stage3() {
     if (rec) setCurrentRecord(rec);
   }, [selectedIds, sheetRecords]);
 
-  const handleOpenForm = useCallback((recordId: string) => {
-    const rec = sheetRecords.find((r) => r.id === recordId);
-    if (rec) {
-      setSelectedRecord(recordId);
-      setCurrentRecord(rec);
-      setOpen(true);
-    }
-  }, [sheetRecords]);
+
 
   // Derived: count of filled vendor names (useMemo replaces useEffect + setState)
   const vendorCount = useMemo(() => {
@@ -679,7 +665,7 @@ export default function Stage3() {
             </div>
             <div className="h-8 w-px bg-slate-200 hidden md:block" />
             <div className="flex items-center gap-2">
-              <Label className="text-sm font-medium">Show Columns:</Label>
+              <Label className="text-sm font-medium hidden md:inline-block">Show Columns:</Label>
               <ColumnSelector />
             </div>
           </div>
@@ -1257,8 +1243,8 @@ export default function Stage3() {
             )}
 
             <div className="flex justify-end pt-4 border-t">
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Submitting..." : `Submit ${numVendors} Vendor${numVendors > 1 ? "s" : ""}`}
+              <Button type="submit">
+                Submit {numVendors} Vendor{numVendors > 1 ? "s" : ""}
               </Button>
             </div>
           </form>

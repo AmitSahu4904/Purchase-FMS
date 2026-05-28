@@ -96,14 +96,7 @@ export default function DamagedRecords() {
     });
   }, [data, searchTerm, filters]);
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-[calc(100vh-10rem)] gap-4">
-        <Loader2 className="w-10 h-10 animate-spin text-red-600" />
-        <p className="text-muted-foreground animate-pulse font-medium">Fetching Damaged Records...</p>
-      </div>
-    );
-  }
+
 
   if (error) {
     return (
@@ -216,7 +209,16 @@ export default function DamagedRecords() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredData.length === 0 ? (
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={10} className="h-48 text-center">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Loader2 className="w-8 h-8 animate-spin text-red-600" />
+                        <span className="text-slate-500 font-medium">Loading records...</span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (filteredData.length === 0 && !loading) ? (
                   <TableRow>
                     <TableCell colSpan={10} className="h-40 text-center">
                       <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">

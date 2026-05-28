@@ -25,7 +25,7 @@ import {
     DialogTitle,
     DialogFooter,
 } from "@/components/ui/dialog";
-import { formatDate, parseSheetDate, getFmsTimestamp } from "@/lib/utils";
+import { parseSheetDate, getFmsTimestamp } from "@/lib/utils";
 import { useMemo } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -345,10 +345,10 @@ export default function SubmitInvoiceHO() {
 
 
     return (
-        <div className="p-6 min-h-screen bg-[#f8fafc]">
+        <div className="p-4 md:p-6 min-h-screen bg-[#f8fafc]">
             {/* Modal Form */}
             <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent className="max-w-3xl">
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
                     <DialogHeader>
                         <DialogTitle>Submit Invoice to HO ({selectedRows.size} Selected)</DialogTitle>
                     </DialogHeader>
@@ -423,9 +423,9 @@ export default function SubmitInvoiceHO() {
 
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
                 {/* Sticky Header and Tabs Container */}
-                <div className="sticky top-0 z-50 bg-[#f8fafc] -mx-6 px-6 pt-2 pb-4 mb-4 border-b shadow-sm">
+                <div className="md:sticky md:top-0 z-30 bg-[#f8fafc] -mx-4 md:-mx-6 px-4 md:px-6 pt-2 pb-4 mb-4 border-b shadow-sm">
                     {/* Header Card */}
-                    <div className="mb-6 p-6 bg-white border rounded-lg shadow-sm">
+                    <div className="mb-4 md:mb-6 p-4 md:p-6 bg-white border rounded-lg shadow-sm">
                         <div className="flex items-start justify-between flex-wrap gap-4">
                             <div className="flex items-center gap-3">
                                 <div className="bg-blue-50 p-2 rounded-lg text-blue-600">
@@ -440,7 +440,7 @@ export default function SubmitInvoiceHO() {
                             <div className="flex items-center gap-4 flex-1 justify-end flex-wrap">
                                 {/* Column Selection */}
                                 <div className="flex items-center gap-2">
-                                    <Label className="text-sm font-medium text-slate-600">
+                                    <Label className="text-sm font-medium text-slate-600 hidden md:inline-block">
                                         Columns:
                                     </Label>
                                     <Select value="" onValueChange={() => { }}>

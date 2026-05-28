@@ -29,8 +29,6 @@ export default function Sidebar() {
   };
 
   const filteredStages = STAGES.filter(stage => isPageAllowed(stage.name));
-  console.log("DEBUG: STAGES list from constants:", STAGES.map(s => s.name));
-  console.log("DEBUG: Filtered stages for sidebar:", filteredStages.map(s => s.name));
   const showDashboard = isPageAllowed("Dashboard");
 
   // Determine active state helper

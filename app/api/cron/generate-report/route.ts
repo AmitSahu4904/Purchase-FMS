@@ -20,8 +20,6 @@ export async function GET(request: NextRequest) {
         const API_URI = process.env.NEXT_PUBLIC_API_URI;
         if (!API_URI) throw new Error("API URI not configured");
 
-        console.log("Fetching comprehensive data for synced report...");
-
         // 1. Fetch required sheets in parallel
         const [fmsRes, raRes, masterRes, transportRes] = await Promise.all([
             fetch(`${API_URI}?sheet=INDENT-LIFT`),
@@ -214,14 +212,12 @@ export async function GET(request: NextRequest) {
         });
 
         // 4. Generate PDF Document
-        console.log(`Generating Sync Report with ${detailed.length} total items...`);
         const doc = React.createElement(ReportDocument, { summaryData, detailedData: detailed }) as any;
         const buffer = await renderToBuffer(doc);
         const base64Pdf = buffer.toString('base64');
         const filename = `Purchase_Report_${new Date().toISOString().split('T')[0]}.pdf`;
 
         // 5. Upload via GAS
-        console.log(`Uploading ${filename} to Drive...`);
         const payload = {
             action: "uploadReport",
             base64Data: base64Pdf,

@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label";
 import {
     Select,
     SelectContent,
-    SelectItem,
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
@@ -355,8 +354,7 @@ export default function Stage13() {
         date && setBulkFormData(prev => ({ ...prev, paymentDate: date })), []);
     const handleProofChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) =>
         setBulkFormData(prev => ({ ...prev, proof: e.target.files?.[0] || null })), []);
-    const handleTabChange = useCallback((v: string) =>
-        setActiveTab(v as "pending" | "history"), []);
+
     const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) =>
         setSearchTerm(e.target.value), []);
     const handleVendorSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) =>

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import { useWorkflow } from "@/lib/workflow-context";
 import {
   Dialog,
   DialogContent,
@@ -38,7 +37,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { formatDate, parseSheetDate, getFmsTimestamp } from "@/lib/utils";
-import { useMemo, useCallback } from "react";
+import { useMemo } from "react";
 
 const formatDateDash = (dateStr: string) => {
   if (!dateStr || dateStr === "-" || dateStr === "—") return "-";
@@ -55,9 +54,7 @@ const formatDateDash = (dateStr: string) => {
 };
 
 export default function Stage4() {
-  const { moveToNextStage, updateRecord } = useWorkflow();
   const [open, setOpen] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"pending" | "history">("pending");
   const [currentRecord, setCurrentRecord] = useState<any>(null);
   const [sheetRecords, setSheetRecords] = useState<any[]>([]);
@@ -94,11 +91,6 @@ export default function Stage4() {
           .map((row: any, i: number) => ({ row, originalIndex: i + 7 }))
           .filter(({ row }: any) => row[1] && String(row[1]).trim() !== "") // CHECK COL B (Index 1) for Indent ID
           .map(({ row, originalIndex }: any) => {
-            // Stage 3 completion check: Plan 2 and Actual 2 (Indices 18, 19)
-            const isStage3Done =
-              (!!row[18] && String(row[18]).trim() !== "" && String(row[18]).trim() !== "-") &&
-              (!!row[19] && String(row[19]).trim() !== "" && String(row[19]).trim() !== "-");
-
             // Stage 4 completion check based on User Request
             // Plan 3 (Index 45) and Actual 3 (Index 46)
             const hasPlan3 = !!row[45] && String(row[45]).trim() !== "" && String(row[45]).trim() !== "-";
@@ -265,7 +257,7 @@ export default function Stage4() {
     const record = sheetRecords.find((r) => r.id === recordId);
     if (!record) return;
 
-    setSelectedRecord(recordId);
+
     setCurrentRecord(record);
     setFormData({ selectedVendor: "", approvedBy: "", remarks: "" });
 
@@ -333,7 +325,7 @@ export default function Stage4() {
 
   const resetForm = () => {
     setOpen(false);
-    setSelectedRecord(null);
+
     setCurrentRecord(null);
     setFormData({ selectedVendor: "", approvedBy: "", remarks: "" });
   };
@@ -555,7 +547,7 @@ export default function Stage4() {
             <div className="h-8 w-px bg-slate-200 mx-2" />
             <div className="flex items-center gap-4">
               {isLoading && <Loader2 className="w-5 h-5 animate-spin text-black" />}
-              <Label className="text-sm font-medium whitespace-nowrap">Show Columns:</Label>
+              <Label className="text-sm font-medium whitespace-nowrap hidden md:inline-block">Show Columns:</Label>
               <ColumnSelector />
             </div>
           </div>

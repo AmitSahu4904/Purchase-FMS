@@ -488,11 +488,11 @@ export default function Stage14() {
                                 ) : (
                                     <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-320px)] custom-scrollbar">
                                         <table className="w-full text-sm text-left border-separate border-spacing-0 min-w-[1800px]">
-                                            <thead className="sticky top-0 z-[50]">
+                                            <thead className="sticky top-0 z-30">
                                                 <tr className="bg-slate-200">
-                                                    <th className="px-5 py-4 font-bold text-slate-900 bg-slate-200 sticky left-0 top-0 z-[60] border-b border-r border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Action</th>
+                                                    <th className="px-5 py-4 font-bold text-slate-900 bg-slate-200 sticky left-0 top-0 z-40 border-b border-r border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Action</th>
                                                     {visiblePendingColumns.map(c => (
-                                                        <th key={c.key} className="px-5 py-4 font-bold text-slate-900 whitespace-nowrap tracking-tight bg-slate-200 sticky top-0 z-[50] border-b border-slate-300">
+                                                        <th key={c.key} className="px-5 py-4 font-bold text-slate-900 whitespace-nowrap tracking-tight bg-slate-200 sticky top-0 z-30 border-b border-slate-300">
                                                             {c.label}
                                                         </th>
                                                     ))}
@@ -501,7 +501,7 @@ export default function Stage14() {
                                             <tbody className="divide-y divide-slate-100">
                                                 {filteredPending.map(rec => (
                                                     <tr key={rec.id} className="hover:bg-blue-50/30 transition-all duration-150 group">
-                                                        <td className="px-5 py-4 sticky left-0 z-[40] bg-white border-b border-r border-slate-100 group-hover:bg-blue-50 transition-colors shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                                                        <td className="px-5 py-4 sticky left-0 z-20 bg-white border-b border-r border-slate-100 group-hover:bg-blue-50 transition-colors shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                                                             <Button size="sm" onClick={() => handleOpenForm(rec.id)} className="bg-blue-600 hover:bg-blue-700 h-8 px-4 rounded-lg shadow-sm">
                                                                 Pay
                                                             </Button>
@@ -538,12 +538,12 @@ export default function Stage14() {
                                 ) : (
                                     <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-320px)] custom-scrollbar">
                                         <table className="w-full text-sm text-left border-separate border-spacing-0 min-w-[1800px]">
-                                            <thead className="sticky top-0 z-[50]">
+                                            <thead className="sticky top-0 z-30">
                                                 <tr className="bg-slate-200">
                                                     {visibleHistoryColumns.map(c => (
                                                         <th key={c.key} className={cn(
-                                                            "px-5 py-4 font-bold text-slate-900 whitespace-nowrap tracking-tight bg-slate-200 sticky top-0 z-[50] border-b border-slate-300",
-                                                            c.key === "lrNo" ? "!z-[60] left-0 border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" : ""
+                                                            "px-5 py-4 font-bold text-slate-900 whitespace-nowrap tracking-tight bg-slate-200 sticky top-0 z-30 border-b border-slate-300",
+                                                            c.key === "lrNo" ? "!z-40 left-0 border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" : ""
                                                         )}>
                                                             {c.label}
                                                         </th>
@@ -556,7 +556,7 @@ export default function Stage14() {
                                                         {visibleHistoryColumns.map(c => (
                                                             <td key={c.key} className={cn(
                                                                 "px-5 py-4 whitespace-nowrap font-medium transition-colors border-b border-slate-100",
-                                                                c.key === "lrNo" ? "text-slate-900 font-bold sticky left-0 z-[40] bg-white border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" : "text-slate-600 group-hover:bg-slate-50 transition-colors"
+                                                                c.key === "lrNo" ? "text-slate-900 font-bold sticky left-0 z-20 bg-white border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" : "text-slate-600 group-hover:bg-slate-50 transition-colors"
                                                             )}>
                                                                 {c.key === "planned" || c.key === "actual" 
                                                                     ? safeValue((rec as any)[c.key])

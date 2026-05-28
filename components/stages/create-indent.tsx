@@ -404,8 +404,6 @@ export default function Stage1() {
     });
 
     if (newOptions.length > 0) {
-      console.log("Saving new dropdown options:", newOptions);
-
       // Optimistically update local state immediately so user sees them if they add more items
       setDropdownData(prev => [...prev, ...newLocalDropdowns]);
 
@@ -452,7 +450,6 @@ export default function Stage1() {
           method: "POST",
           body: params,
         });
-        console.log("New options saved to Dropdown sheet");
       } catch (e) {
         console.error("Failed to save new options:", e);
       }
@@ -487,8 +484,6 @@ export default function Stage1() {
       return row;
     });
 
-    console.log(`Submitting ${rows.length} rows via insertIndent...`);
-
     const params = new URLSearchParams();
     params.append("action", "insertIndent");
     params.append("rowsData", JSON.stringify(rows));
@@ -503,7 +498,6 @@ export default function Stage1() {
     }
 
     if (result && result.success) {
-      console.log("Saved in sheet ✅ IDs:", result.generatedIds);
       return result.generatedIds as string[];
     } else {
       throw new Error(result?.error || "insertIndent failed");
@@ -766,7 +760,6 @@ export default function Stage1() {
       const result = await res.json();
 
       if (result.success) {
-        console.log("Record updated successfully ✅");
         setEditOpen(false);
         setEditingRecord(null);
         fetchData(); // Refresh data
@@ -863,7 +856,6 @@ export default function Stage1() {
               stage={1}
               pending={pending}
               history={[]} // Strictly hide history
-              onOpenForm={() => setOpen(true)}
               onSelectRecord={(record) => handleEditRecord(record)}
               showPending={true}
               hideTableTitle={true}
@@ -889,7 +881,6 @@ export default function Stage1() {
               stage={1}
               pending={[]} // Strictly hide pending
               history={history}
-              onOpenForm={() => setOpen(true)}
               onSelectRecord={() => { }}
               showPending={false}
               hideTableTitle={true}

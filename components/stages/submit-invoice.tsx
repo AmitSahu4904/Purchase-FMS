@@ -22,7 +22,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { formatDate, parseSheetDate, getFmsTimestamp } from "@/lib/utils";
+import { parseSheetDate, getFmsTimestamp } from "@/lib/utils";
 import { useMemo } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -85,7 +85,6 @@ export default function Stage10() {
             if (hasPlan9 && !hasActual9) status = "pending";
             else if (hasPlan9 && hasActual9) status = "completed";
 
-            const liftNo = row[2]; // Column C (Unit Tracking No.)
             
             return {
               id: `${indentNo}_${originalIndex}`,
@@ -344,20 +343,13 @@ export default function Stage10() {
 
   const isFormValid = formData.handoverBy;
 
-  if (isLoading && sheetRecords.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 text-gray-500">
-        <Loader2 className="w-8 h-8 animate-spin mb-4 text-blue-600" />
-        <p className="text-lg animate-pulse text-blue-900 font-medium">Fetching invoices from system...</p>
-      </div>
-    );
-  }
+
 
   return (
-    <div className="p-6 min-h-screen bg-[#f8fafc]">
+    <div className="p-4 md:p-6 min-h-screen bg-[#f8fafc]">
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-        <div className="sticky top-0 z-50 bg-[#f8fafc] -mx-6 px-6 pt-2 pb-4 mb-4 border-b shadow-sm">
-          <div className="mb-6 p-6 bg-white border rounded-lg shadow-sm">
+        <div className="md:sticky md:top-0 z-30 bg-[#f8fafc] -mx-4 md:-mx-6 px-4 md:px-6 pt-2 pb-4 mb-4 border-b shadow-sm">
+          <div className="mb-4 md:mb-6 p-4 md:p-6 bg-white border rounded-lg shadow-sm">
             <div className="flex items-start justify-between flex-wrap gap-4">
               <div className="flex items-center gap-3">
                 <div className="bg-blue-50 p-2 rounded-lg text-blue-600">
@@ -371,7 +363,7 @@ export default function Stage10() {
 
               <div className="flex items-center gap-4 flex-1 justify-end flex-wrap">
                 <div className="flex items-center gap-2">
-                  <Label className="text-sm font-medium text-slate-600">Columns:</Label>
+                  <Label className="text-sm font-medium text-slate-600 hidden md:inline-block">Columns:</Label>
                   <Select value="" onValueChange={() => { }}>
                     <SelectTrigger className="w-40 bg-white border-slate-200 h-9 text-slate-900">
                       <SelectValue placeholder={`${activeTab === "pending" ? selectedPendingColumns.length : selectedHistoryColumns.length} selected`} />
@@ -454,7 +446,7 @@ export default function Stage10() {
         </div>
 
         <TabsContent value="pending" className="mt-0 outline-none">
-          {pending.length === 0 ? (
+          {(pending.length === 0 && !isLoading) ? (
             <div className="text-center py-24 bg-white border rounded-lg border-dashed text-slate-500">No pending submissions found</div>
           ) : (
             <div className="border rounded-lg overflow-x-auto h-[70vh] relative shadow-sm bg-white">
@@ -471,19 +463,33 @@ export default function Stage10() {
                   </tr>
                 </thead>
                 <tbody>
-                  {pending.map((rec) => (
-                    <tr key={rec.id} className="hover:bg-blue-50/30 transition-colors group">
-                      <td className="sticky left-0 z-20 bg-white group-hover:bg-blue-50/50 border-b text-center py-2">
-                        <Checkbox checked={selectedRows.has(rec.id)} onCheckedChange={() => toggleRow(rec.id)} />
+                  {isLoading ? (
+                    <tr>
+                      <td
+                        colSpan={pendingColumns.filter(c => selectedPendingColumns.includes(c.key)).length + 2}
+                        className="h-48 text-center"
+                      >
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                          <span className="text-slate-500 font-medium">Loading records...</span>
+                        </div>
                       </td>
-                      <td className="sticky left-[50px] z-20 bg-white group-hover:bg-blue-50/50 border-b text-center px-4 py-2">
-                        <Button variant="outline" size="sm" onClick={() => handleOpenForm(rec.id)} className="h-8 transition-colors hover:text-blue-600">Submit</Button>
-                      </td>
-                      {pendingColumns.filter(c => selectedPendingColumns.includes(c.key)).map(col => (
-                        <td key={col.key} className="border-b px-4 py-2 text-center text-slate-700">{safeValue(rec, col.key)}</td>
-                      ))}
                     </tr>
-                  ))}
+                  ) : (
+                    pending.map((rec) => (
+                      <tr key={rec.id} className="hover:bg-blue-50/30 transition-colors group">
+                        <td className="sticky left-0 z-20 bg-white group-hover:bg-blue-50/50 border-b text-center py-2">
+                          <Checkbox checked={selectedRows.has(rec.id)} onCheckedChange={() => toggleRow(rec.id)} />
+                        </td>
+                        <td className="sticky left-[50px] z-20 bg-white group-hover:bg-blue-50/50 border-b text-center px-4 py-2">
+                          <Button variant="outline" size="sm" onClick={() => handleOpenForm(rec.id)} className="h-8 transition-colors hover:text-blue-600">Submit</Button>
+                        </td>
+                        {pendingColumns.filter(c => selectedPendingColumns.includes(c.key)).map(col => (
+                          <td key={col.key} className="border-b px-4 py-2 text-center text-slate-700">{safeValue(rec, col.key)}</td>
+                        ))}
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -491,7 +497,7 @@ export default function Stage10() {
         </TabsContent>
 
         <TabsContent value="history" className="mt-0 outline-none">
-          {completed.length === 0 ? (
+          {(completed.length === 0 && !isLoading) ? (
             <div className="text-center py-24 bg-white border rounded-lg border-dashed text-slate-500">No history found</div>
           ) : (
             <div className="border rounded-lg overflow-x-auto h-[70vh] relative shadow-sm bg-white">
@@ -504,13 +510,27 @@ export default function Stage10() {
                   </tr>
                 </thead>
                 <tbody>
-                  {completed.map((rec) => (
-                    <tr key={rec.id} className="hover:bg-slate-50 transition-colors text-slate-700">
-                      {historyColumns.filter(c => selectedHistoryColumns.includes(c.key)).map(col => (
-                        <td key={col.key} className="border-b px-4 py-2 text-center">{safeValue(rec, col.key)}</td>
-                      ))}
+                  {isLoading ? (
+                    <tr>
+                      <td
+                        colSpan={historyColumns.filter(c => selectedHistoryColumns.includes(c.key)).length}
+                        className="h-48 text-center"
+                      >
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                          <span className="text-slate-500 font-medium">Loading history...</span>
+                        </div>
+                      </td>
                     </tr>
-                  ))}
+                  ) : (
+                    completed.map((rec) => (
+                      <tr key={rec.id} className="hover:bg-slate-50 transition-colors text-slate-700">
+                        {historyColumns.filter(c => selectedHistoryColumns.includes(c.key)).map(col => (
+                          <td key={col.key} className="border-b px-4 py-2 text-center">{safeValue(rec, col.key)}</td>
+                        ))}
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -519,7 +539,7 @@ export default function Stage10() {
       </Tabs>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader><DialogTitle>Submit Invoice ({selectedRows.size} Selected)</DialogTitle></DialogHeader>
           {bulkError && <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm mb-4 border border-red-200">{bulkError}</div>}
           <div className="py-4 space-y-4">

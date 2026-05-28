@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-    Table,
     TableBody,
     TableCell,
     TableHead,
@@ -20,13 +19,13 @@ import { toast } from "sonner";
 const FOLDER_ID = process.env.NEXT_PUBLIC_IMAGE_FOLDER_ID || "1SihRrPrgbuPGm-09fuB180QJhdxq5Nxy";
 
 const toBase64 = (file: File) => new Promise<string>((resolve, reject) => {
-  const reader = new FileReader();
-  reader.readAsDataURL(file);
-  reader.onload = () => resolve(reader.result as string);
-  reader.onerror = error => reject(error);
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = error => reject(error);
 });
 
-// ─── WARRANTY sheet column map (0-based, data from row 7) ──────
+// ─── Serial-Generation sheet column map (0-based, data from row 7) ──────
 const PENDING_COLUMNS = [
     { key: "indentNo", label: "Indent No." },
     { key: "liftNo", label: "Unit Tracking No." },
@@ -102,7 +101,7 @@ export default function WarrantyClaim() {
     const [isClosureModalOpen, setIsClosureModalOpen] = useState(false);
     const [selectedRecord, setSelectedRecord] = useState<any>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    
+
     // Initial Claim Form State
     const [formData, setFormData] = useState({
         by: "",
@@ -126,7 +125,7 @@ export default function WarrantyClaim() {
         setIsLoading(true);
         try {
             const [warrantyRes, claimRes] = await Promise.all([
-                fetch(`${API}?sheet=WARRANTY&action=getAll`),
+                fetch(`${API}?sheet=Serial-Generation&action=getAll`),
                 fetch(`${API}?sheet=Warranty_Claim&action=getAll`)
             ]);
 
@@ -188,7 +187,7 @@ export default function WarrantyClaim() {
                     const indentNo = String(row[1] || "").trim();
                     const liftNo = row[2] || "";
                     const serialNo = row[3] || "";
-                    
+
                     const itemData = {
                         timestamp: row[0],
                         indentNo,
@@ -212,7 +211,7 @@ export default function WarrantyClaim() {
                         data: itemData
                     };
 
-                    // Only push active claims to closurePending. History is now populated from WARRANTY sheet.
+                    // Only push active claims to closurePending. History is now populated from Serial-Generation sheet.
                     if (status.toLowerCase() !== "closure") {
                         closurePending.push(rec);
                     }
@@ -276,7 +275,7 @@ export default function WarrantyClaim() {
 
         setIsSubmitting(true);
         const toastId = toast.loading("Processing submission...");
-        
+
         try {
             let invoiceCopyUrl = "";
             let photosVideosUrl = "";
@@ -322,12 +321,12 @@ export default function WarrantyClaim() {
 
             const updateParams = new URLSearchParams();
             updateParams.append("action", "update");
-            updateParams.append("sheetName", "WARRANTY");
+            updateParams.append("sheetName", "Serial-Generation");
             updateParams.append("rowData", JSON.stringify(warrantyRow));
             updateParams.append("rowIndex", selectedRecord.sheetIndex.toString());
 
             toast.loading("Saving record...", { id: toastId });
-            
+
             await Promise.all([
                 fetch(API, { method: "POST", body: insertParams }),
                 fetch(API, { method: "POST", body: updateParams })
@@ -349,29 +348,29 @@ export default function WarrantyClaim() {
         if (!API || !selectedRecord) return;
 
         setIsSubmitting(true);
-         const toastId = toast.loading("Processing closure...");
-         try {
-             // CLONE THE ORIGINAL ROW to ensure NO OTHER columns are touched
-             const updatedRow = [...selectedRecord.originalRow];
-             
-             // Logically update only columns K, L, M (Indices 10, 11, 12)
-             updatedRow[10] = closureFormData.status;
-             updatedRow[11] = closureFormData.status === "Closure" ? closureFormData.closureDate : "";
-             updatedRow[12] = closureFormData.remarks || "";
- 
-             // CRITICAL FIX: Robustly preserve Column A (index 0) timestamp as a string.
-             // Google Apps Script stringifies Dates as ISO strings, so if Column A is a Date object,
-             // or an ISO string, we re-format it into a friendly space-separated string.
-             if (updatedRow[0]) {
-                 const d = parseSheetDate(updatedRow[0]);
-                 if (d && !isNaN(d.getTime())) {
-                     const pad = (n: number) => String(n).padStart(2, "0");
-                     updatedRow[0] = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-                 } else {
-                     // Fallback: ensure it's at least a string
-                     updatedRow[0] = String(updatedRow[0]);
-                 }
-             }
+        const toastId = toast.loading("Processing closure...");
+        try {
+            // CLONE THE ORIGINAL ROW to ensure NO OTHER columns are touched
+            const updatedRow = [...selectedRecord.originalRow];
+
+            // Logically update only columns K, L, M (Indices 10, 11, 12)
+            updatedRow[10] = closureFormData.status;
+            updatedRow[11] = closureFormData.status === "Closure" ? closureFormData.closureDate : "";
+            updatedRow[12] = closureFormData.remarks || "";
+
+            // CRITICAL FIX: Robustly preserve Column A (index 0) timestamp as a string.
+            // Google Apps Script stringifies Dates as ISO strings, so if Column A is a Date object,
+            // or an ISO string, we re-format it into a friendly space-separated string.
+            if (updatedRow[0]) {
+                const d = parseSheetDate(updatedRow[0]);
+                if (d && !isNaN(d.getTime())) {
+                    const pad = (n: number) => String(n).padStart(2, "0");
+                    updatedRow[0] = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+                } else {
+                    // Fallback: ensure it's at least a string
+                    updatedRow[0] = String(updatedRow[0]);
+                }
+            }
 
             const updateParams = new URLSearchParams();
             updateParams.append("action", "update");
@@ -449,7 +448,7 @@ export default function WarrantyClaim() {
                 className="w-full"
             >
                 {/* Sticky Header and Tabs Container */}
-                <div className="sticky top-0 z-50 bg-[#f8fafc] -mx-6 px-6 pt-2 pb-4 mb-4 border-b shadow-sm">
+                <div className="sticky top-0 z-30 bg-[#f8fafc] -mx-6 px-6 pt-2 pb-4 mb-4 border-b shadow-sm">
                     {/* Header Card */}
                     <div className="mb-6 p-6 bg-white border rounded-lg shadow-sm">
                         <div className="flex items-start justify-between flex-wrap gap-4">
@@ -464,11 +463,10 @@ export default function WarrantyClaim() {
                                     variant={showExpiringOnly ? "default" : "outline"}
                                     size="sm"
                                     onClick={() => setShowExpiringOnly(!showExpiringOnly)}
-                                    className={`h-10 px-4 flex items-center gap-2 transition-all ${
-                                        showExpiringOnly 
-                                            ? "bg-red-600 hover:bg-red-700 text-white border-red-600 shadow-md" 
+                                    className={`h-10 px-4 flex items-center gap-2 transition-all ${showExpiringOnly
+                                            ? "bg-red-600 hover:bg-red-700 text-white border-red-600 shadow-md"
                                             : "border-slate-200 text-slate-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200"
-                                    }`}
+                                        }`}
                                 >
                                     <ShieldAlert className={`w-4 h-4 ${showExpiringOnly ? "animate-pulse" : ""}`} />
                                     <span className="font-semibold">Recent Expiring</span>
@@ -487,19 +485,19 @@ export default function WarrantyClaim() {
                     </div>
 
                     <TabsList className="grid w-full grid-cols-3 h-12 bg-slate-100/50 p-1 rounded-lg">
-                        <TabsTrigger 
+                        <TabsTrigger
                             value="pending"
                             className="rounded-md data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all"
                         >
                             Pending ({pending.length})
                         </TabsTrigger>
-                        <TabsTrigger 
+                        <TabsTrigger
                             value="closurePending"
                             className="rounded-md data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all"
                         >
                             Closure Pending ({closurePending.length})
                         </TabsTrigger>
-                        <TabsTrigger 
+                        <TabsTrigger
                             value="history"
                             className="rounded-md data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all"
                         >
@@ -692,19 +690,19 @@ export default function WarrantyClaim() {
                                     </div>
                                     <div className="space-y-1.5">
                                         <label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Invoice *</label>
-                                        <Input 
-                                            value={formData.invoiceNo} 
+                                        <Input
+                                            value={formData.invoiceNo}
                                             onChange={(e) => setFormData(prev => ({ ...prev, invoiceNo: e.target.value }))}
                                             placeholder="Invoice No."
                                             className="h-9 bg-white focus-visible:ring-indigo-500 text-sm"
                                         />
                                     </div>
-                                    
+
                                     {/* Row 3: Issue (Full Width) */}
                                     <div className="col-span-2 space-y-1.5">
                                         <label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Issue Description *</label>
-                                        <Input 
-                                            value={formData.issueDescription} 
+                                        <Input
+                                            value={formData.issueDescription}
                                             onChange={(e) => setFormData(prev => ({ ...prev, issueDescription: e.target.value }))}
                                             placeholder="What's the issue?"
                                             className="h-9 bg-white focus-visible:ring-indigo-500 text-sm"
@@ -721,7 +719,7 @@ export default function WarrantyClaim() {
                                                         <Button variant="ghost" size="sm" onClick={() => setFormData(prev => ({ ...prev, invoiceCopy: null }))} className="h-4 w-4 p-0 text-red-500 hover:text-red-700 rounded-full flex-shrink-0">✕</Button>
                                                     </div>
                                                 ) : (
-                                                    <Input 
+                                                    <Input
                                                         type="file"
                                                         accept="image/*,.pdf"
                                                         onChange={(e) => {
@@ -740,7 +738,7 @@ export default function WarrantyClaim() {
                                                         <Button variant="ghost" size="sm" onClick={() => setFormData(prev => ({ ...prev, photosVideos: null }))} className="h-4 w-4 p-0 text-red-500 hover:text-red-700 rounded-full flex-shrink-0">✕</Button>
                                                     </div>
                                                 ) : (
-                                                    <Input 
+                                                    <Input
                                                         type="file"
                                                         accept="image/*,video/*"
                                                         onChange={(e) => {
@@ -753,22 +751,22 @@ export default function WarrantyClaim() {
                                             </div>
                                         </>
                                     )}
-                                    
+
                                 </>
                             )}
                         </div>
                     </div>
                     <DialogFooter className="p-4 bg-slate-50 border-t flex gap-3">
-                        <Button 
-                            variant="outline" 
+                        <Button
+                            variant="outline"
                             onClick={() => setIsModalOpen(false)}
                             disabled={isSubmitting}
                             className="bg-white border-slate-300 hover:bg-slate-100 h-9 text-xs font-medium flex-1"
                         >
                             Cancel
                         </Button>
-                        <Button 
-                            onClick={handleClaimSubmit} 
+                        <Button
+                            onClick={handleClaimSubmit}
                             disabled={isSubmitting || !formData.by || !formData.claimType || !formData.invoiceNo || !formData.issueDescription}
                             className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm font-bold h-9 text-xs flex-1 transition-all active:scale-95"
                         >
@@ -819,9 +817,9 @@ export default function WarrantyClaim() {
                             {closureFormData.status === "Closure" && (
                                 <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
                                     <label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Closure Date *</label>
-                                    <Input 
+                                    <Input
                                         type="date"
-                                        value={closureFormData.closureDate} 
+                                        value={closureFormData.closureDate}
                                         onChange={(e) => setClosureFormData(prev => ({ ...prev, closureDate: e.target.value }))}
                                         className="h-10 bg-white focus-visible:ring-indigo-500 text-sm"
                                     />
@@ -830,8 +828,8 @@ export default function WarrantyClaim() {
 
                             <div className="space-y-1.5">
                                 <label className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Remarks</label>
-                                <Input 
-                                    value={closureFormData.remarks} 
+                                <Input
+                                    value={closureFormData.remarks}
                                     onChange={(e) => setClosureFormData(prev => ({ ...prev, remarks: e.target.value }))}
                                     placeholder="Enter closure remarks..."
                                     className="h-10 bg-white focus-visible:ring-indigo-500 text-sm"
@@ -840,16 +838,16 @@ export default function WarrantyClaim() {
                         </div>
                     </div>
                     <DialogFooter className="p-4 bg-slate-50 border-t flex gap-3">
-                        <Button 
-                            variant="outline" 
+                        <Button
+                            variant="outline"
                             onClick={() => setIsClosureModalOpen(false)}
                             disabled={isSubmitting}
                             className="bg-white border-slate-300 hover:bg-slate-100 h-10 text-xs font-medium flex-1"
                         >
                             Cancel
                         </Button>
-                        <Button 
-                            onClick={handleClosureSubmit} 
+                        <Button
+                            onClick={handleClosureSubmit}
                             disabled={isSubmitting || (closureFormData.status === "Closure" && !closureFormData.closureDate)}
                             className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm font-bold h-10 text-xs flex-1 transition-all active:scale-95"
                         >

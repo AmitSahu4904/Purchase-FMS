@@ -11,9 +11,23 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Search, ShieldAlert, Eye, Printer, X } from "lucide-react";
+import { Loader2, Search, ShieldAlert, Eye, Printer, PlusCircle, Check, ChevronsUpDown } from "lucide-react";
 import { toast } from "sonner";
-import { formatDate, parseSheetDate, getFmsTimestamp } from "@/lib/utils";
+import { cn, formatDate, parseSheetDate, getFmsTimestamp } from "@/lib/utils";
+import { Label } from "@/components/ui/label";
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/command";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
 import QRCode from "qrcode";
 
 const getDirectDriveLink = (url: string) => {
@@ -24,11 +38,6 @@ const getDirectDriveLink = (url: string) => {
     }
     return url;
 };
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from "@/components/ui/popover";
 
 const formatDateDash = (date: any) => {
     if (!date || date === "-" || date === "—") return "-";
@@ -50,7 +59,7 @@ const formatDateDash = (date: any) => {
 // ─── INDENT-LIFT sheet column map (0-based, headers row 8, data from row 9) ──
 // B(1): Indent No.  BG(58): PO Copy
 
-// ─── WARRANTY sheet column map (0-based, headers row 5, data from row 7) ──────
+// ─── Serial-Generation sheet column map (0-based, headers row 5, data from row 7) ──────
 // A(0): Indent No.  B(1): Unit Tracking No.  C(2): Vendor Name  D(3): Invoice No.
 // E(4): Invoice Date  F(5): Invoice Copy  G(6): PO Number  H(7): PO Copy
 // I(8): Qty  J(9): Item-Name  K(10): Serial No
@@ -165,14 +174,14 @@ const generateQRSvgString = async (
     serialNo: string,
     encodedDate: string
 ): Promise<string> => {
-    const qrData = encodedDate 
+    const qrData = encodedDate
         ? `${itemName}/${itemCode}/${serialNo}/${encodedDate}`
         : `${itemName}/${itemCode}/${serialNo}`;
-    
+
     // Using 'L' level to reduce density and increase module size
-    return await QRCode.toString(qrData, { 
+    return await QRCode.toString(qrData, {
         type: 'svg',
-        margin: 2, 
+        margin: 2,
         errorCorrectionLevel: 'L'
     });
 };
@@ -181,6 +190,108 @@ const generateQRSvgString = async (
 
 
 
+
+const Combobox = ({
+    options,
+    value,
+    onChange,
+    placeholder,
+    searchPlaceholder,
+    disabled,
+}: {
+    options: string[];
+    value: string;
+    onChange: (value: string) => void;
+    placeholder: string;
+    searchPlaceholder: string;
+    disabled?: boolean;
+}) => {
+    const [open, setOpen] = useState(false);
+    const [searchValue, setSearchValue] = useState("");
+    const [debouncedSearchValue, setDebouncedSearchValue] = useState("");
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedSearchValue(searchValue);
+        }, 300); // 300ms debounce
+        return () => clearTimeout(handler);
+    }, [searchValue]);
+
+    const filteredOptions = useMemo(() => {
+        if (!debouncedSearchValue) return options.slice(0, 50); // limit to 50 for max performance
+        const lower = debouncedSearchValue.toLowerCase();
+        return options
+            .filter((option) => option.toLowerCase().includes(lower))
+            .slice(0, 50);
+    }, [options, debouncedSearchValue]);
+
+    return (
+        <Popover open={open} onOpenChange={setOpen} modal={true}>
+            <PopoverTrigger asChild>
+                <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    className={cn("w-full justify-between font-normal bg-white border-slate-200 text-left", !value && "text-muted-foreground")}
+                    disabled={disabled}
+                >
+                    <span className="truncate">
+                        {value
+                            ? options.find((option) => option === value) || value
+                            : placeholder}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                <Command shouldFilter={false}>
+                    <CommandInput
+                        placeholder={searchPlaceholder}
+                        value={searchValue}
+                        onValueChange={setSearchValue}
+                    />
+                    <CommandList className="max-h-[250px] overflow-y-auto">
+                        {filteredOptions.length === 0 && searchValue.trim() !== "" && (
+                            <div
+                                className="py-2 px-4 text-sm text-blue-600 cursor-pointer hover:bg-slate-100 flex items-center gap-2"
+                                onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    onChange(searchValue); // Set custom value
+                                    setOpen(false);
+                                }}
+                            >
+                                <PlusCircle className="w-3 h-3" />
+                                Create "{searchValue}"
+                            </div>
+                        )}
+                        <CommandGroup>
+                            {filteredOptions.map((option) => (
+                                <CommandItem
+                                    key={option}
+                                    value={option}
+                                    onSelect={() => {
+                                        onChange(option);
+                                        setOpen(false);
+                                    }}
+                                    className="whitespace-normal break-words py-2 cursor-pointer"
+                                >
+                                    <Check
+                                        className={cn(
+                                            "mr-2 h-4 w-4 shrink-0",
+                                            value === option ? "opacity-100" : "opacity-0"
+                                        )}
+                                    />
+                                    <span className="flex-1 text-sm">{option}</span>
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
+    );
+};
 
 export default function SerialGeneration() {
     const [pendingRecords, setPendingRecords] = useState<any[]>([]);
@@ -202,6 +313,36 @@ export default function SerialGeneration() {
     const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
     const [selectedHistoryRecord, setSelectedHistoryRecord] = useState<any>(null);
     const [isPrinting, setIsPrinting] = useState(false);
+    const [warrantyRows, setWarrantyRows] = useState<any[]>([]);
+
+    // === Direct Entry Form State ===
+    const [directFormOpen, setDirectFormOpen] = useState(false);
+    const [directForm, setDirectForm] = useState<{
+        itemName: string;
+        vendorName: string;
+        invoiceDate: string;
+        duration: string;
+        quantity: number | "";
+    }>({
+        itemName: "",
+        vendorName: "",
+        invoiceDate: "",
+        duration: "12",
+        quantity: "",
+    });
+    const [debouncedQuantity, setDebouncedQuantity] = useState(0);
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedQuantity(directForm.quantity === "" ? 0 : directForm.quantity);
+        }, 500); // 500ms debounce when user stops typing quantity
+        return () => clearTimeout(handler);
+    }, [directForm.quantity]);
+    const [directEntries, setDirectEntries] = useState<Array<{ serialNo: string }>>([]);
+    const [directIsAutoMode, setDirectIsAutoMode] = useState(true);
+    const [directStartingSequence, setDirectStartingSequence] = useState(1);
+    const [directIsCheckingSequence, setDirectIsCheckingSequence] = useState(false);
+    const [directPreviewContent, setDirectPreviewContent] = useState<Record<number, string>>({});
 
     // ─── Fetch ───────────────────────────────────────────────────────────────
     const fetchData = useCallback(async () => {
@@ -214,11 +355,11 @@ export default function SerialGeneration() {
                 fetch(`${API}?sheet=RECEIVING-ACCOUNTS&action=getAll`),
                 fetch(`${API}?sheet=INDENT-LIFT&action=getAll`),
                 fetch(`${API}?sheet=Dropdown&action=getAll`),
-                fetch(`${API}?sheet=WARRANTY&action=getAll`)
+                fetch(`${API}?sheet=Serial-Generation&action=getAll`)
             ]);
             const [raJson, fmsJson, dropJson, warrantyJson] = await Promise.all([
-                raRes.json(), 
-                fmsRes.json(), 
+                raRes.json(),
+                fmsRes.json(),
                 dropRes.json(),
                 warrantyRes.json()
             ]);
@@ -251,10 +392,11 @@ export default function SerialGeneration() {
                     }
                 });
             }
-            
+
             // Create Warranty Map (Indent#_Lift# -> Array of { serialNo, qrLink })
             const qrMap = new Map<string, any[]>();
             if (warrantyJson.success && Array.isArray(warrantyJson.data)) {
+                setWarrantyRows(warrantyJson.data);
                 warrantyJson.data.slice(6).forEach((r: any) => {
                     const indent = String(r[0] || "").trim();
                     const lift = String(r[1] || "").trim();
@@ -348,21 +490,42 @@ export default function SerialGeneration() {
     const fetchNextSequence = async (vendorName: string, invoiceDate: string) => {
         const API = process.env.NEXT_PUBLIC_API_URI;
         if (!API) return;
-        
+
         setIsCheckingSequence(true);
         try {
             const vendorCode = vendorCodes[vendorName] || "UNKNOWN";
             const encodedDate = encodeDateYYMMDD(invoiceDate);
             const prefix = `SN-${vendorCode}/${encodedDate}/`;
-            
-            const res = await fetch(`${API}?sheet=WARRANTY&action=getAll`);
+
+            // If raw rows are already cached, use them to calculate the sequence in memory
+            if (warrantyRows.length > 0) {
+                const serials = warrantyRows.slice(6).map((r: any) => String(r[3] || ""));
+                const relevantSerials = serials.filter((s: string) => s.startsWith(prefix));
+
+                let maxSeq = 0;
+                relevantSerials.forEach((s: string) => {
+                    const parts = s.split("/");
+                    if (parts.length >= 3) {
+                        const seqStr = parts[2];
+                        const seqNum = parseInt(seqStr, 10);
+                        if (!isNaN(seqNum) && seqNum > maxSeq) {
+                            maxSeq = seqNum;
+                        }
+                    }
+                });
+                setStartingSequence(maxSeq + 1);
+                setIsCheckingSequence(false);
+                return;
+            }
+
+            const res = await fetch(`${API}?sheet=Serial-Generation&action=getAll`);
             const json = await res.json();
-            
+
             if (json.success && Array.isArray(json.data)) {
                 // Column D is index 3
                 const serials = json.data.slice(6).map((r: any) => String(r[3] || ""));
                 const relevantSerials = serials.filter((s: string) => s.startsWith(prefix));
-                
+
                 let maxSeq = 0;
                 relevantSerials.forEach((s: string) => {
                     const parts = s.split("/");
@@ -383,6 +546,126 @@ export default function SerialGeneration() {
         }
     };
 
+    const fetchDirectNextSequence = async (vendorName: string, invoiceDate: string) => {
+        const API = process.env.NEXT_PUBLIC_API_URI;
+        if (!API) return;
+
+        setDirectIsCheckingSequence(true);
+        try {
+            const vendorCode = vendorCodes[vendorName] || "UNKNOWN";
+            const encodedDate = encodeDateYYMMDD(invoiceDate);
+            const prefix = `SN-${vendorCode}/${encodedDate}/`;
+
+            // If raw rows are already cached, use them to calculate the sequence in memory
+            if (warrantyRows.length > 0) {
+                const serials = warrantyRows.slice(6).map((r: any) => String(r[3] || ""));
+                const relevantSerials = serials.filter((s: string) => s.startsWith(prefix));
+
+                let maxSeq = 0;
+                relevantSerials.forEach((s: string) => {
+                    const parts = s.split("/");
+                    if (parts.length >= 3) {
+                        const seqStr = parts[2];
+                        const seqNum = parseInt(seqStr, 10);
+                        if (!isNaN(seqNum) && seqNum > maxSeq) {
+                            maxSeq = seqNum;
+                        }
+                    }
+                });
+                setDirectStartingSequence(maxSeq + 1);
+                setDirectIsCheckingSequence(false);
+                return;
+            }
+
+            const res = await fetch(`${API}?sheet=Serial-Generation&action=getAll`);
+            const json = await res.json();
+
+            if (json.success && Array.isArray(json.data)) {
+                const serials = json.data.slice(6).map((r: any) => String(r[3] || ""));
+                const relevantSerials = serials.filter((s: string) => s.startsWith(prefix));
+
+                let maxSeq = 0;
+                relevantSerials.forEach((s: string) => {
+                    const parts = s.split("/");
+                    if (parts.length >= 3) {
+                        const seqStr = parts[2];
+                        const seqNum = parseInt(seqStr, 10);
+                        if (!isNaN(seqNum) && seqNum > maxSeq) {
+                            maxSeq = seqNum;
+                        }
+                    }
+                });
+                setDirectStartingSequence(maxSeq + 1);
+            }
+        } catch (err) {
+            console.error("Direct sequence fetch error:", err);
+        } finally {
+            setDirectIsCheckingSequence(false);
+        }
+    };
+
+    const fetchNextDirectIndent = async (): Promise<string> => {
+        const API = process.env.NEXT_PUBLIC_API_URI;
+        if (!API) return "IN-DIR-0001";
+        try {
+            const res = await fetch(`${API}?sheet=Serial-Generation&action=getAll`);
+            const json = await res.json();
+            if (json.success && Array.isArray(json.data)) {
+                let maxIndentNum = 0;
+                json.data.slice(6).forEach((r: any) => {
+                    const indent = String(r[0] || "").trim();
+                    const indentMatch = indent.match(/^IN-DIR-(\d+)/i);
+                    if (indentMatch) {
+                        const num = parseInt(indentMatch[1], 10);
+                        if (!isNaN(num) && num > maxIndentNum) {
+                            maxIndentNum = num;
+                        }
+                    }
+                });
+                const nextIndentSeq = maxIndentNum + 1;
+                return `IN-DIR-${String(nextIndentSeq).padStart(4, "0")}`;
+            }
+        } catch (err) {
+            console.error("Direct indent fetch error:", err);
+        }
+        return "IN-DIR-0001";
+    };
+
+    useEffect(() => {
+        if (directForm.vendorName && directForm.invoiceDate && directFormOpen) {
+            fetchDirectNextSequence(directForm.vendorName, directForm.invoiceDate);
+        }
+    }, [directForm.vendorName, directForm.invoiceDate, directFormOpen]);
+
+    useEffect(() => {
+        if (!directFormOpen) return;
+        const vendorCode = vendorCodes[directForm.vendorName] || "UNKNOWN";
+        const encodedDate = encodeDateYYMMDD(directForm.invoiceDate);
+        const prefix = `SN-${vendorCode}/${encodedDate}/`;
+
+        if (directIsAutoMode) {
+            if (directIsCheckingSequence) {
+                setDirectEntries(Array.from({ length: debouncedQuantity }, () => ({
+                    serialNo: `${prefix}Loading...`
+                })));
+            } else {
+                setDirectEntries(Array.from({ length: debouncedQuantity }, (_, idx) => ({
+                    serialNo: `${prefix}${String(directStartingSequence + idx).padStart(3, "0")}`
+                })));
+            }
+        } else {
+            setDirectEntries((prev) => {
+                const arr = Array.from({ length: debouncedQuantity }, (_, idx) => {
+                    if (prev[idx] && prev[idx].serialNo.startsWith(`SN-`)) {
+                        return prev[idx];
+                    }
+                    return { serialNo: prefix };
+                });
+                return arr;
+            });
+        }
+    }, [directIsAutoMode, directForm.vendorName, directForm.invoiceDate, debouncedQuantity, vendorCodes, directStartingSequence, directIsCheckingSequence, directFormOpen]);
+
     const openHistoryDetails = (record: any) => {
         setSelectedHistoryRecord(record);
         setHistoryDialogOpen(true);
@@ -397,7 +680,7 @@ export default function SerialGeneration() {
             const productExpiry = selectedHistoryRecord.data.productExpiry;
             const encodedDate = encodeExpiryDate(productExpiry);
             const serials = selectedHistoryRecord.data.serials || [];
-            
+
             if (serials.length === 0) {
                 toast.error("No serial numbers found for this record");
                 return;
@@ -553,21 +836,21 @@ export default function SerialGeneration() {
 
     const openForm = useCallback((record: any) => {
         setSelectedRecord(record);
-        setIsAutoMode(false); 
+        setIsAutoMode(false);
         setStartingSequence(1); // Reset until fetch completes
-        
+
         const vendorCode = vendorCodes[record.data.vendorName] || "UNKNOWN";
         const encodedDate = encodeDateYYMMDD(record.data.invoiceDate);
         const prefix = `SN-${vendorCode}/${encodedDate}/`;
-        
+
         const qty = Math.max(1, parseInt(record.data.receivedQty) || 1);
         setEntries(Array.from({ length: qty }, () => ({
             serialNo: prefix, // Pre-fill prefix for manual mode immediately
         })));
-        
+
         // Trigger fetch silently in background
         fetchNextSequence(record.data.vendorName, record.data.invoiceDate);
-        
+
         setOpen(true);
     }, [vendorCodes]);
 
@@ -624,7 +907,7 @@ export default function SerialGeneration() {
             const itemCode = itemCodeMap[itemName] || "N/A";
             const encodedDate = encodeExpiryDate(selectedRecord.data.productExpiry);
             const svgString = await generateQRSvgString(itemName, itemCode, entry.serialNo, encodedDate);
-            
+
             const html = `
                 <div style="width: 400px; height: 190px; border: 1px solid #eee; display: flex; align-items: center; padding: 10px; font-family: Arial, sans-serif;">
                     <div style="width: 130px; height: 130px; flex-shrink: 0;">
@@ -675,10 +958,10 @@ export default function SerialGeneration() {
                 }
             }));
 
-            // 2. batchInsert new rows into WARRANTY sheet
+            // 2. batchInsert new rows into Serial-Generation sheet
             const rowsData = entries.map((entry, idx) => {
                 const warrantyRow = new Array(14).fill("");
-                
+
                 let formattedWarrantyEnd = selectedRecord.data.warrantyExpiry;
                 if (formattedWarrantyEnd && formattedWarrantyEnd !== "-") {
                     const d = new Date(formattedWarrantyEnd);
@@ -702,7 +985,7 @@ export default function SerialGeneration() {
 
             const insertParams = new URLSearchParams();
             insertParams.append("action", "batchInsert");
-            insertParams.append("sheetName", "WARRANTY");
+            insertParams.append("sheetName", "Serial-Generation");
             insertParams.append("rowsData", JSON.stringify(rowsData));
             insertParams.append("startRow", "7");
 
@@ -720,7 +1003,7 @@ export default function SerialGeneration() {
                 fetch(API, { method: "POST", body: insertParams }),
                 fetch(API, { method: "POST", body: updateParams }),
             ]);
-            
+
             const [insertJson, updateJson] = await Promise.all([
                 insertRes.json(), updateRes.json(),
             ]);
@@ -740,6 +1023,146 @@ export default function SerialGeneration() {
             setIsSubmitting(false);
         }
     }, [selectedRecord, entries, fetchData, itemCodeMap]);
+
+    const updateDirectEntry = useCallback((idx: number, value: string) => {
+        setDirectEntries((prev) => {
+            const next = [...prev];
+            next[idx] = { ...next[idx], serialNo: value };
+            return next;
+        });
+        setDirectPreviewContent(prev => {
+            const next = { ...prev };
+            delete next[idx];
+            return next;
+        });
+    }, []);
+
+    const handleDirectPreview = async (idx: number) => {
+        const entry = directEntries[idx];
+        if (!entry || !entry.serialNo.trim()) {
+            toast.error("Please enter a serial number first");
+            return;
+        }
+
+        try {
+            const itemName = directForm.itemName;
+            const itemCode = itemCodeMap[itemName] || "N/A";
+            const svgString = await generateQRSvgString(itemName, itemCode, entry.serialNo, "");
+
+            const html = `
+                <div style="width: 400px; height: 190px; border: 1px solid #eee; display: flex; align-items: center; padding: 10px; font-family: Arial, sans-serif;">
+                    <div style="width: 130px; height: 130px; flex-shrink: 0;">
+                        ${svgString.replace('<svg', '<svg style="width:100%;height:100%"')}
+                    </div>
+                    <div style="flex: 1; padding-left: 10px; overflow: hidden; display: flex; flex-direction: column; justify-content: center;">
+                        <div style="font-size: 7.5px; font-weight: 900; line-height: 1.1; margin-bottom: 1px; word-break: break-all;">${itemName.toUpperCase()}</div>
+                        <div style="font-size: 6px; font-weight: 900; color: #000; margin-bottom: 4px;">(${itemCode})</div>
+                        <div style="font-size: 8.5px; font-weight: 900; line-height: 1.1; word-break: break-all;">${entry.serialNo}</div>
+                    </div>
+                </div>
+            `;
+
+            setDirectPreviewContent(prev => ({ ...prev, [idx]: html }));
+        } catch (err) {
+            console.error(err);
+            toast.error("Failed to generate preview");
+        }
+    };
+
+    const handleDirectSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const API = process.env.NEXT_PUBLIC_API_URI;
+        const FOLDER_ID = process.env.NEXT_PUBLIC_IMAGE_FOLDER_ID;
+        if (!API || !FOLDER_ID) return;
+
+        if (!directForm.itemName || !directForm.vendorName || !directForm.invoiceDate || !directForm.duration) {
+            toast.error("Please fill in all details");
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const ts = getFmsTimestamp();
+            const itemName = directForm.itemName;
+            const itemCode = itemCodeMap[itemName] || "N/A";
+
+            // Get next direct indent
+            const nextIndentNo = await fetchNextDirectIndent();
+
+            // 1. Generate and Upload images for each serial number
+            const uploadResults = await Promise.all(directEntries.map(async (entry, idx) => {
+                try {
+                    const svgString = await generateQRSvgString(itemName, itemCode, entry.serialNo, "");
+                    const blob = new Blob([svgString], { type: 'image/svg+xml' });
+                    const fileName = `QR_${entry.serialNo.replace(/[/\\:]/g, '_')}.svg`;
+                    const driveUrl = await uploadFileToDrive(blob, fileName, API, FOLDER_ID);
+                    return driveUrl;
+                } catch (err) {
+                    console.error("Upload error for index", idx, err);
+                    return "";
+                }
+            }));
+
+            // 2. batchInsert new rows into Serial-Generation sheet
+            const rowsData = directEntries.map((entry, idx) => {
+                const warrantyRow = new Array(14).fill("");
+
+                let formattedWarrantyEnd = "";
+                if (directForm.invoiceDate && directForm.duration) {
+                    const d = new Date(directForm.invoiceDate);
+                    const months = parseInt(directForm.duration, 10);
+                    if (!isNaN(d.getTime()) && !isNaN(months)) {
+                        d.setMonth(d.getMonth() + months);
+                        const pad = (n: number) => String(n).padStart(2, "0");
+                        formattedWarrantyEnd = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+                    }
+                }
+
+                warrantyRow[0] = nextIndentNo;                    // A: Indent No.
+                warrantyRow[1] = "";                              // B: Unit Tracking No. (Sent as empty as per user comment)
+                warrantyRow[2] = uploadResults[idx] || "";        // C: Serial Code (Drive Link)
+                warrantyRow[3] = entry.serialNo;                  // D: Serial No.
+                warrantyRow[4] = directForm.vendorName;           // E: Vendor Name
+                warrantyRow[5] = directForm.itemName;             // F: Item-Name
+                warrantyRow[6] = formatDate(directForm.invoiceDate); // G: Invoice Date
+                warrantyRow[7] = formattedWarrantyEnd;            // H: Warranty End
+                warrantyRow[13] = ts;                             // N: Submission Timestamp
+                return warrantyRow;
+            });
+
+            const insertParams = new URLSearchParams();
+            insertParams.append("action", "batchInsert");
+            insertParams.append("sheetName", "Serial-Generation");
+            insertParams.append("rowsData", JSON.stringify(rowsData));
+            insertParams.append("startRow", "7");
+
+            const insertRes = await fetch(API, { method: "POST", body: insertParams });
+            const insertJson = await insertRes.json();
+
+            if (insertJson.success) {
+                toast.success("Serial Generation recorded successfully!");
+                setDirectFormOpen(false);
+                // Clear direct form
+                setDirectForm({
+                    itemName: "",
+                    vendorName: "",
+                    invoiceDate: "",
+                    duration: "12",
+                    quantity: 1,
+                });
+                setDirectEntries([]);
+                setDirectPreviewContent({});
+                fetchData();
+            } else {
+                toast.error("Failed to save: " + insertJson.error);
+            }
+        } catch (err: any) {
+            console.error(err);
+            toast.error("Submission failed");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
 
     const formValid = useMemo(() =>
         entries.length > 0 &&
@@ -780,7 +1203,7 @@ export default function SerialGeneration() {
         <div className="p-6 min-h-screen bg-[#f8fafc]">
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
                 {/* Sticky Header and Tabs Container */}
-                <div className="sticky top-0 z-50 bg-[#f8fafc] -mx-6 px-6 pt-2 pb-4 mb-4 border-b shadow-sm">
+                <div className="sticky top-0 z-30 bg-[#f8fafc] -mx-6 px-6 pt-2 pb-4 mb-4 border-b shadow-sm">
                     {/* Header Card */}
                     <div className="mb-6 p-6 bg-white border rounded-lg shadow-sm">
                         <div className="flex items-start justify-between flex-wrap gap-4">
@@ -791,6 +1214,13 @@ export default function SerialGeneration() {
                                 </div>
                             </div>
                             <div className="flex items-center gap-4 flex-1 max-w-2xl justify-end">
+                                <Button
+                                    onClick={() => setDirectFormOpen(true)}
+                                    className="bg-amber-600 hover:bg-amber-700 text-white font-medium shadow-sm transition-colors"
+                                >
+                                    <PlusCircle className="w-4 h-4 mr-2" />
+                                    Form
+                                </Button>
                                 <div className="relative flex-1 max-w-sm">
                                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
                                     <Input
@@ -805,13 +1235,13 @@ export default function SerialGeneration() {
                     </div>
 
                     <TabsList className="grid w-full grid-cols-2 h-12 bg-slate-100/50 p-1 rounded-lg">
-                        <TabsTrigger 
-                            value="pending" 
+                        <TabsTrigger
+                            value="pending"
                             className="rounded-md data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all"
                         >
                             Pending ({pending.length})
                         </TabsTrigger>
-                        <TabsTrigger 
+                        <TabsTrigger
                             value="history"
                             className="rounded-md data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all"
                         >
@@ -850,10 +1280,10 @@ export default function SerialGeneration() {
                                                 return (
                                                     <tr key={rec.id} className="hover:bg-gray-50 group transition-colors">
                                                         <td className="sticky left-0 z-20 bg-white group-hover:bg-gray-50 border-b text-center px-4 py-2 transition-colors">
-                                                            <Button 
-                                                                variant="outline" 
-                                                                size="sm" 
-                                                                onClick={() => openForm(rec)} 
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => openForm(rec)}
                                                                 className="h-8 px-3 text-xs font-medium border-slate-200 hover:bg-slate-50 hover:text-slate-900 transition-colors whitespace-nowrap"
                                                             >
                                                                 Serial Generation
@@ -969,22 +1399,22 @@ export default function SerialGeneration() {
                                             {idx + 1}
                                         </div>
                                         <div className="col-span-10">
-                                            <Input 
+                                            <Input
                                                 value={entry.serialNo}
                                                 onChange={(e) => updateEntry(idx, "serialNo", e.target.value)}
                                                 placeholder={isAutoMode ? "Auto-generated" : "Enter Serial Number"}
                                                 className={`h-8 text-sm ${isAutoMode ? "bg-gray-50 font-mono" : ""}`}
-                                                required 
+                                                required
                                                 readOnly={isAutoMode}
                                             />
                                         </div>
                                         <div className="col-span-1 flex justify-center">
                                             <Popover>
                                                 <PopoverTrigger asChild>
-                                                    <Button 
-                                                        type="button" 
-                                                        variant="ghost" 
-                                                        size="sm" 
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
                                                         className="h-8 w-8 p-0"
                                                         onClick={() => handlePreview(idx)}
                                                         disabled={!entry.serialNo.trim()}
@@ -996,7 +1426,7 @@ export default function SerialGeneration() {
                                                     <div className="flex flex-col items-center gap-2">
                                                         <span className="text-xs font-semibold text-gray-500">Label Preview</span>
                                                         {previewContent[idx] ? (
-                                                            <div 
+                                                            <div
                                                                 dangerouslySetInnerHTML={{ __html: previewContent[idx] }}
                                                                 className="border shadow-sm max-w-full"
                                                             />
@@ -1030,13 +1460,197 @@ export default function SerialGeneration() {
                 </DialogContent>
             </Dialog>
 
+            {/* ── DIRECT SERIAL DIALOG ── */}
+            <Dialog open={directFormOpen} onOpenChange={setDirectFormOpen}>
+                <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col p-0 overflow-hidden">
+                    <DialogHeader className="p-6 pb-2 shrink-0 border-b">
+                        <DialogTitle className="text-xl font-bold">Direct Serial Generation</DialogTitle>
+                    </DialogHeader>
+
+                    <form onSubmit={handleDirectSubmit} className="flex flex-col flex-1 overflow-hidden">
+                        {/* Scrollable Form Body */}
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                            
+                            {/* Section 1: Product & Purchase Details */}
+                            <div className="space-y-4">
+                                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider border-b pb-1">Product Details</h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1.5 col-span-2">
+                                        <Label className="text-sm font-semibold text-slate-700">Item Name *</Label>
+                                        <Combobox
+                                            options={Object.keys(itemCodeMap)}
+                                            value={directForm.itemName}
+                                            onChange={(val) => setDirectForm(prev => ({ ...prev, itemName: val }))}
+                                            placeholder="Search and select item"
+                                            searchPlaceholder="Type item name..."
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5 col-span-2">
+                                        <Label className="text-sm font-semibold text-slate-700">Vendor Name *</Label>
+                                        <Combobox
+                                            options={Object.keys(vendorCodes)}
+                                            value={directForm.vendorName}
+                                            onChange={(val) => setDirectForm(prev => ({ ...prev, vendorName: val }))}
+                                            placeholder="Search and select vendor"
+                                            searchPlaceholder="Type vendor name..."
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-sm font-semibold text-slate-700">Invoice Date *</Label>
+                                        <Input
+                                            type="date"
+                                            value={directForm.invoiceDate}
+                                            onChange={(e) => setDirectForm(prev => ({ ...prev, invoiceDate: e.target.value }))}
+                                            className="h-9 bg-white border-slate-200 focus:ring-amber-500 focus:border-amber-500"
+                                            required
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-sm font-semibold text-slate-700">Warranty (Months) *</Label>
+                                        <Input
+                                            type="number"
+                                            min="0"
+                                            value={directForm.duration}
+                                            onChange={(e) => setDirectForm(prev => ({ ...prev, duration: e.target.value }))}
+                                            placeholder="Warranty duration in months"
+                                            className="h-9 bg-white border-slate-200 focus:ring-amber-500 focus:border-amber-500"
+                                            required
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-sm font-semibold text-slate-700">Quantity *</Label>
+                                        <Input
+                                            type="number"
+                                            value={directForm.quantity}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                setDirectForm(prev => ({
+                                                    ...prev,
+                                                    quantity: val === "" ? "" : parseInt(val) || 0
+                                                }));
+                                            }}
+                                            className="h-9 bg-white border-slate-200 focus:ring-amber-500 focus:border-amber-500"
+                                            required
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5 flex flex-col justify-end">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-sm font-semibold text-slate-700">Serial Mode:</span>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant={directIsAutoMode ? "default" : "outline"}
+                                                className={directIsAutoMode ? "bg-blue-600 hover:bg-blue-700 text-white min-w-[80px] h-8" : "border-amber-500 text-amber-600 hover:bg-amber-50 min-w-[80px] h-8"}
+                                                onClick={() => setDirectIsAutoMode(!directIsAutoMode)}
+                                                disabled={directIsAutoMode && directIsCheckingSequence && directEntries[0]?.serialNo?.includes("Loading...")}
+                                            >
+                                                {directIsAutoMode && directIsCheckingSequence ? (
+                                                    <><Loader2 className="w-3 h-3 animate-spin mr-1.5" />Auto</>
+                                                ) : (
+                                                    directIsAutoMode ? "Auto" : "Manual"
+                                                )}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Section 2: Serial Numbers List */}
+                            <div className="space-y-3 pt-2">
+                                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider border-b pb-1">Serial Numbers</h3>
+                                <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wide px-1 py-1">
+                                    <div className="col-span-1 text-center">#</div>
+                                    <div className="col-span-10">Serial No. *</div>
+                                    <div className="col-span-1 text-center">QR</div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    {directEntries.map((entry, idx) => (
+                                        <div key={idx} className="grid grid-cols-12 gap-2 items-center px-1">
+                                            <div className="col-span-1 text-center text-sm font-medium text-gray-500">
+                                                {idx + 1}
+                                            </div>
+                                            <div className="col-span-10">
+                                                <Input
+                                                    value={entry.serialNo}
+                                                    onChange={(e) => updateDirectEntry(idx, e.target.value)}
+                                                    placeholder={directIsAutoMode ? "Auto-generated" : "Enter Serial Number"}
+                                                    className={`h-8 text-sm ${directIsAutoMode ? "bg-gray-50 font-mono" : ""}`}
+                                                    required
+                                                    readOnly={directIsAutoMode}
+                                                />
+                                            </div>
+                                            <div className="col-span-1 flex justify-center">
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-8 w-8 p-0"
+                                                            onClick={() => handleDirectPreview(idx)}
+                                                            disabled={!entry.serialNo.trim() || !directForm.itemName}
+                                                        >
+                                                            <Eye className="h-4 w-4" />
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-[420px] p-2 bg-white" side="left">
+                                                        <div className="flex flex-col items-center gap-2">
+                                                            <span className="text-xs font-semibold text-gray-500">Label Preview</span>
+                                                            {directPreviewContent[idx] ? (
+                                                                <div
+                                                                    dangerouslySetInnerHTML={{ __html: directPreviewContent[idx] }}
+                                                                    className="border shadow-sm max-w-full"
+                                                                />
+                                                            ) : (
+                                                                <div className="flex items-center justify-center w-[400px] h-[190px] bg-slate-50 border border-dashed rounded text-slate-400">
+                                                                    <Loader2 className="h-8 w-8 animate-spin" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </PopoverContent>
+                                                </Popover>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Sticky Footer */}
+                        <DialogFooter className="shrink-0 p-6 border-t bg-slate-50">
+                            <Button type="button" variant="outline" onClick={() => setDirectFormOpen(false)} disabled={isSubmitting}>
+                                Cancel
+                            </Button>
+                            <Button
+                                type="submit"
+                                disabled={
+                                    isSubmitting ||
+                                    !directForm.itemName ||
+                                    !directForm.vendorName ||
+                                    !directForm.invoiceDate ||
+                                    !directForm.duration ||
+                                    directEntries.length === 0 ||
+                                    directEntries.some(e => e.serialNo.trim() === "" || e.serialNo.includes("Loading..."))
+                                }
+                            >
+                                {isSubmitting
+                                    ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Submitting...</>
+                                    : `Submit (${directEntries.length} item${directEntries.length > 1 ? "s" : ""})`
+                                }
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
             {/* ── HISTORY DETAILS DIALOG ── */}
             <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
                 <DialogContent className="sm:max-w-md p-0 overflow-hidden rounded-2xl border-none shadow-2xl">
                     <div className="bg-[#0089d1] p-4 flex items-center justify-between text-white">
                         <DialogTitle className="text-lg font-bold">Product QR</DialogTitle>
                     </div>
-                    
+
                     <div className="p-6 space-y-6 bg-white">
                         {/* QR Label Card - Mimicking img2 */}
                         <div className="relative bg-white border border-slate-100 rounded-2xl p-6 shadow-sm flex flex-col items-center gap-4">
@@ -1045,9 +1659,9 @@ export default function SerialGeneration() {
                                     <div className="flex flex-col items-center gap-3">
                                         <div className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Sample QR</div>
                                         <div className="p-2 border rounded-lg bg-slate-50">
-                                            <img 
-                                                src={getDirectDriveLink(selectedHistoryRecord.data.serials[0].qrLink)} 
-                                                alt="Sample QR Label" 
+                                            <img
+                                                src={getDirectDriveLink(selectedHistoryRecord.data.serials[0].qrLink)}
+                                                alt="Sample QR Label"
                                                 className="max-w-full h-auto w-[300px]"
                                             />
                                         </div>
@@ -1075,7 +1689,7 @@ export default function SerialGeneration() {
                         </div>
 
                         <div className="space-y-3 pt-2">
-                            <Button 
+                            <Button
                                 className="w-full h-14 bg-[#0089d1] hover:bg-[#0077b6] text-white text-base font-bold rounded-xl shadow-lg shadow-blue-500/20 transition-all active:scale-[0.98] flex items-center justify-center gap-3"
                                 onClick={handlePrintAllQRs}
                                 disabled={isPrinting}

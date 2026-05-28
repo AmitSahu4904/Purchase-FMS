@@ -77,7 +77,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     localStorage.setItem("fullName", newFullName || storedUser);
                     localStorage.setItem("role", newRole || "User");
                     localStorage.setItem("pageAccess", JSON.stringify(newAccessList));
-                    console.log("User profile synced with Master sheet");
                   }
                 }
               }

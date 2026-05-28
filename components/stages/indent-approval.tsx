@@ -349,7 +349,6 @@ export default function Stage2() {
       }
 
       if (successCount > 0) {
-        console.log(`Updated ${successCount} records successfully ✅`);
         fetchData();
       }
     } catch (e) {
@@ -468,7 +467,7 @@ export default function Stage2() {
             </div>
 
             <div className="flex items-center gap-3">
-              <Label className="text-sm font-semibold text-slate-600">Show Columns:</Label>
+              <Label className="text-sm font-semibold text-slate-600 hidden md:inline-block">Show Columns:</Label>
               <ColumnSelector />
             </div>
           </div>

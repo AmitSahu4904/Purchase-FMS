@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Loader2, RefreshCw, Search, Truck } from "lucide-react";
 import {
-    Table,
     TableBody,
     TableCell,
     TableHead,

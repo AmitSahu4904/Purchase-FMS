@@ -423,14 +423,6 @@ export default function Stage13() {
         }
     };
 
-    // --- Helper for Invoice Display ---
-    const getFirstSelectedInvoice = useCallback(() => {
-        if (selectedRows.size === 0) return null;
-        const firstId = Array.from(selectedRows)[0];
-        const rec = sheetRecords.find((r) => r.id === firstId);
-        return rec?.data.invoiceNumber || null;
-    }, [selectedRows, sheetRecords]);
-
     return (
         <div className="flex flex-col min-h-screen bg-slate-50/30">
             {/* Sticky Header */}

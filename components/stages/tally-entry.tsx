@@ -1,18 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Loader2, FileText, Search, RefreshCw } from "lucide-react";
-import { formatDate, parseSheetDate, getFmsTimestamp } from "@/lib/utils";
+import { parseSheetDate, getFmsTimestamp } from "@/lib/utils";
 import { useMemo } from "react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -518,20 +511,13 @@ export default function Stage9() {
     }
   };
 
-  if (isLoading && sheetRecords.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 text-gray-500">
-        <Loader2 className="w-8 h-8 animate-spin mb-4 text-indigo-600" />
-        <p className="text-lg animate-pulse text-indigo-900 font-medium">Fetching records from sheet...</p>
-      </div>
-    );
-  }
+
 
   return (
-    <div className="p-6 min-h-screen bg-[#f8fafc]">
+    <div className="p-4 md:p-6 min-h-screen bg-[#f8fafc]">
       {/* Modal Form */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>Tally Entry ({selectedRows.size} Selected)</DialogTitle>
           </DialogHeader>
@@ -637,9 +623,9 @@ export default function Stage9() {
         className="w-full"
       >
         {/* Sticky Header and Tabs Container */}
-        <div className="sticky top-0 z-50 bg-[#f8fafc] -mx-6 px-6 pt-2 pb-4 mb-4 border-b shadow-sm">
+        <div className="md:sticky md:top-0 z-30 bg-[#f8fafc] -mx-4 md:-mx-6 px-4 md:px-6 pt-2 pb-4 mb-4 border-b shadow-sm">
           {/* Header Card */}
-          <div className="mb-6 p-6 bg-white border rounded-lg shadow-sm">
+          <div className="mb-4 md:mb-6 p-4 md:p-6 bg-white border rounded-lg shadow-sm">
             <div className="flex items-start justify-between flex-wrap gap-4">
               <div className="flex items-center gap-3">
                 <FileText className="w-7 h-7 text-indigo-600" />
@@ -815,7 +801,7 @@ export default function Stage9() {
 
         {/* Pending Tab */}
         <TabsContent value="pending" className="mt-0 outline-none">
-          {pending.length === 0 ? (
+          {(pending.length === 0 && !isLoading) ? (
             <div className="text-center py-12 text-gray-500 bg-white border rounded-lg shadow-sm">
               <FileText className="w-12 h-12 mx-auto mb-3 text-slate-200" />
               <p className="text-lg text-slate-600 font-medium">No pending Tally entries</p>
@@ -848,30 +834,44 @@ export default function Stage9() {
                   </tr>
                 </thead>
                 <tbody className="bg-white">
-                  {pending.map((record: any) => (
-                    <tr
-                      key={record.id}
-                      className="hover:bg-gray-50 transition-colors group"
-                    >
-                      <td className="sticky left-0 z-20 bg-white group-hover:bg-gray-50 border-b text-center px-4 py-2">
-                        <Checkbox
-                          checked={selectedRows.has(record.id)}
-                          onCheckedChange={() => toggleRow(record.id)}
-                          className="translate-y-[2px]"
-                        />
+                  {isLoading ? (
+                    <tr>
+                      <td
+                        colSpan={pendingColumns.filter((c) => selectedPendingColumns.includes(c.key)).length + 1}
+                        className="h-48 text-center"
+                      >
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+                          <span className="text-slate-500 font-medium">Loading records...</span>
+                        </div>
                       </td>
-                      {pendingColumns
-                        .filter((c) => selectedPendingColumns.includes(c.key))
-                        .map((col) => (
-                          <td
-                            key={col.key}
-                            className="border-b px-4 py-2 text-center text-slate-700"
-                          >
-                            {safeValue(record, col.key)}
-                          </td>
-                        ))}
                     </tr>
-                  ))}
+                  ) : (
+                    pending.map((record: any) => (
+                      <tr
+                        key={record.id}
+                        className="hover:bg-gray-50 transition-colors group"
+                      >
+                        <td className="sticky left-0 z-20 bg-white group-hover:bg-gray-50 border-b text-center px-4 py-2">
+                          <Checkbox
+                            checked={selectedRows.has(record.id)}
+                            onCheckedChange={() => toggleRow(record.id)}
+                            className="translate-y-[2px]"
+                          />
+                        </td>
+                        {pendingColumns
+                          .filter((c) => selectedPendingColumns.includes(c.key))
+                          .map((col) => (
+                            <td
+                              key={col.key}
+                              className="border-b px-4 py-2 text-center text-slate-700"
+                            >
+                              {safeValue(record, col.key)}
+                            </td>
+                          ))}
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -880,7 +880,7 @@ export default function Stage9() {
 
         {/* History Tab */}
         <TabsContent value="history" className="mt-6">
-          {completed.length === 0 ? (
+          {(completed.length === 0 && !isLoading) ? (
             <div className="text-center py-12 text-gray-500">
               <p className="text-lg">No Tally history</p>
             </div>
@@ -902,23 +902,37 @@ export default function Stage9() {
                   </tr>
                 </thead>
                 <tbody className="bg-white">
-                  {completed.map((record: any) => (
-                    <tr
-                      key={record.id}
-                      className="hover:bg-indigo-50/50 transition-colors"
-                    >
-                      {historyColumns
-                        .filter((c) => selectedHistoryColumns.includes(c.key))
-                        .map((col) => (
-                          <td
-                            key={col.key}
-                            className="border-b px-4 py-2 text-center text-slate-700"
-                          >
-                            {safeValue(record, col.key)}
-                          </td>
-                        ))}
+                  {isLoading ? (
+                    <tr>
+                      <td
+                        colSpan={historyColumns.filter((c) => selectedHistoryColumns.includes(c.key)).length}
+                        className="h-48 text-center"
+                      >
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+                          <span className="text-slate-500 font-medium">Loading history...</span>
+                        </div>
+                      </td>
                     </tr>
-                  ))}
+                  ) : (
+                    completed.map((record: any) => (
+                      <tr
+                        key={record.id}
+                        className="hover:bg-indigo-50/50 transition-colors"
+                      >
+                        {historyColumns
+                          .filter((c) => selectedHistoryColumns.includes(c.key))
+                          .map((col) => (
+                            <td
+                              key={col.key}
+                              className="border-b px-4 py-2 text-center text-slate-700"
+                            >
+                              {safeValue(record, col.key)}
+                            </td>
+                          ))}
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

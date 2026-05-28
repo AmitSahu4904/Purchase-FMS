@@ -169,6 +169,10 @@ export default function Stage7() {
         warrantyExpiry: string;
         productExpiry: string;
         receivedItemImage: File | null;
+        damageReceived: string;
+        damagedQty: string;
+        damageReason: string;
+        damageImage: File | null;
         index: number;
     }[]>([]);
     const [commonData, setCommonData] = useState({
@@ -545,6 +549,10 @@ export default function Stage7() {
             remarks: "",
             pkgAmount: "",
             pkgGST: "",
+            damageReceived: "no",
+            damagedQty: "",
+            damageReason: "",
+            damageImage: null,
         });
         setOpen(true);
     }, [recordMap]);
@@ -679,16 +687,16 @@ export default function Stage7() {
     }, [sheetRecords, searchTerm, warehouseFilter]);
 
     return (
-        <div className="p-6 min-h-screen bg-[#f8fafc]">
+        <div className="p-4 md:p-6 min-h-screen bg-[#f8fafc]">
             <Tabs
                 value={activeTab}
                 onValueChange={(v) => setActiveTab(v as any)}
                 className="w-full"
             >
                 {/* Sticky Header and Tabs Container */}
-                <div className="sticky top-0 z-50 bg-[#f8fafc] -mx-6 px-6 pt-2 pb-4 mb-4 border-b shadow-sm">
+                <div className="md:sticky md:top-0 z-30 bg-[#f8fafc] -mx-4 md:-mx-6 px-4 md:px-6 pt-2 pb-4 mb-4 border-b shadow-sm">
                     {/* ==================== HEADER ==================== */}
-                    <div className="p-6 bg-white border rounded-lg shadow-sm mb-6">
+                    <div className="p-4 md:p-6 bg-white border rounded-lg shadow-sm mb-4 md:mb-6">
                         <div className="flex items-center justify-between">
                             <div>
                                 <h2 className="text-2xl font-bold text-slate-900">Stage 8: Material Receipt</h2>
@@ -705,7 +713,7 @@ export default function Stage7() {
                                     </Button>
                                 )}
 
-                                <Label className="text-sm font-medium text-slate-600">Show Columns:</Label>
+                                <Label className="text-sm font-medium text-slate-600 hidden md:inline-block">Show Columns:</Label>
                                 <Select value="" onValueChange={() => { }}>
                                     <SelectTrigger className="w-40 bg-white border-slate-200">
                                         <SelectValue
@@ -1148,7 +1156,7 @@ export default function Stage7() {
 
             {/* ==================== MODAL ==================== */}
             <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+                <DialogContent className="max-w-4xl max-h-[95vh] sm:max-h-[90vh] flex flex-col p-4 sm:p-6">
                     <DialogHeader className="flex-shrink-0">
                         <DialogTitle>
                             {isBulkMode
@@ -2021,7 +2029,7 @@ export default function Stage7() {
                         </form>
                     )}
 
-                    <DialogFooter className="flex-shrink-0 border-t pt-4">
+                    <DialogFooter className="flex-shrink-0 border-t pt-4 flex sm:justify-end items-center gap-2">
                         <Button
                             type="button"
                             variant="outline"

@@ -572,7 +572,7 @@ export default function PurchaseDashboard() {
       try {
         const API = process.env.NEXT_PUBLIC_API_URI;
         const [warrantyRes, partialRes] = await Promise.all([
-          fetch(`${API}?sheet=WARRANTY`),
+          fetch(`${API}?sheet=Serial-Generation`),
           fetch(`${API}?sheet=${encodeURIComponent("Partial QC")}`)
         ]);
         const [warrantyJson, partialJson] = await Promise.all([warrantyRes.json(), partialRes.json()]);
@@ -600,7 +600,7 @@ export default function PurchaseDashboard() {
 
     const fetchWarrantyData = async () => {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URI}?sheet=WARRANTY`);
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URI}?sheet=Serial-Generation`);
         const result = await response.json();
 
         if (result.success && result.data) {
@@ -830,7 +830,7 @@ export default function PurchaseDashboard() {
         fetch(`${API}?sheet=INDENT-LIFT`),
         fetch(`${API}?sheet=RECEIVING-ACCOUNTS`),
         fetch(`${API}?sheet=Master`),
-        fetch(`${API}?sheet=WARRANTY`),
+        fetch(`${API}?sheet=Serial-Generation`),
         fetch(`${API}?sheet=${encodeURIComponent("Partial QC")}`),
         fetch(`${API}?sheet=VENDOR-PAYMENTS`),
         fetch(`${API}?sheet=FREIGHT-PAYMENTS`),
@@ -993,11 +993,11 @@ export default function PurchaseDashboard() {
             if (fmsHas(r, delayIdx)) {
               overdueCounts[name]++;
               const detail: any = {
-                indent: r[1] || "-", 
-                party: r[3] || "-", 
-                item: r[itemIdx] || "-", 
-                qty: r[8] || "-", 
-                stage: name, 
+                indent: r[1] || "-",
+                party: r[3] || "-",
+                item: r[itemIdx] || "-",
+                qty: r[8] || "-",
+                stage: name,
                 delay: r[delayIdx] || "0",
                 poNumber: r[54] || "-"
               };
@@ -1011,7 +1011,7 @@ export default function PurchaseDashboard() {
                 detail.expectedDate = hasCP ? expectedFromCP : (transportMap.get(liftNo) || plannedDate || "-");
                 detail.transporterName = r[9] || "-";
               }
-              
+
               detailed.push(detail);
             }
           }
@@ -1066,7 +1066,6 @@ export default function PurchaseDashboard() {
         </div>
         <Button
           onClick={() => {
-            console.log("Forms button clicked");
             setFormsMenuOpen(true);
           }}
           className="flex items-center gap-2"
@@ -1989,7 +1988,7 @@ export default function PurchaseDashboard() {
           </Card>
         </TabsContent>
 
-        {/* WARRANTY TAB */}
+        {/* Serial-Generation TAB */}
         <TabsContent value="warranty" className="space-y-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -2287,7 +2286,6 @@ export default function PurchaseDashboard() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              console.log("Item Form:", itemForm);
               setItemFormOpen(false);
               setItemForm({ category: "", itemName: "", uom: "" });
             }}
@@ -2360,7 +2358,6 @@ export default function PurchaseDashboard() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              console.log("Vendor Form:", vendorForm);
               setVendorFormOpen(false);
               setVendorForm({
                 vendorName: "",
@@ -2463,7 +2460,6 @@ export default function PurchaseDashboard() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              console.log("Transporter Form:", transporterForm);
               setTransporterFormOpen(false);
               setTransporterForm({
                 transporterName: "",

@@ -17,7 +17,6 @@ interface StageTableProps {
   stage: number;
   pending: WorkflowRecord[];
   history: WorkflowRecord[];
-  onOpenForm: () => void;
   onSelectRecord: (record: WorkflowRecord) => void;
   columns: { key: string; label: string }[];
   showPending?: boolean;
@@ -30,7 +29,6 @@ export function StageTable({
   stage,
   pending,
   history,
-  onOpenForm,
   onSelectRecord,
   columns,
   showPending = true,
