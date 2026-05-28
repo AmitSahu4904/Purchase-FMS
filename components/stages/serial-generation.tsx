@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Search, ShieldAlert, Eye, Printer, PlusCircle, Check, ChevronsUpDown } from "lucide-react";
+import { Loader2, Search, ShieldAlert, Eye, Printer, PlusCircle, Check, ChevronsUpDown, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatDate, parseSheetDate, getFmsTimestamp } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
@@ -37,6 +37,53 @@ const getDirectDriveLink = (url: string) => {
         return `https://drive.google.com/uc?export=view&id=${match[1]}`;
     }
     return url;
+};
+
+const getGoogleDriveViewLink = (url: string) => {
+    if (!url) return "";
+    const match = url.match(/\/d\/(.+?)\/(view|edit)/) || url.match(/id=(.+?)(&|$)/);
+    if (match && match[1]) {
+        return `https://drive.google.com/file/d/${match[1]}/view`;
+    }
+    return url;
+};
+
+const LocalQRPreview = ({ itemName, itemCode, serialNo, expiryDate }: { itemName: string, itemCode: string, serialNo: string, expiryDate?: string }) => {
+    const [qrUrl, setQrUrl] = useState<string>("");
+
+    useEffect(() => {
+        let active = true;
+        const generate = async () => {
+            try {
+                const dataUrl = await generateLabelPngDataUrl(itemName, itemCode, serialNo, expiryDate || "");
+                if (active) {
+                    setQrUrl(dataUrl);
+                }
+            } catch (err) {
+                console.error("Failed to generate local QR code", err);
+            }
+        };
+        generate();
+        return () => {
+            active = false;
+        };
+    }, [itemName, itemCode, serialNo, expiryDate]);
+
+    if (!qrUrl) {
+        return (
+            <div className="h-[140px] w-[350px] flex items-center justify-center bg-slate-50 border rounded-lg animate-pulse">
+                <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+            </div>
+        );
+    }
+
+    return (
+        <img
+            src={qrUrl}
+            alt="Sample QR Label"
+            className="max-w-full h-auto w-[350px] border shadow-sm rounded-lg"
+        />
+    );
 };
 
 const formatDateDash = (date: any) => {
@@ -112,6 +159,19 @@ const toBase64 = (blob: Blob): Promise<string> =>
         reader.onerror = (error) => reject(error);
     });
 
+const dataURLtoBlob = (dataurl: string) => {
+    const arr = dataurl.split(',');
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+};
+
 const uploadFileToDrive = async (
     blob: Blob,
     fileName: string,
@@ -146,6 +206,103 @@ const encodeExpiryDate = (dateStr: string) => {
     } catch (e) {
         return "";
     }
+};
+
+const getTextWrapLines = (
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    maxWidth: number
+): string[] => {
+    const words = text.split(" ");
+    const lines: string[] = [];
+    let currentLine = "";
+
+    for (let i = 0; i < words.length; i++) {
+        const word = words[i];
+        const testLine = currentLine ? currentLine + " " + word : word;
+        const metrics = ctx.measureText(testLine);
+        if (metrics.width > maxWidth && i > 0) {
+            lines.push(currentLine);
+            currentLine = word;
+        } else {
+            currentLine = testLine;
+        }
+    }
+    if (currentLine) {
+        lines.push(currentLine);
+    }
+    return lines;
+};
+
+const generateLabelPngDataUrl = async (
+    itemName: string,
+    itemCode: string,
+    serialNo: string,
+    expiryDateStr: string
+): Promise<string> => {
+    const encodedDate = expiryDateStr ? encodeExpiryDate(expiryDateStr) : "";
+    const qrData = encodedDate
+        ? `${itemName}/${itemCode}/${serialNo}/${encodedDate}`
+        : `${itemName}/${itemCode}/${serialNo}`;
+
+    const qrDataUrl = await QRCode.toDataURL(qrData, {
+        margin: 1,
+        errorCorrectionLevel: 'L',
+        width: 250
+    });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 650;
+    canvas.height = 250;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Could not get 2D context");
+
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    await new Promise<void>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            ctx.drawImage(img, 20, 20, 210, 210);
+            resolve();
+        };
+        img.onerror = reject;
+        img.src = qrDataUrl;
+    });
+
+    ctx.fillStyle = "#000000";
+    ctx.textBaseline = "top";
+
+    ctx.font = "bold 22px Arial, sans-serif";
+    const displayName = `${itemName.toUpperCase()} (${itemCode})`;
+    const titleLines = getTextWrapLines(ctx, displayName, 380);
+
+    const line1Height = titleLines.length * 28;
+    const line2Height = 26;
+    const line3Height = encodedDate ? 24 : 0;
+    const totalTextHeight = line1Height + 20 + line2Height + (encodedDate ? 12 + line3Height : 0);
+
+    let currentY = Math.max(15, (250 - totalTextHeight) / 2);
+
+    ctx.font = "bold 22px Arial, sans-serif";
+    for (const line of titleLines) {
+        ctx.fillText(line, 250, currentY);
+        currentY += 28;
+    }
+
+    currentY += 20;
+
+    ctx.font = "24px Arial, sans-serif";
+    ctx.fillText(serialNo, 250, currentY);
+    currentY += 26;
+
+    if (encodedDate) {
+        currentY += 12;
+        ctx.font = "22px Arial, sans-serif";
+        ctx.fillText(encodedDate, 250, currentY);
+    }
+
+    return canvas.toDataURL("image/png");
 };
 
 const encodeDateYYMMDD = (dateStr: string) => {
@@ -946,10 +1103,14 @@ export default function SerialGeneration() {
             // 1. Generate and Upload images for each serial number
             const uploadResults = await Promise.all(entries.map(async (entry, idx) => {
                 try {
-                    const encodedDate = encodeExpiryDate(selectedRecord.data.productExpiry);
-                    const svgString = await generateQRSvgString(itemName, itemCode, entry.serialNo, encodedDate);
-                    const blob = new Blob([svgString], { type: 'image/svg+xml' });
-                    const fileName = `QR_${entry.serialNo.replace(/[/\\:]/g, '_')}.svg`;
+                    const pngDataUrl = await generateLabelPngDataUrl(
+                        itemName,
+                        itemCode,
+                        entry.serialNo,
+                        selectedRecord.data.productExpiry
+                    );
+                    const blob = dataURLtoBlob(pngDataUrl);
+                    const fileName = `QR_${entry.serialNo.replace(/[/\\:]/g, '_')}.png`;
                     const driveUrl = await uploadFileToDrive(blob, fileName, API, FOLDER_ID);
                     return driveUrl;
                 } catch (err) {
@@ -1092,9 +1253,14 @@ export default function SerialGeneration() {
             // 1. Generate and Upload images for each serial number
             const uploadResults = await Promise.all(directEntries.map(async (entry, idx) => {
                 try {
-                    const svgString = await generateQRSvgString(itemName, itemCode, entry.serialNo, "");
-                    const blob = new Blob([svgString], { type: 'image/svg+xml' });
-                    const fileName = `QR_${entry.serialNo.replace(/[/\\:]/g, '_')}.svg`;
+                    const pngDataUrl = await generateLabelPngDataUrl(
+                        itemName,
+                        itemCode,
+                        entry.serialNo,
+                        ""
+                    );
+                    const blob = dataURLtoBlob(pngDataUrl);
+                    const fileName = `QR_${entry.serialNo.replace(/[/\\:]/g, '_')}.png`;
                     const driveUrl = await uploadFileToDrive(blob, fileName, API, FOLDER_ID);
                     return driveUrl;
                 } catch (err) {
@@ -1470,7 +1636,7 @@ export default function SerialGeneration() {
                     <form onSubmit={handleDirectSubmit} className="flex flex-col flex-1 overflow-hidden">
                         {/* Scrollable Form Body */}
                         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                            
+
                             {/* Section 1: Product & Purchase Details */}
                             <div className="space-y-4">
                                 <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider border-b pb-1">Product Details</h3>
@@ -1659,12 +1825,24 @@ export default function SerialGeneration() {
                                     <div className="flex flex-col items-center gap-3">
                                         <div className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Sample QR</div>
                                         <div className="p-2 border rounded-lg bg-slate-50">
-                                            <img
-                                                src={getDirectDriveLink(selectedHistoryRecord.data.serials[0].qrLink)}
-                                                alt="Sample QR Label"
-                                                className="max-w-full h-auto w-[300px]"
+                                            <LocalQRPreview
+                                                itemName={selectedHistoryRecord.data.itemName}
+                                                itemCode={itemCodeMap[selectedHistoryRecord.data.itemName] || "N/A"}
+                                                serialNo={selectedHistoryRecord.data.serials[0].serialNo}
+                                                expiryDate={selectedHistoryRecord.data.productExpiry}
                                             />
                                         </div>
+                                        {selectedHistoryRecord.data.serials[0].qrLink && (
+                                            <a
+                                                href={getGoogleDriveViewLink(selectedHistoryRecord.data.serials[0].qrLink)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline transition-colors mt-1"
+                                            >
+                                                <ExternalLink className="w-3.5 h-3.5" />
+                                                View Original Document in Drive
+                                            </a>
+                                        )}
                                     </div>
                                 ) : (
                                     <div className="h-40 w-full flex items-center justify-center bg-slate-50 border border-dashed rounded-xl text-slate-400">
