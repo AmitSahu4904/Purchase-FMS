@@ -62,6 +62,12 @@ import {
 } from "@/components/ui/command";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn, parseSheetDate, formatDate, getFmsTimestamp } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface LiftingEntry {
   liftNumber: string;
@@ -200,6 +206,7 @@ export default function Stage6() {
     liftingData: LiftingEntry;
   } | null>(null);
   const [unifiedLiftingQtys, setUnifiedLiftingQtys] = useState<Record<string, string>>({});
+  const [processMode, setProcessMode] = useState<"follow-up" | "lift-material">("lift-material");
 
   const baseColumns = [
     { key: "indentNumber", label: "Indent No.", icon: null },
@@ -208,6 +215,8 @@ export default function Stage6() {
     { key: "planned5", label: "Planned", icon: null },
     { key: "totalLifted", label: "Total Dispatch Qty", icon: null },
     { key: "pendingLifted", label: "Pending Dispatch Qty", icon: null },
+    { key: "estimatedDate", label: "Estimated Date", icon: null },
+    { key: "remarksFollowUp", label: "Remark", icon: null },
   ];
 
   const [selectedColumns, setSelectedColumns] = useState<string[]>(
@@ -381,6 +390,8 @@ export default function Stage6() {
                 totalLifted: row[66],    // BO
                 pendingLifted: row[67],  // BP
                 finalVendorName: row[48] || "", // AW: Final Vendor Name
+                estimatedDate: row[76],  // BY: Estimated Date
+                remarksFollowUp: row[77], // BZ: Remark
 
                 // Lifting Data (Indices 64-72)
                 liftingData: {
@@ -515,83 +526,168 @@ export default function Stage6() {
     return { isMatched: true, vendor: firstVendor, poNumber: firstPO };
   };
 
-  const handleBulkOpen = () => {
-    if (selectedRecordIds.length === 0) return;
+  const handleProcessOption = (recordId: string, mode: "follow-up" | "lift-material") => {
+    setSelectedRecordIds([recordId]);
+    setProcessMode(mode);
 
-    // Check if Vendor and PO Number match for all selected records
-    const matchResult = checkVendorPOMatch(selectedRecordIds);
+    const record = sheetRecords.find((r) => r.id === recordId)!;
+    const existLift = record.data.liftingData || {};
 
-    if (selectedRecordIds.length > 1 && !matchResult.isMatched) {
-      // Mismatch detected - set error and open dialog with error state
-      setIsUnifiedMode(false);
-      setVendorPOMismatchError("Vendor Name or PO number not matched for the selected items.");
-      setCommonVendorPO(null);
+    setIsUnifiedMode(false);
+    setVendorPOMismatchError(null);
+    setCommonVendorPO(null);
+
+    if (mode === "follow-up") {
       setUnifiedFormData(null);
-      setBulkFormData([]);
-      setOpen(true);
-      return;
+    } else {
+      setUnifiedFormData({
+        status: "lift-material",
+        followUpDate: "",
+        remarks: "",
+        liftingData: {
+          liftNumber: "",
+          liftingQty: "",
+          transporterName: "",
+          vehicleNumber: "",
+          contactNumber: "",
+          lrNumber: "",
+          biltyCopy: null,
+          dispatchDate: new Date().toISOString().split("T")[0],
+          expectedDeliveryDate: "",
+          freightAmount: "",
+          advanceAmount: "",
+          paymentDate: "",
+          paymentStatus: ""
+        }
+      });
     }
 
-    // Matched or single item - set up unified form mode
-    setIsUnifiedMode(selectedRecordIds.length > 1);
-    setVendorPOMismatchError(null);
-    setCommonVendorPO({ vendor: matchResult.vendor, poNumber: matchResult.poNumber });
-
-    // Set up unified form data (single form for all items)
-    setUnifiedFormData({
-      status: "lift-material",
-      followUpDate: "",
-      remarks: "",
-      liftingData: {
-
-        liftNumber: "", // Assigned by GAS on insert
-        liftingQty: "",
-        transporterName: "",
-        vehicleNumber: "",
-        contactNumber: "",
-        lrNumber: "",
-        biltyCopy: null,
-        dispatchDate: new Date().toISOString().split("T")[0],
-        expectedDeliveryDate: "",
-        freightAmount: "",
-        advanceAmount: "",
-        paymentDate: "",
-        paymentStatus: ""
+    const initialData = [
+      {
+        recordId: recordId,
+        status: mode,
+        followUpDate: "",
+        remarks: "",
+        liftingData: {
+          liftNumber: existLift.liftNumber || "",
+          liftingQty: existLift.liftingQty || String(record.data.quantity || 0),
+          transporterName: existLift.transporterName || "",
+          vehicleNumber: existLift.vehicleNumber || "",
+          contactNumber: existLift.contactNumber || "",
+          lrNumber: existLift.lrNumber || "",
+          biltyCopy: null,
+          dispatchDate: existLift.dispatchDate || "",
+          expectedDeliveryDate: existLift.expectedDeliveryDate || "",
+          freightAmount: existLift.freightAmount || "",
+          advanceAmount: existLift.advanceAmount || "",
+          paymentDate: existLift.paymentDate || "",
+          paymentStatus: ""
+        },
+        indentNumber: record.data.indentNumber,
+        quantity: record.data.quantity,
       }
-    });
+    ];
+    setBulkFormData(initialData);
+    setOpen(true);
+  };
 
-    // Initialize per-indent lifting quantities for the unified form
-    const qtys: Record<string, string> = {};
-    selectedRecordIds.forEach(id => {
-      const record = sheetRecords.find(r => r.id === id);
-      const existLift = record?.data.liftingData || {};
-      qtys[id] = existLift.liftQty || String(record?.data.quantity || 0);
-    });
-    setUnifiedLiftingQtys(qtys);
+  const handleBulkProcessOption = (mode: "follow-up" | "lift-material") => {
+    if (selectedRecordIds.length === 0) return;
+    setProcessMode(mode);
 
-    // Also maintain bulkFormData for reference (with selected record IDs)
+    if (mode === "lift-material") {
+      const matchResult = checkVendorPOMatch(selectedRecordIds);
+      if (selectedRecordIds.length > 1 && !matchResult.isMatched) {
+        setIsUnifiedMode(false);
+        setVendorPOMismatchError("Vendor Name or PO number not matched for the selected items.");
+        setCommonVendorPO(null);
+        setUnifiedFormData(null);
+        setBulkFormData([]);
+        setOpen(true);
+        return;
+      }
+
+      setIsUnifiedMode(selectedRecordIds.length > 1);
+      setVendorPOMismatchError(null);
+      setCommonVendorPO({ vendor: matchResult.vendor, poNumber: matchResult.poNumber });
+
+      setUnifiedFormData({
+        status: "lift-material",
+        followUpDate: "",
+        remarks: "",
+        liftingData: {
+          liftNumber: "",
+          liftingQty: "",
+          transporterName: "",
+          vehicleNumber: "",
+          contactNumber: "",
+          lrNumber: "",
+          biltyCopy: null,
+          dispatchDate: new Date().toISOString().split("T")[0],
+          expectedDeliveryDate: "",
+          freightAmount: "",
+          advanceAmount: "",
+          paymentDate: "",
+          paymentStatus: ""
+        }
+      });
+
+      const qtys: Record<string, string> = {};
+      selectedRecordIds.forEach(id => {
+        const record = sheetRecords.find(r => r.id === id);
+        const existLift = record?.data.liftingData || {};
+        qtys[id] = existLift.liftingQty || String(record?.data.quantity || 0);
+      });
+      setUnifiedLiftingQtys(qtys);
+    } else {
+      // mode === "follow-up"
+      setIsUnifiedMode(selectedRecordIds.length > 1);
+      setVendorPOMismatchError(null);
+      setCommonVendorPO(null);
+
+      setUnifiedFormData({
+        status: "follow-up",
+        followUpDate: "",
+        remarks: "",
+        liftingData: {
+          liftNumber: "",
+          liftingQty: "",
+          transporterName: "",
+          vehicleNumber: "",
+          contactNumber: "",
+          lrNumber: "",
+          biltyCopy: null,
+          dispatchDate: "",
+          expectedDeliveryDate: "",
+          freightAmount: "",
+          advanceAmount: "",
+          paymentDate: "",
+          paymentStatus: ""
+        }
+      });
+    }
+
     const initialData = selectedRecordIds.map((id) => {
       const record = sheetRecords.find((r) => r.id === id)!;
       const existLift = record.data.liftingData || {};
 
       return {
         recordId: id,
-        status: "lift-material",
+        status: mode,
         followUpDate: "",
-
         remarks: "",
         liftingData: {
-          liftNumber: existLift.liftNumber || "", // Assigned by GAS on insert
-          liftingQty: existLift.liftQty || String(record.data.quantity || 0),
-          transporterName: existLift.transporter || "",
-          vehicleNumber: existLift.vehicleNo || "",
-          contactNumber: existLift.contactNo || "",
-          lrNumber: existLift.lrNo || "",
+          liftNumber: existLift.liftNumber || "",
+          liftingQty: existLift.liftingQty || String(record.data.quantity || 0),
+          transporterName: existLift.transporterName || "",
+          vehicleNumber: existLift.vehicleNumber || "",
+          contactNumber: existLift.contactNumber || "",
+          lrNumber: existLift.lrNumber || "",
           biltyCopy: null,
           dispatchDate: existLift.dispatchDate || "",
           expectedDeliveryDate: existLift.expectedDeliveryDate || "",
-          freightAmount: existLift.freightAmt || "",
-          advanceAmount: existLift.advanceAmt || "",
+          freightAmount: existLift.freightAmount || "",
+          advanceAmount: existLift.advanceAmount || "",
           paymentDate: existLift.paymentDate || "",
           paymentStatus: ""
         },
@@ -747,27 +843,10 @@ export default function Stage6() {
         // We do not check for existing rows anymore. Every lift is a new history entry.
 
         // Prepare row for RECEIVING-ACCOUNTS
-        let receivingAccountRow: string[];
-
-        if (record.status === "follow-up") {
-          // Follow-up only: Store Next Follow-Up Date (F) and Remarks (G)
-          receivingAccountRow = new Array(76).fill(""); // Extended to cover BX (Index 75)
-          receivingAccountRow[0] = currentTimestamp;                        // A: Timestamp (M/D/YYYY HH:MM:SS)
-          receivingAccountRow[1] = sheetRecord.data.indentNumber || "";   // B: Indent Number
-          receivingAccountRow[2] = "";                                     // C: Unit Tracking No.
-          receivingAccountRow[3] = v.name || "";                          // D: Vendor Name
-          receivingAccountRow[4] = v.poNumber || "";                      // E: PO Number
-          receivingAccountRow[5] = followUpDateFormatted;                 // F: Next Follow-Up Date (YYYY-MM-DD)
-          receivingAccountRow[6] = record.remarks || "";                  // G: Remarks
-          receivingAccountRow[7] = sheetRecord.data.itemName || "";       // H: Item Name
-          // Leave lifting columns 8-18 empty for follow-up
-          // Leave intermediate empty
-          // Expected Delivery Date at Index 75 (BX) - usually for lifting, but if applicable for follow-up?
-          // Keeping it blank for follow-up unless meaningful.
-        } else {
+        if (record.status === "lift-material") {
           // Lift Material: Full row with all data
           // Initialize array with empty strings up to index 75 (76 elements)
-          receivingAccountRow = new Array(76).fill("");
+          const receivingAccountRow = new Array(76).fill("");
 
           receivingAccountRow[0] = currentTimestamp;                            // 0/A: Timestamp (M/D/YYYY HH:MM:SS)
           receivingAccountRow[1] = sheetRecord.data.indentNumber || "";       // 1/B: Indent Number
@@ -791,10 +870,10 @@ export default function Stage6() {
 
           // Index 34 (Column AI): Expected Delivery Date
           receivingAccountRow[34] = expectedDeliveryDateFormatted;
-        }
 
-        // Collect row for batch insert via insertLift (GAS assigns unique LIFT-NNN)
-        rowsToInsert.push(receivingAccountRow);
+          // Collect row for batch insert via insertLift (GAS assigns unique LIFT-NNN)
+          rowsToInsert.push(receivingAccountRow);
+        }
 
         // PREPARE UPDATE FOR INDENT-LIFT (Mark as Completed or Update Follow-up)
         // Safety Check for sheetRecord.row
@@ -804,13 +883,18 @@ export default function Stage6() {
         }
 
         // FIX: Use empty strings array to prevent overwriting other columns
-        // INDENT-LIFT has many columns, ensure we cover up to index 68 (BQ)
-        const fmsRow = new Array(70).fill("");
+        // INDENT-LIFT has many columns, ensure we cover up to index 77 (BZ)
+        const fmsRow = new Array(78).fill("");
 
         // If lifting, update Dispatch Date and Remaining Qty
         if (record.status === "lift-material") {
           fmsRow[61] = timestamp; // BJ (Index 61): Current Date (YYYY-MM-DD HH:mm:ss)
           // Do NOT touch BL (63) or BM (64) - handled by sheet formula
+        } else if (record.status === "follow-up") {
+          // Submit Estimated Date to col-BY (Index 76) and Remarks to col-BZ (Index 77)
+          fmsRow[76] = followUpDateFormatted;
+          fmsRow[77] = record.remarks || "";
+          // must not submit actual timestamp to col-BJ (Index 61) when filling a follow-up form.
         } else {
           fmsRow[61] = timestamp;
         }
@@ -891,6 +975,13 @@ export default function Stage6() {
     // If there's a mismatch error, form is not valid
     if (vendorPOMismatchError) return false;
 
+    if (processMode === "follow-up") {
+      if (isUnifiedMode) {
+        return !!(unifiedFormData && unifiedFormData.followUpDate);
+      }
+      return bulkFormData.length > 0 && !!bulkFormData[0].followUpDate;
+    }
+
     // Unified mode validation (single form for multiple items)
     if (isUnifiedMode && unifiedFormData) {
       if (!unifiedFormData.status) return false;
@@ -900,7 +991,7 @@ export default function Stage6() {
         // Ensure every selected indent has a lifting qty
         const allQtysFilled = selectedRecordIds.every(id => {
           const val = unifiedLiftingQtys[id];
-          return val && val.trim() !== "";
+          return val !== undefined && val !== null && String(val).trim() !== "";
         });
 
         return !!(
@@ -1043,14 +1134,31 @@ export default function Stage6() {
         </TabsList>
 
         {selectedRecordIds.length > 0 && activeTab === "pending" && (
-          <Button
-            onClick={handleBulkOpen}
-            disabled={selectedRecordIds.length === 0}
-            size="sm"
-            className="bg-slate-900 hover:bg-slate-800 text-white"
-          >
-            Follow-Up Selected
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                disabled={selectedRecordIds.length === 0}
+                size="sm"
+                className="bg-slate-900 hover:bg-slate-800 text-white"
+              >
+                Process Selected ({selectedRecordIds.length})
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-white border shadow-md">
+              <DropdownMenuItem
+                onClick={() => handleBulkProcessOption("follow-up")}
+                className="cursor-pointer hover:bg-slate-100 px-3 py-2 text-sm text-slate-800"
+              >
+                Follow-Up
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => handleBulkProcessOption("lift-material")}
+                className="cursor-pointer hover:bg-slate-100 px-3 py-2 text-sm text-slate-800"
+              >
+                Material Lifting
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
         </div>
 
@@ -1110,23 +1218,34 @@ export default function Stage6() {
                               onCheckedChange={() => toggleSelect(record.id)}
                             />
                           </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedRecordIds([record.id]);
-                                handleBulkOpen();
-                              }}
-                            >
-                              Follow-Up
-                            </Button>
+                          <TableCell className="text-center">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="sm">
+                                  Process
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="bg-white border shadow-md">
+                                <DropdownMenuItem
+                                  onClick={() => handleProcessOption(record.id, "follow-up")}
+                                  className="cursor-pointer hover:bg-slate-100 px-3 py-2 text-sm text-slate-800"
+                                >
+                                  Follow-Up
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleProcessOption(record.id, "lift-material")}
+                                  className="cursor-pointer hover:bg-slate-100 px-3 py-2 text-sm text-slate-800"
+                                >
+                                  Material Lifting
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                           {baseColumns
                             .filter((c) => selectedColumns.includes(c.key))
                             .map((col) => (
                               <TableCell key={col.key} className={cn((col.key === "totalLifted" || col.key === "pendingLifted") && "text-center")}>
-                                {col.key === "planned5"
+                                {col.key === "planned5" || col.key === "estimatedDate"
                                   ? formatDateDash(record.data[col.key])
                                   : record.data[col.key] || "-"}
                               </TableCell>
@@ -1311,7 +1430,9 @@ export default function Stage6() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-6xl max-h-[95vh] sm:max-h-[90vh] flex flex-col p-4 sm:p-6">
           <DialogHeader className="flex-shrink-0">
-            <DialogTitle>Bulk Follow-Up & Dispatch</DialogTitle>
+            <DialogTitle>
+              {processMode === "follow-up" ? "Follow-Up Details" : "Bulk Follow-Up & Dispatch"}
+            </DialogTitle>
             <p className="text-sm text-gray-600">
               {vendorPOMismatchError
                 ? "Cannot proceed with submission."
@@ -1333,6 +1454,88 @@ export default function Stage6() {
                 </p>
               </div>
             </div>
+          ) : processMode === "follow-up" ? (
+            /* Follow-Up Form (Single or Bulk) */
+            <form
+              onSubmit={handleBulkSubmit}
+              className="flex-1 overflow-y-auto space-y-6 pr-2"
+            >
+              {/* Summary of Selected Indents */}
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                <h4 className="font-semibold text-slate-800 mb-2">Selected Indents ({bulkFormData.length})</h4>
+                <div className="flex flex-wrap gap-2">
+                  {bulkFormData.map((item) => {
+                    const record = sheetRecords.find((r) => r.id === item.recordId);
+                    return (
+                      <Badge key={item.recordId} variant="secondary" className="bg-white">
+                        {record?.data.indentNumber} - {record?.data.itemName}
+                      </Badge>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="border rounded-lg p-6 bg-white shadow-sm space-y-4">
+                <h4 className="font-semibold text-lg mb-2">Follow-Up Form</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-slate-800">
+                      Estimated Date *
+                    </Label>
+                    <Input
+                      type="date"
+                      required
+                      value={
+                        isUnifiedMode
+                          ? unifiedFormData?.followUpDate || ""
+                          : bulkFormData[0]?.followUpDate || ""
+                      }
+                      onChange={(e) => {
+                        if (isUnifiedMode) {
+                          setUnifiedFormData((prev) =>
+                            prev ? { ...prev, followUpDate: e.target.value } : null
+                          );
+                        } else {
+                          setBulkFormData((prev) => {
+                            const updated = [...prev];
+                            if (updated[0]) updated[0].followUpDate = e.target.value;
+                            return updated;
+                          });
+                        }
+                      }}
+                      className="bg-white"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-slate-800">
+                      Remarks
+                    </Label>
+                    <Input
+                      placeholder="Enter remarks..."
+                      value={
+                        isUnifiedMode
+                          ? unifiedFormData?.remarks || ""
+                          : bulkFormData[0]?.remarks || ""
+                      }
+                      onChange={(e) => {
+                        if (isUnifiedMode) {
+                          setUnifiedFormData((prev) =>
+                            prev ? { ...prev, remarks: e.target.value } : null
+                          );
+                        } else {
+                          setBulkFormData((prev) => {
+                            const updated = [...prev];
+                            if (updated[0]) updated[0].remarks = e.target.value;
+                            return updated;
+                          });
+                        }
+                      }}
+                      className="bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+            </form>
           ) : isUnifiedMode && unifiedFormData ? (
             /* Unified Form for Multiple Items with Matching Vendor/PO */
             <form
