@@ -201,6 +201,7 @@ export default function TransporterFollowUp() {
                     r.data.indentNumber?.toLowerCase().includes(searchLower) ||
                     r.data.itemName?.toLowerCase().includes(searchLower) ||
                     r.data.vendorName?.toLowerCase().includes(searchLower) ||
+                    r.data.transporterName?.toLowerCase().includes(searchLower) ||
                     String(r.data.poNumber || "").toLowerCase().includes(searchLower) ||
                     String(r.data.invoiceNumber || "").toLowerCase().includes(searchLower) ||
                     String(r.data.lrCopy || "").toLowerCase().includes(searchLower)
@@ -237,6 +238,7 @@ export default function TransporterFollowUp() {
                 r.data.indentNumber?.toLowerCase().includes(searchLower) ||
                 r.data.itemName?.toLowerCase().includes(searchLower) ||
                 r.data.vendorName?.toLowerCase().includes(searchLower) ||
+                r.data.transporterName?.toLowerCase().includes(searchLower) ||
                 String(r.data.poNumber || "").toLowerCase().includes(searchLower) ||
                 String(r.data.invoiceNumber || "").toLowerCase().includes(searchLower) ||
                 String(r.data.lrCopy || "").toLowerCase().includes(searchLower)
@@ -521,7 +523,7 @@ export default function TransporterFollowUp() {
                         <div className="relative w-full max-w-sm">
                             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
                             <Input
-                                placeholder="Search by Indent, Item, Vendor..."
+                                placeholder="Search by Indent, Item, Vendor, Transporter..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="pl-9 bg-white"

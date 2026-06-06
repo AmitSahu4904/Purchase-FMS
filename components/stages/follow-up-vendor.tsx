@@ -386,11 +386,8 @@ export default function Stage6() {
                 planned5: row[60],       // BI: Planned Stage 6 Date
                 actual5: row[61],        // BJ: Actual Stage 6 Date (per user requirement)
                 status: row[62],         // BK
-                poNo: row[63],           // BL
-                nextFollow: row[64],     // BM
-                remarks: row[65],        // BN
-                totalLifted: row[66],    // BO
-                pendingLifted: row[67],  // BP
+                totalLifted: row[63],    // BL
+                pendingLifted: row[64],  // BM
                 finalVendorName: row[48] || "", // AW: Final Vendor Name
                 estimatedDate: row[76],  // BY: Estimated Date
                 remarksFollowUp: row[77], // BZ: Remark
