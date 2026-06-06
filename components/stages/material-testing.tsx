@@ -402,7 +402,7 @@ export default function Stage8() {
         selectedRecord.data.liftNo || "",                      // C: Lift No
         qcDateFormatted,                                        // D: QC-Date
         formData.workingCondition,                             // E: Working Condition
-        formData.workingCondition === "yes" ? formData.qcBy : "", // F: Checked By
+        formData.qcBy || "",                                   // F: Checked By
         formData.workingCondition === "yes" ? formData.approvedQty : "", // G: Approved Qty
         checklistStr,                                           // H: Checklist
         formData.workingCondition === "yes" ? approvedQtyJson : "", // I: Approved-Qty with S No. and Img
