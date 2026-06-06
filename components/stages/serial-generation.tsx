@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Search, ShieldAlert, Eye, Printer, PlusCircle, Check, ChevronsUpDown, ExternalLink } from "lucide-react";
+import { Loader2, Search, ShieldAlert, Eye, Printer, PlusCircle, Check, ChevronsUpDown, ExternalLink, Download } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatDate, parseSheetDate, getFmsTimestamp } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
@@ -470,6 +470,7 @@ export default function SerialGeneration() {
     const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
     const [selectedHistoryRecord, setSelectedHistoryRecord] = useState<any>(null);
     const [isPrinting, setIsPrinting] = useState(false);
+    const [pdfGeneratingId, setPdfGeneratingId] = useState<string | null>(null);
     const [warrantyRows, setWarrantyRows] = useState<any[]>([]);
 
     // === Direct Entry Form State ===
@@ -551,7 +552,9 @@ export default function SerialGeneration() {
             }
 
             // Create Warranty Map (Indent#_Lift# -> Array of { serialNo, qrLink })
+            // AND Grouped Serials by Indent No.
             const qrMap = new Map<string, any[]>();
+            const groupedSerials = new Map<string, any[]>();
             if (warrantyJson.success && Array.isArray(warrantyJson.data)) {
                 setWarrantyRows(warrantyJson.data);
                 warrantyJson.data.slice(6).forEach((r: any) => {
@@ -559,11 +562,30 @@ export default function SerialGeneration() {
                     const lift = String(r[1] || "").trim();
                     const qrLink = String(r[2] || "").trim();
                     const serialNo = String(r[3] || "").trim();
+                    const vendorName = String(r[4] || "").trim();
+                    const itemName = String(r[5] || "").trim();
+                    const invoiceDate = String(r[6] || "").trim();
+                    const warrantyEnd = String(r[7] || "").trim();
+                    const submissionTs = String(r[13] || "").trim();
+
                     if (indent) {
                         const key = `${indent}_${lift}`;
                         const existing = qrMap.get(key) || [];
                         existing.push({ serialNo, qrLink });
                         qrMap.set(key, existing);
+
+                        const groupKey = indent;
+                        const existingGroup = groupedSerials.get(groupKey) || [];
+                        existingGroup.push({
+                            serialNo,
+                            qrLink,
+                            vendorName,
+                            itemName,
+                            invoiceDate,
+                            warrantyEnd,
+                            submissionTs
+                        });
+                        groupedSerials.set(groupKey, existingGroup);
                     }
                 });
             }
@@ -577,6 +599,7 @@ export default function SerialGeneration() {
 
                 const pending: any[] = [];
                 const history: any[] = [];
+                const processedIndentsInHistory = new Set<string>();
 
                 allRows.forEach(({ row, raIndex }: any) => {
                     const planned = String(row[108] || "").trim(); // DE
@@ -585,31 +608,142 @@ export default function SerialGeneration() {
                     const hasActual = actual !== "" && actual !== "-";
 
                     const indentNo = String(row[1] || "").trim();
+                    const liftNo = String(row[2] || "").trim();
                     const fmsRow = fmsMap.get(indentNo);
 
                     const data = {
-                        indentNo,                                   // B
-                        liftNo: row[2] || "",                 // C
-                        vendorName: row[3] || "",                 // D
-                        poNumber: row[4] || "",                 // E
-                        itemName: row[7] || "",                 // H
-                        receivedQty: row[25] || "",                 // Z
-                        invoiceDate: row[23] || "",                 // X
-                        invoiceNo: row[24] || "",                 // Y
-                        invoiceCopy: row[29] || "",                 // AD: Bill Attachment
-                        poCopy: fmsRow ? (fmsRow[58] || "") : "", // FMS BG: PO Copy
-                        warrantyExpiry: row[106] || "",            // DC: Warranty Expiry
-                        productExpiry: row[107] || "",             // DD: Product Expiry
+                        indentNo,
+                        liftNo,
+                        vendorName: row[3] || "",
+                        poNumber: row[4] || "",
+                        itemName: row[7] || "",
+                        receivedQty: row[25] || "",
+                        invoiceDate: row[23] || "",
+                        invoiceNo: row[24] || "",
+                        invoiceCopy: row[29] || "",
+                        poCopy: fmsRow ? (fmsRow[58] || "") : "",
+                        warrantyExpiry: row[106] || "",
+                        productExpiry: row[107] || "",
                         planned,
                         actual,
-                        serials: qrMap.get(`${indentNo}_${row[2] || ""}`) || [],
+                        serials: qrMap.get(`${indentNo}_${liftNo}`) || [],
                     };
 
                     const id = `${data.indentNo}_${data.liftNo || raIndex}`;
 
                     if (hasPlan && !hasActual) {
                         pending.push({ id: `pending_${id}`, raIndex, data });
-                    } else if (hasPlan && hasActual) {
+                    }
+                });
+
+                // Build grouped history records from groupedSerials
+                for (const [indentNo, serialsList] of groupedSerials.entries()) {
+                    // Find all completed lifts for this indent in RECEIVING-ACCOUNTS
+                    const matchingRARows = allRows.filter(({ row }: any) => {
+                        const rowIndent = String(row[1] || "").trim();
+                        const actual = String(row[109] || "").trim();
+                        return rowIndent === indentNo && actual !== "" && actual !== "-";
+                    });
+
+                    if (matchingRARows.length > 0) {
+                        const firstRARow = matchingRARows[0].row;
+                        const firstFmsRow = fmsMap.get(indentNo);
+
+                        const uniqueLifts = Array.from(new Set(matchingRARows.map(({ row }: any) => String(row[2] || "").trim()).filter(Boolean)));
+                        const totalReceivedQty = matchingRARows.reduce((sum: number, { row }: any) => sum + (parseInt(row[25]) || 0), 0);
+                        const serials = serialsList.map(s => ({
+                            serialNo: s.serialNo,
+                            qrLink: s.qrLink
+                        }));
+
+                        const data = {
+                            indentNo,
+                            liftNo: uniqueLifts.join(", ") || "-",
+                            vendorName: firstRARow[3] || "",
+                            poNumber: firstRARow[4] || "",
+                            itemName: firstRARow[7] || "",
+                            receivedQty: String(totalReceivedQty || serials.length),
+                            invoiceDate: firstRARow[23] || "",
+                            invoiceNo: firstRARow[24] || "",
+                            invoiceCopy: firstRARow[29] || "",
+                            poCopy: firstFmsRow ? (firstFmsRow[58] || "") : "",
+                            warrantyExpiry: firstRARow[106] || "",
+                            productExpiry: firstRARow[107] || "",
+                            planned: firstRARow[108] || "",
+                            actual: firstRARow[109] || "",
+                            serials,
+                        };
+
+                        history.push({
+                            id: `history_${indentNo}`,
+                            raIndex: matchingRARows[0].raIndex,
+                            data
+                        });
+                        processedIndentsInHistory.add(indentNo);
+                    } else {
+                        // Direct Indent (e.g. IN-DIR-XXXX) or indent not in RECEIVING-ACCOUNTS
+                        const firstSerial = serialsList[0];
+                        const serials = serialsList.map(s => ({
+                            serialNo: s.serialNo,
+                            qrLink: s.qrLink
+                        }));
+
+                        const data = {
+                            indentNo,
+                            liftNo: "-",
+                            vendorName: firstSerial.vendorName || "-",
+                            poNumber: "-",
+                            itemName: firstSerial.itemName || "-",
+                            receivedQty: String(serials.length),
+                            invoiceDate: firstSerial.invoiceDate || "",
+                            invoiceNo: "-",
+                            invoiceCopy: "-",
+                            poCopy: "-",
+                            warrantyExpiry: firstSerial.warrantyEnd || "",
+                            productExpiry: firstSerial.warrantyEnd || "",
+                            planned: "-",
+                            actual: firstSerial.submissionTs || "",
+                            serials,
+                        };
+
+                        history.push({
+                            id: `history_${indentNo}`,
+                            raIndex: -1,
+                            data
+                        });
+                        processedIndentsInHistory.add(indentNo);
+                    }
+                }
+
+                // Fallback for any completed RECEIVING-ACCOUNTS row that does not have serials logged
+                allRows.forEach(({ row, raIndex }: any) => {
+                    const planned = String(row[108] || "").trim();
+                    const actual = String(row[109] || "").trim();
+                    const hasPlan = planned !== "" && planned !== "-";
+                    const hasActual = actual !== "" && actual !== "-";
+                    const indentNo = String(row[1] || "").trim();
+
+                    if (hasPlan && hasActual && !processedIndentsInHistory.has(indentNo)) {
+                        const liftNo = String(row[2] || "").trim();
+                        const fmsRow = fmsMap.get(indentNo);
+                        const data = {
+                            indentNo,
+                            liftNo,
+                            vendorName: row[3] || "",
+                            poNumber: row[4] || "",
+                            itemName: row[7] || "",
+                            receivedQty: row[25] || "",
+                            invoiceDate: row[23] || "",
+                            invoiceNo: row[24] || "",
+                            invoiceCopy: row[29] || "",
+                            poCopy: fmsRow ? (fmsRow[58] || "") : "",
+                            warrantyExpiry: row[106] || "",
+                            productExpiry: row[107] || "",
+                            planned,
+                            actual,
+                            serials: [],
+                        };
+                        const id = `${data.indentNo}_${data.liftNo || raIndex}`;
                         history.push({ id: `history_${id}`, raIndex, data });
                     }
                 });
@@ -984,6 +1118,63 @@ export default function SerialGeneration() {
             toast.error("Failed to prepare labels");
         } finally {
             setIsPrinting(false);
+        }
+    };
+
+    const handleDownloadAllPDF = async (record: any) => {
+        if (!record) return;
+        const indentNo = record.data.indentNo;
+        setPdfGeneratingId(indentNo);
+        const toastId = toast.loading(`Generating PDF for Indent ${indentNo}...`);
+        try {
+            const itemName = record.data.itemName;
+            const itemCode = itemCodeMap[itemName] || "N/A";
+            const productExpiry = record.data.productExpiry || record.data.warrantyExpiry || "";
+            const encodedDate = encodeExpiryDate(productExpiry);
+            const serials = record.data.serials || [];
+
+            if (serials.length === 0) {
+                toast.error("No serial numbers found for this record", { id: toastId });
+                return;
+            }
+
+            // Generate QR code data URLs for all serial numbers
+            const serialsWithQr = await Promise.all(serials.map(async (s: any) => {
+                const qrData = encodedDate
+                    ? `${itemName}/${itemCode}/${s.serialNo}/${encodedDate}`
+                    : `${itemName}/${itemCode}/${s.serialNo}`;
+                const qrDataUrl = await QRCode.toDataURL(qrData, {
+                    margin: 1,
+                    errorCorrectionLevel: 'L',
+                    width: 250
+                });
+                return {
+                    serialNo: s.serialNo,
+                    qrDataUrl
+                };
+            }));
+
+            // Dynamically import @react-pdf/renderer and the PDF Document component
+            const { pdf } = await import("@react-pdf/renderer");
+            const { SerialPDFDocument } = await import("./serial-pdf");
+
+            // Compile document to blob
+            const doc = <SerialPDFDocument itemName={itemName} itemCode={itemCode} encodedDate={encodedDate} serials={serialsWithQr} />;
+            const blob = await pdf(doc).toBlob();
+
+            // Download trigger
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `QR_Labels_${indentNo.replace(/[/\\:]/g, '_')}.pdf`;
+            link.click();
+            URL.revokeObjectURL(url);
+            toast.success("PDF downloaded successfully!", { id: toastId });
+        } catch (err) {
+            console.error(err);
+            toast.error("Failed to generate PDF", { id: toastId });
+        } finally {
+            setPdfGeneratingId(null);
         }
     };
 
@@ -1490,14 +1681,31 @@ export default function SerialGeneration() {
                                                     {HISTORY_COLUMNS.map((col) => (
                                                         <td key={col.key} className="border-b px-4 py-2 text-center text-slate-700">
                                                             {col.key === "actions" ? (
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="sm"
-                                                                    className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
-                                                                    onClick={() => openHistoryDetails(rec)}
-                                                                >
-                                                                    <Eye className="h-4 w-4" />
-                                                                </Button>
+                                                                <div className="flex items-center justify-center gap-1">
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                                                                        onClick={() => openHistoryDetails(rec)}
+                                                                        title="View Details"
+                                                                    >
+                                                                        <Eye className="h-4 w-4" />
+                                                                    </Button>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="h-8 w-8 p-0 text-green-600 hover:text-green-800 hover:bg-green-50"
+                                                                        onClick={() => handleDownloadAllPDF(rec)}
+                                                                        disabled={pdfGeneratingId !== null}
+                                                                        title="Download PDF"
+                                                                    >
+                                                                        {pdfGeneratingId === rec.data.indentNo ? (
+                                                                            <Loader2 className="h-4 w-4 animate-spin text-green-600" />
+                                                                        ) : (
+                                                                            <Download className="h-4 w-4" />
+                                                                        )}
+                                                                    </Button>
+                                                                </div>
                                                             ) : renderCell(rec.data, col.key)}
                                                         </td>
                                                     ))}
