@@ -234,11 +234,11 @@ export default function WarrantyClaim() {
         if (!searchTerm) return records;
         const lower = searchTerm.toLowerCase();
         return records.filter((r) =>
-            r.data.indentNo?.toLowerCase().includes(lower) ||
-            r.data.itemName?.toLowerCase().includes(lower) ||
-            r.data.vendorName?.toLowerCase().includes(lower) ||
-            r.data.serialNo?.toLowerCase().includes(lower) ||
-            r.data.invoiceNo?.toLowerCase().includes(lower)
+            String(r.data.indentNo || "").toLowerCase().includes(lower) ||
+            String(r.data.itemName || "").toLowerCase().includes(lower) ||
+            String(r.data.vendorName || "").toLowerCase().includes(lower) ||
+            String(r.data.serialNo || "").toLowerCase().includes(lower) ||
+            String(r.data.invoiceNo || "").toLowerCase().includes(lower)
         );
     }, [searchTerm]);
 

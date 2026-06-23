@@ -301,6 +301,7 @@ export default function Stage7() {
                                 damagedQty: row[116] || "",
                                 damageReason: row[117] || "",
                                 damageImage: row[118] || "",
+                                productClaim: row[120] || "",     // DQ: Product Claim
                             }
                         };
                     });
@@ -350,7 +351,8 @@ export default function Stage7() {
         paymentAmountLabour: "",
         paymentAmountHamali: "",
         qcRequirement: "no",
-        warrantyClaim: "no",
+        warrantyClaim: "",
+        productClaim: "",
         duration: "",
         warrantyExpiry: "",
         productExpiry: "",
@@ -542,7 +544,8 @@ export default function Stage7() {
             paymentAmountLabour: "",
             paymentAmountHamali: "",
             qcRequirement: "no",
-            warrantyClaim: "no",
+            warrantyClaim: "",
+            productClaim: "",
             duration: "",
             warrantyExpiry: "",
             productExpiry: "",
@@ -581,7 +584,7 @@ export default function Stage7() {
             const [billUrl, imageUrl] = await Promise.all([billPromise, imagePromise]);
 
             const timestamp = getFmsTimestamp();
-            const rowArray = new Array(120).fill("");
+            const rowArray = new Array(121).fill("");
 
             rowArray[20] = timestamp;               // U: Actual6
             rowArray[22] = "independent";         // W: Invoice Type
@@ -602,6 +605,7 @@ export default function Stage7() {
             rowArray[105] = form.duration || "";       // DB: Duration
             rowArray[106] = form.warrantyExpiry || ""; // DC: Warranty Expiry
             rowArray[107] = form.productExpiry || "";  // DD: Product Expiry
+            rowArray[120] = form.productClaim || "";   // DQ: Product Claim
 
             // Damage Data
             let damageImageUrl = "";
@@ -644,8 +648,20 @@ export default function Stage7() {
         form.invoiceNumber &&
         form.invoiceDate &&
         form.qcRequirement &&
-        form.billAttachment,
-        [form.receivedQty, form.invoiceNumber, form.invoiceDate, form.qcRequirement, form.billAttachment]);
+        form.billAttachment &&
+        form.warrantyClaim &&
+        form.productClaim &&
+        (form.productClaim !== "yes" || form.productExpiry),
+        [
+            form.receivedQty,
+            form.invoiceNumber,
+            form.invoiceDate,
+            form.qcRequirement,
+            form.billAttachment,
+            form.warrantyClaim,
+            form.productClaim,
+            form.productExpiry
+        ]);
 
     // Memoized filtered lists – only recompute when records or search change
     const pending = useMemo(() => {
@@ -658,9 +674,9 @@ export default function Stage7() {
 
             if (!lower) return true;
             return (
-                r.data.indentNumber?.toLowerCase().includes(lower) ||
-                r.data.itemName?.toLowerCase().includes(lower) ||
-                r.data.vendorName?.toLowerCase().includes(lower) ||
+                String(r.data.indentNumber || "").toLowerCase().includes(lower) ||
+                String(r.data.itemName || "").toLowerCase().includes(lower) ||
+                String(r.data.vendorName || "").toLowerCase().includes(lower) ||
                 String(r.data.poNumber || "").toLowerCase().includes(lower) ||
                 String(r.data.invoiceNumber || "").toLowerCase().includes(lower)
             );
@@ -677,14 +693,134 @@ export default function Stage7() {
 
             if (!lower) return true;
             return (
-                r.data.indentNumber?.toLowerCase().includes(lower) ||
-                r.data.itemName?.toLowerCase().includes(lower) ||
-                r.data.vendorName?.toLowerCase().includes(lower) ||
+                String(r.data.indentNumber || "").toLowerCase().includes(lower) ||
+                String(r.data.itemName || "").toLowerCase().includes(lower) ||
+                String(r.data.vendorName || "").toLowerCase().includes(lower) ||
                 String(r.data.poNumber || "").toLowerCase().includes(lower) ||
                 String(r.data.invoiceNumber || "").toLowerCase().includes(lower)
             );
         });
     }, [sheetRecords, searchTerm, warehouseFilter]);
+
+    const qcField = (
+        <div className="space-y-1.5">
+            <Label>
+                QC Required <span className="text-red-500">*</span>
+            </Label>
+            <Select
+                value={form.qcRequirement}
+                onValueChange={(v) => setForm({ ...form, qcRequirement: v })}
+            >
+                <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select..." />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="yes">Yes</SelectItem>
+                    <SelectItem value="no">No</SelectItem>
+                </SelectContent>
+            </Select>
+        </div>
+    );
+
+    const productClaimField = (
+        <div className="space-y-1.5">
+            <Label>Product Claim <span className="text-red-500">*</span></Label>
+            <Select
+                value={form.productClaim}
+                onValueChange={(v) => {
+                    const newForm = { ...form, productClaim: v };
+                    if (v === "no") {
+                        newForm.productExpiry = "";
+                    }
+                    setForm(newForm);
+                }}
+            >
+                <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select..." />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="yes">Yes</SelectItem>
+                    <SelectItem value="no">No</SelectItem>
+                </SelectContent>
+            </Select>
+        </div>
+    );
+
+    const productExpiryField = (
+        <div className="space-y-1.5">
+            <Label>Product Expiry <span className="text-red-500">*</span></Label>
+            <div className="flex items-center gap-2">
+                <Input
+                    type="date"
+                    value={form.productExpiry}
+                    onChange={(e) => setForm({ ...form, productExpiry: e.target.value })}
+                    className="flex-1"
+                />
+            </div>
+        </div>
+    );
+
+    const warrantyClaimField = (
+        <div className="space-y-1.5">
+            <Label>Warranty Claim <span className="text-red-500">*</span></Label>
+            <Select
+                value={form.warrantyClaim}
+                onValueChange={(v) => {
+                    const newForm = { ...form, warrantyClaim: v };
+                    if (v === "no") {
+                        newForm.duration = "";
+                        newForm.warrantyExpiry = "";
+                    }
+                    setForm(newForm);
+                }}
+            >
+                <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select..." />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="yes">Yes</SelectItem>
+                    <SelectItem value="no">No</SelectItem>
+                </SelectContent>
+            </Select>
+        </div>
+    );
+
+    const warrantyExpiryAndDurationFields = (
+        <>
+            <div className="space-y-1.5">
+                <Label>Duration (Months)</Label>
+                <Input
+                    type="number"
+                    value={form.duration}
+                    onChange={(e) => {
+                        const duration = e.target.value;
+                        const newForm = { ...form, duration };
+                        if (form.invoiceDate && duration) {
+                            const d = new Date(form.invoiceDate);
+                            const months = parseInt(duration, 10);
+                            if (!isNaN(d.getTime()) && !isNaN(months)) {
+                                d.setMonth(d.getMonth() + months);
+                                newForm.warrantyExpiry = d.toISOString().split("T")[0];
+                            }
+                        } else {
+                            newForm.warrantyExpiry = "";
+                        }
+                        setForm(newForm);
+                    }}
+                    placeholder="Months"
+                />
+            </div>
+            <div className="space-y-1.5">
+                <Label>Warranty Expiry</Label>
+                <Input
+                    value={form.warrantyExpiry}
+                    readOnly
+                    className="bg-gray-100"
+                    placeholder="Auto-calc"
+                />
+            </div>
+        </>
+    );
 
     return (
         <div className="p-4 md:p-6 min-h-screen bg-[#f8fafc]">
@@ -1170,7 +1306,7 @@ export default function Stage7() {
 
                     {isBulkMode ? (
                         /* BULK FORM */
-                        <form onSubmit={handleBulkSubmit} className="flex-1 overflow-y-auto space-y-6 pr-2">
+                        <form onSubmit={handleBulkSubmit} className="flex-1 overflow-y-auto space-y-4 pr-2">
                             {/* Individual Items Table */}
                             <div className="space-y-4">
                                 <h3 className="font-semibold text-lg border-b pb-2">Items ({bulkItems.length})</h3>
@@ -1450,8 +1586,8 @@ export default function Stage7() {
                             {/* Common Details */}
                             <div className="bg-gray-50 p-4 rounded-lg space-y-4">
                                 <h3 className="font-semibold text-lg border-b pb-2">Common Details</h3>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1.5">
                                         <Label>Invoice Date <span className="text-red-500">*</span></Label>
                                         <Input
                                             type="date"
@@ -1478,7 +1614,7 @@ export default function Stage7() {
                                             required
                                         />
                                     </div>
-                                    <div className="space-y-2">
+                                    <div className="space-y-1.5">
                                         <Label>Invoice No. <span className="text-red-500">*</span></Label>
                                         <Input
                                             value={commonData.invoiceNumber}
@@ -1487,7 +1623,7 @@ export default function Stage7() {
                                         />
                                     </div>
 
-                                    <div className="space-y-2 col-span-2">
+                                    <div className="space-y-1.5 col-span-2">
                                         <Label>Bill Attachment <span className="text-red-500">*</span></Label>
                                         <input
                                             id="bulkBillAttachment"
@@ -1498,10 +1634,10 @@ export default function Stage7() {
                                         />
                                         <label
                                             htmlFor="bulkBillAttachment"
-                                            className="flex items-center justify-center w-full p-4 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-400"
+                                            className="flex items-center justify-center w-full p-2 border-2 border-dashed border-gray-200 hover:border-gray-300 hover:bg-slate-50 rounded-lg cursor-pointer transition-all h-[80px]"
                                         >
-                                            <Upload className="w-6 h-6 text-gray-400 mr-2" />
-                                            <span className="text-sm text-gray-600">Upload Bill</span>
+                                            <Upload className="w-4 h-4 text-gray-400 mr-2" />
+                                            <span className="text-xs text-gray-500 font-medium">Upload Bill</span>
                                         </label>
                                         {commonData.billAttachment && (
                                             <div className="mt-2 p-2 bg-gray-50 border rounded flex items-center justify-between">
@@ -1528,8 +1664,8 @@ export default function Stage7() {
                                     <h4 className="font-semibold text-sm">Packaging / Forwarding
                                         <span className="text-xs font-normal text-gray-500 ml-2">(shared, divided equally among selected indents)</span>
                                     </h4>
-                                    <div className="grid grid-cols-3 gap-4">
-                                        <div className="space-y-2">
+                                    <div className="grid grid-cols-3 gap-3">
+                                        <div className="space-y-1.5">
                                             <Label>Amount</Label>
                                             <Input
                                                 type="number"
@@ -1540,10 +1676,10 @@ export default function Stage7() {
                                                 className="bg-white"
                                             />
                                         </div>
-                                        <div className="space-y-2">
+                                        <div className="space-y-1.5">
                                             <Label>GST on Packaging</Label>
                                             <Select value={commonData.pkgGST} onValueChange={(v) => setCommonData({ ...commonData, pkgGST: v })}>
-                                                <SelectTrigger className="bg-white"><SelectValue placeholder="Select GST" /></SelectTrigger>
+                                                <SelectTrigger className="w-full bg-white"><SelectValue placeholder="Select GST" /></SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="0%">0%</SelectItem>
                                                     <SelectItem value="5%">5%</SelectItem>
@@ -1553,7 +1689,7 @@ export default function Stage7() {
                                                 </SelectContent>
                                             </Select>
                                         </div>
-                                        <div className="space-y-2">
+                                        <div className="space-y-1.5">
                                             <Label>Total Packaging</Label>
                                             <Input
                                                 type="number"
@@ -1567,8 +1703,8 @@ export default function Stage7() {
                                     <p className="text-xs text-amber-700">Per item share: ₹{getPkgTotals(commonData.pkgAmount, commonData.pkgGST, bulkItems.length).perItemPkgTotal.toFixed(2)}</p>
                                 </div>
 
-                                <div className="grid grid-cols-3 gap-4">
-                                    <div className="space-y-2">
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div className="space-y-1.5">
                                         <Label>Hydra Amt</Label>
                                         <Input
                                             type="number"
@@ -1577,7 +1713,7 @@ export default function Stage7() {
                                             onChange={(e) => setCommonData({ ...commonData, paymentAmountHydra: e.target.value })}
                                         />
                                     </div>
-                                    <div className="space-y-2">
+                                    <div className="space-y-1.5">
                                         <Label>Labour Amt</Label>
                                         <Input
                                             type="number"
@@ -1586,7 +1722,7 @@ export default function Stage7() {
                                             onChange={(e) => setCommonData({ ...commonData, paymentAmountLabour: e.target.value })}
                                         />
                                     </div>
-                                    <div className="space-y-2">
+                                    <div className="space-y-1.5">
                                         <Label>Hamali Amt</Label>
                                         <Input
                                             type="number"
@@ -1596,7 +1732,7 @@ export default function Stage7() {
                                         />
                                     </div>
                                 </div>
-                                <div className="space-y-2">
+                                <div className="space-y-1.5">
                                     <Label>Remarks</Label>
                                     <textarea
                                         value={commonData.remarks}
@@ -1611,10 +1747,10 @@ export default function Stage7() {
                         /* SINGLE FORM (Existing) */
                         <form
                             onSubmit={handleSubmit}
-                            className="flex-1 overflow-y-auto space-y-6 pr-2"
+                            className="flex-1 overflow-y-auto space-y-4 pr-2"
                         >
-                            <div className="grid grid-cols-4 gap-4">
-                                <div className="space-y-2 col-span-2">
+                            <div className="grid grid-cols-4 gap-3">
+                                <div className="space-y-1.5 col-span-2">
                                     <Label>Item Name</Label>
                                     <Input
                                         value={form.itemName}
@@ -1622,7 +1758,7 @@ export default function Stage7() {
                                         className="bg-gray-50 border-blue-200"
                                     />
                                 </div>
-                                <div className="space-y-2">
+                                <div className="space-y-1.5">
                                     <Label>Unit Tracking No.</Label>
                                     <Input
                                         value={form.liftNumber}
@@ -1630,7 +1766,7 @@ export default function Stage7() {
                                         className="bg-gray-50"
                                     />
                                 </div>
-                                <div className="space-y-2">
+                                <div className="space-y-1.5">
                                     <Label>
                                         Received Qty <span className="text-red-500">*</span>
                                     </Label>
@@ -1646,8 +1782,8 @@ export default function Stage7() {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1.5">
                                     <Label>
                                         Invoice Date <span className="text-red-500">*</span>
                                     </Label>
@@ -1661,7 +1797,7 @@ export default function Stage7() {
                                     />
                                 </div>
 
-                                <div className="space-y-2">
+                                <div className="space-y-1.5">
                                     <Label>
                                         Invoice No. <span className="text-red-500">*</span>
                                     </Label>
@@ -1676,65 +1812,18 @@ export default function Stage7() {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-3 gap-4">
-                                <div className="space-y-2">
-                                    <Label>
-                                        QC Required <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Select
-                                        value={form.qcRequirement}
-                                        onValueChange={(v) => setForm({ ...form, qcRequirement: v })}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="yes">Yes</SelectItem>
-                                            <SelectItem value="no">No</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label>Warranty</Label>
-                                    <Select
-                                        value={form.warrantyClaim}
-                                        onValueChange={(v) => {
-                                            const newForm = { ...form, warrantyClaim: v };
-                                            if (v === "no") {
-                                                newForm.duration = "";
-                                                newForm.warrantyExpiry = "";
-                                                newForm.productExpiry = "";
-                                            }
-                                            setForm(newForm);
-                                        }}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="yes">Yes</SelectItem>
-                                            <SelectItem value="no">No</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Product Expiry</Label>
-                                    <div className="flex items-center gap-2">
-                                        <Input
-                                            type="date"
-                                            value={form.productExpiry}
-                                            onChange={(e) => setForm({ ...form, productExpiry: e.target.value })}
-                                            className="flex-1"
-                                        />
-                                    </div>
-                                </div>
+                            {/* Row 3 and Row 4: Single grid to make all conditional fields consecutive */}
+                            <div className="grid grid-cols-3 gap-3">
+                                {qcField}
+                                {productClaimField}
+                                {form.productClaim === "yes" && productExpiryField}
+                                {warrantyClaimField}
+                                {form.warrantyClaim === "yes" && warrantyExpiryAndDurationFields}
                             </div>
 
-                            <div className="space-y-4">
-                                <h3 className="font-medium text-sm border-b pb-2">Damage Information</h3>
-                                <div className="grid grid-cols-3 gap-4">
-                                    <div className="space-y-2">
+                            <div className="space-y-3">
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div className="space-y-1.5">
                                         <Label>Damage Received</Label>
                                         <Select
                                             value={form.damageReceived}
@@ -1748,7 +1837,7 @@ export default function Stage7() {
                                                 setForm(newForm);
                                             }}
                                         >
-                                            <SelectTrigger>
+                                            <SelectTrigger className="w-full">
                                                 <SelectValue placeholder="Select..." />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -1761,9 +1850,9 @@ export default function Stage7() {
                             </div>
 
                             {form.damageReceived === "yes" && (
-                                <div className="grid grid-cols-3 gap-4 bg-red-50 p-4 rounded-lg">
-                                    <div className="space-y-2">
-                                        <Label>Damaged Qty</Label>
+                                <div className="grid grid-cols-3 gap-3 bg-red-50/50 p-3 rounded-lg border border-red-100">
+                                    <div className="space-y-1.5">
+                                        <Label className="text-red-900 font-medium">Damaged Qty</Label>
                                         <Input
                                             type="number"
                                             value={form.damagedQty}
@@ -1771,16 +1860,16 @@ export default function Stage7() {
                                             placeholder="0"
                                         />
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label>Reason</Label>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-red-900 font-medium">Reason</Label>
                                         <Input
                                             value={form.damageReason}
                                             onChange={(e) => setForm({ ...form, damageReason: e.target.value })}
                                             placeholder="Why is it damaged?"
                                         />
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label>Damage Image</Label>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-red-900 font-medium">Damage Image</Label>
                                         <input
                                             id="damageImage"
                                             type="file"
@@ -1807,47 +1896,10 @@ export default function Stage7() {
                                 </div>
                             )}
 
-                            {form.warrantyClaim === "yes" && (
-                                <div className="grid grid-cols-2 gap-4 bg-amber-50 p-4 rounded-lg">
-                                    <div className="space-y-2">
-                                        <Label>Duration (Months)</Label>
-                                        <Input
-                                            type="number"
-                                            value={form.duration}
-                                            onChange={(e) => {
-                                                const duration = e.target.value;
-                                                const newForm = { ...form, duration };
-                                                if (form.invoiceDate && duration) {
-                                                    const d = new Date(form.invoiceDate);
-                                                    const months = parseInt(duration, 10);
-                                                    if (!isNaN(d.getTime()) && !isNaN(months)) {
-                                                        d.setMonth(d.getMonth() + months);
-                                                        newForm.warrantyExpiry = d.toISOString().split("T")[0];
-                                                    }
-                                                } else {
-                                                    newForm.warrantyExpiry = "";
-                                                }
-                                                setForm(newForm);
-                                            }}
-                                            placeholder="Months"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>Warranty Expiry</Label>
-                                        <Input
-                                            value={form.warrantyExpiry}
-                                            readOnly
-                                            className="bg-gray-100"
-                                            placeholder="Auto-calc"
-                                        />
-                                    </div>
-                                </div>
-                            )}
-
                             {/* Media Row */}
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-3">
                                 {/* Received Item Image */}
-                                <div className="space-y-2">
+                                <div className="space-y-1.5">
                                     <Label>Received Item Image</Label>
                                     <input
                                         id="receivedItemImage"
@@ -1863,10 +1915,10 @@ export default function Stage7() {
                                     />
                                     <label
                                         htmlFor="receivedItemImage"
-                                        className="flex items-center justify-center w-full p-4 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-400 h-[100px]"
+                                        className="flex items-center justify-center w-full p-2 border-2 border-dashed border-gray-200 hover:border-gray-300 hover:bg-slate-50 rounded-lg cursor-pointer transition-all h-[80px]"
                                     >
-                                        <Upload className="w-5 h-5 text-gray-400 mr-2" />
-                                        <span className="text-sm text-gray-600">Upload Image</span>
+                                        <Upload className="w-4 h-4 text-gray-400 mr-2" />
+                                        <span className="text-xs text-gray-500 font-medium">Upload Image</span>
                                     </label>
                                     {form.receivedItemImage && (
                                         <div className="mt-2 p-2 bg-gray-50 border rounded flex items-center justify-between">
@@ -1888,7 +1940,7 @@ export default function Stage7() {
                                 </div>
 
                                 {/* Bill Attachment */}
-                                <div className="space-y-2">
+                                <div className="space-y-1.5">
                                     <Label>Bill Attachment <span className="text-red-500">*</span></Label>
                                     <input
                                         id="billAttachment"
@@ -1904,10 +1956,10 @@ export default function Stage7() {
                                     />
                                     <label
                                         htmlFor="billAttachment"
-                                        className="flex items-center justify-center w-full p-4 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-400 h-[100px]"
+                                        className="flex items-center justify-center w-full p-2 border-2 border-dashed border-gray-200 hover:border-gray-300 hover:bg-slate-50 rounded-lg cursor-pointer transition-all h-[80px]"
                                     >
-                                        <Upload className="w-5 h-5 text-gray-400 mr-2" />
-                                        <span className="text-sm text-gray-600">Upload Bill</span>
+                                        <Upload className="w-4 h-4 text-gray-400 mr-2" />
+                                        <span className="text-xs text-gray-500 font-medium">Upload Bill</span>
                                     </label>
                                     {form.billAttachment && (
                                         <div className="mt-2 p-2 bg-gray-50 border rounded flex items-center justify-between">
@@ -1930,10 +1982,10 @@ export default function Stage7() {
                             </div>
 
                             {/* Payment Heads */}
-                            <div className="space-y-4">
-                                <h3 className="font-medium">Others Payment Head</h3>
-                                <div className="grid grid-cols-3 gap-4">
-                                    <div className="space-y-2">
+                            <div className="space-y-3">
+                                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 border-b pb-1 mb-2">Others Payment Head</h3>
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div className="space-y-1.5">
                                         <Label>Hydra Amount</Label>
                                         <Input
                                             type="number"
@@ -1944,7 +1996,7 @@ export default function Stage7() {
                                             }
                                         />
                                     </div>
-                                    <div className="space-y-2">
+                                    <div className="space-y-1.5">
                                         <Label>Labour Amount</Label>
                                         <Input
                                             type="number"
@@ -1958,7 +2010,7 @@ export default function Stage7() {
                                             }
                                         />
                                     </div>
-                                    <div className="space-y-2">
+                                    <div className="space-y-1.5">
                                         <Label>Auto Charge</Label>
                                         <Input
                                             type="number"
@@ -1976,24 +2028,24 @@ export default function Stage7() {
                             </div>
 
                             {/* Packaging/Forwarding - Single Form */}
-                            <div className="border rounded-lg p-4 bg-amber-50 space-y-3">
-                                <h3 className="font-medium text-sm">Packaging / Forwarding</h3>
-                                <div className="grid grid-cols-3 gap-4">
-                                    <div className="space-y-2">
-                                        <Label>Amount</Label>
+                            <div className="border border-amber-100 rounded-lg p-3 bg-amber-50/50 space-y-1.5">
+                                <h3 className="text-xs font-semibold uppercase tracking-wider text-amber-800">Packaging / Forwarding</h3>
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs">Amount</Label>
                                         <Input
                                             type="number"
+                                            className="h-8 bg-white"
                                             step="0.01"
                                             value={form.pkgAmount}
                                             onChange={(e) => setForm({ ...form, pkgAmount: e.target.value })}
                                             placeholder="0.00"
-                                            className="bg-white"
                                         />
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label>GST on Packaging</Label>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs">GST on Packaging</Label>
                                         <Select value={form.pkgGST} onValueChange={(v) => setForm({ ...form, pkgGST: v })}>
-                                            <SelectTrigger className="bg-white"><SelectValue placeholder="Select GST" /></SelectTrigger>
+                                            <SelectTrigger className="w-full h-8 bg-white"><SelectValue placeholder="Select GST" /></SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="0%">0%</SelectItem>
                                                 <SelectItem value="5%">5%</SelectItem>
@@ -2003,7 +2055,7 @@ export default function Stage7() {
                                             </SelectContent>
                                         </Select>
                                     </div>
-                                    <div className="space-y-2">
+                                    <div className="space-y-1.5">
                                         <Label>Total Packaging</Label>
                                         <Input
                                             type="number"
@@ -2017,7 +2069,7 @@ export default function Stage7() {
                             </div>
 
                             {/* Remarks */}
-                            <div className="space-y-2">
+                            <div className="space-y-1.5">
                                 <Label>Remarks</Label>
                                 <textarea
                                     value={form.remarks}
