@@ -65,6 +65,7 @@ export default function TransporterFollowUp() {
         status: "",
         remarks: "",
         expectedDate: "",
+        expectedDelivery: "",
     });
 
     // Sorting State
@@ -163,6 +164,7 @@ export default function TransporterFollowUp() {
                                 expectedDate: expectedDate, // From Transport Flw-Up
                                 remarks: latestRemarks,      // From Transport Flw-Up
                                 totalFollowUps: followUpData?.followUpCount || 0, // Count of Intransit statuses
+                                lrNo: row[12],             // Column M (LR-No.)
                                 lrCopy: row[18],           // Column S (LR Copy)
                             }
                         };
@@ -204,7 +206,8 @@ export default function TransporterFollowUp() {
                     r.data.transporterName?.toLowerCase().includes(searchLower) ||
                     String(r.data.poNumber || "").toLowerCase().includes(searchLower) ||
                     String(r.data.invoiceNumber || "").toLowerCase().includes(searchLower) ||
-                    String(r.data.lrCopy || "").toLowerCase().includes(searchLower)
+                    String(r.data.lrCopy || "").toLowerCase().includes(searchLower) ||
+                    String(r.data.lrNo || "").toLowerCase().includes(searchLower)
                 );
             });
 
@@ -241,7 +244,8 @@ export default function TransporterFollowUp() {
                 r.data.transporterName?.toLowerCase().includes(searchLower) ||
                 String(r.data.poNumber || "").toLowerCase().includes(searchLower) ||
                 String(r.data.invoiceNumber || "").toLowerCase().includes(searchLower) ||
-                String(r.data.lrCopy || "").toLowerCase().includes(searchLower)
+                String(r.data.lrCopy || "").toLowerCase().includes(searchLower) ||
+                String(r.data.lrNo || "").toLowerCase().includes(searchLower)
             );
         });
     }, [records, searchTerm]);
@@ -262,6 +266,7 @@ export default function TransporterFollowUp() {
         { key: "freightAmt", label: "Freight Amt" },
         { key: "vehicleNo", label: "Vehicle No" },
         { key: "contactNo", label: "Contact Number" },
+        { key: "lrNo", label: "LR No." },
         { key: "lrCopy", label: "LR Copy" },
     ];
 
@@ -281,6 +286,7 @@ export default function TransporterFollowUp() {
         { key: "freightAmt", label: "Freight Amt" },
         { key: "vehicleNo", label: "Vehicle No" },
         { key: "contactNo", label: "Contact Number" },
+        { key: "lrNo", label: "LR No." },
         { key: "lrCopy", label: "LR Copy" },
     ];
 
@@ -293,6 +299,7 @@ export default function TransporterFollowUp() {
             status: "",
             remarks: "",
             expectedDate: "",
+            expectedDelivery: "",
         });
         setIsBulkMode(false);
         setBulkError(null);
@@ -336,6 +343,7 @@ export default function TransporterFollowUp() {
                 status: "",
                 remarks: "",
                 expectedDate: "",
+                expectedDelivery: "",
             });
             setIsBulkMode(true);
             setOpen(true);
@@ -359,10 +367,16 @@ export default function TransporterFollowUp() {
             return;
         }
 
-        // Validate Expected Date when status is Intransit
-        if (formData.status === "Intransit" && !formData.expectedDate) {
-            toast.error("Next Follow-Up is required when status is Intransit");
-            return;
+        // Validate Expected Date and Expected Delivery when status is Intransit
+        if (formData.status === "Intransit") {
+            if (!formData.expectedDate) {
+                toast.error("Next Follow-Up is required when status is Intransit");
+                return;
+            }
+            if (!formData.expectedDelivery) {
+                toast.error("Expected Delivery is required when status is Intransit");
+                return;
+            }
         }
 
         setIsSubmitting(true);
@@ -384,6 +398,7 @@ export default function TransporterFollowUp() {
                     formData.status,                // Column C
                     formData.remarks || "",         // Column D
                     formData.expectedDate || "",    // Column E
+                    formData.expectedDelivery || "", // Column F
                 ];
 
                 // Insert into "Transport Flw-Up" sheet
@@ -523,7 +538,7 @@ export default function TransporterFollowUp() {
                         <div className="relative w-full max-w-sm">
                             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
                             <Input
-                                placeholder="Search by Indent, Item, Vendor, Transporter..."
+                                placeholder="Search by Indent, Item, Vendor, Transporter, LR No..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="pl-9 bg-white"
@@ -734,7 +749,7 @@ export default function TransporterFollowUp() {
             )}
 
             <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-2xl sm:max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>{isBulkMode ? `Bulk Follow-Up (${selectedRows.size} items)` : "Transport Follow-Up"}</DialogTitle>
                     </DialogHeader>
@@ -828,7 +843,7 @@ export default function TransporterFollowUp() {
                         {/* Editable Fields - Compact Layout */}
                         <div className="p-4 bg-white border rounded-md shadow-sm space-y-3">
                             <h3 className="text-sm font-semibold text-gray-700 mb-2">Update Status</h3>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className={`grid gap-3 ${formData.status === "Intransit" ? "grid-cols-3" : "grid-cols-2"}`}>
                                 <div>
                                     <Label className="text-xs mb-1 block">Status <span className="text-red-500">*</span></Label>
                                     <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
@@ -844,16 +859,28 @@ export default function TransporterFollowUp() {
 
                                 {/* Expected Date - Only show when Status is Intransit */}
                                 {formData.status === "Intransit" && (
-                                    <div>
-                                        <Label className="text-xs mb-1 block">Next Follow-Up <span className="text-red-500">*</span></Label>
-                                        <Input
-                                            type="date"
-                                            value={formData.expectedDate}
-                                            onChange={(e) => setFormData({ ...formData, expectedDate: e.target.value })}
-                                            required
-                                            className="h-9"
-                                        />
-                                    </div>
+                                    <>
+                                        <div>
+                                            <Label className="text-xs mb-1 block">Next Follow-Up <span className="text-red-500">*</span></Label>
+                                            <Input
+                                                type="date"
+                                                value={formData.expectedDate}
+                                                onChange={(e) => setFormData({ ...formData, expectedDate: e.target.value })}
+                                                required
+                                                className="h-9"
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs mb-1 block">Expected Delivery <span className="text-red-500">*</span></Label>
+                                            <Input
+                                                type="date"
+                                                value={formData.expectedDelivery}
+                                                onChange={(e) => setFormData({ ...formData, expectedDelivery: e.target.value })}
+                                                required
+                                                className="h-9"
+                                            />
+                                        </div>
+                                    </>
                                 )}
                             </div>
 

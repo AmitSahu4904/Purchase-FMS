@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { toast } from "sonner";
-import { Loader2, FileText, RefreshCw, Search } from "lucide-react";
+import { Loader2, FileText, RefreshCw, Search, Eye } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +34,9 @@ const PENDING_COLUMNS = [
   { key: "rejectedQty", label: "Rejected Qty" },
   { key: "vendor", label: "Vendor" },
   { key: "invoiceNumber", label: "Invoice No" },
+  { key: "remark", label: "Remark" },
+  { key: "partName", label: "Part Name" },
+  { key: "serialNoWithPhoto", label: "S-No. with Photo" },
   { key: "plan6", label: "Planned" },
 ];
 
@@ -43,6 +46,9 @@ const HISTORY_COLUMNS = [
   { key: "itemName", label: "Item" },
   { key: "vendor", label: "Vendor" },
   { key: "invoiceNumber", label: "Invoice No" },
+  { key: "remark", label: "Remark" },
+  { key: "partName", label: "Part Name" },
+  { key: "serialNoWithPhoto", label: "S-No. with Photo" },
   { key: "plan6", label: "Planned" },
   { key: "actual6", label: "Actual" },
   { key: "returnedQty", label: "Return Qty" },
@@ -64,23 +70,6 @@ const formatDateDash = (date: any) => {
   return `${dd}-${mm}-${yyyy}`;
 };
 
-const safeValue = (val: any, key: string = "") => {
-  if (!val || val === "-" || val === "") return "-";
-  if (key.includes("Image") || key.includes("Attachment") || key.includes("Copy")) {
-    return (
-      <a href={String(val)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors text-xs font-medium">
-        <FileText className="w-3.5 h-3.5" /> 
-        View
-      </a>
-    );
-  }
-  const lowKey = key.toLowerCase();
-  if (lowKey.includes("plan") || lowKey.includes("actual") || lowKey.includes("date")) {
-    return formatDateDash(val);
-  }
-  return String(val);
-};
-
 const toBase64 = (file: File) => new Promise<string>((resolve, reject) => {
   const reader = new FileReader();
   reader.readAsDataURL(file);
@@ -97,6 +86,56 @@ export default function Stage12() {
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"pending" | "history">("pending");
   const [searchTerm, setSearchTerm] = useState("");
+  const [serialDialogOpen, setSerialDialogOpen] = useState(false);
+  const [selectedSerialRecord, setSelectedSerialRecord] = useState<any>(null);
+
+  const safeValue = useCallback((record: any, key: string) => {
+    try {
+      const data = record?.data;
+      if (!data) return "-";
+
+      const val = data[key];
+
+      if (key === "serialNoWithPhoto") {
+        const hasSerials = data.serialNo && data.serialNo !== "-" && String(data.serialNo).trim() !== "";
+        if (!hasSerials) return "-";
+        return (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedSerialRecord(record);
+              setSerialDialogOpen(true);
+            }}
+          >
+            <Eye className="w-4 h-4" />
+          </Button>
+        );
+      }
+
+      if (!val || val === "-" || val === "") return "-";
+
+      if (key.includes("Image") || key.includes("Attachment") || key.includes("Copy") || key === "returnItemImage" || key === "creditNoteImage") {
+        return (
+          <a href={String(val)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors text-xs font-medium">
+            <FileText className="w-3.5 h-3.5" /> 
+            View
+          </a>
+        );
+      }
+      
+      const lowKey = key.toLowerCase();
+      if (lowKey.includes("plan") || lowKey.includes("actual") || lowKey.includes("date")) {
+        return formatDateDash(val);
+      }
+      return String(val);
+    } catch {
+      return "-";
+    }
+  }, []);
 
   const [formData, setFormData] = useState({
     returnedQty: "",
@@ -192,6 +231,11 @@ export default function Stage12() {
               rejectQty: rejectQty,
               plan6: plan7,
               actual6: actual7,
+
+              remark: r[13] || "-",     // N: Remarks
+              partName: r[11] || "-",   // L: Part Name
+              serialNo: r[8] || "",     // I: Serial-No
+              serialPhoto: r[9] || "",  // J: Image
 
               // Return Details (Cols R-X / 17-23 in 0-based array)
               returnedQty: r[17], // R
@@ -491,7 +535,7 @@ export default function Stage12() {
                             </td>
                             {PENDING_COLUMNS.map((col) => (
                               <td key={col.key} className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                                {safeValue(record.data[col.key], col.key)}
+                                {safeValue(record, col.key)}
                               </td>
                             ))}
                           </tr>
@@ -530,7 +574,7 @@ export default function Stage12() {
                           <tr key={record.id} className="hover:bg-slate-50/80 transition-colors">
                             {HISTORY_COLUMNS.map((col) => (
                               <td key={col.key} className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                                {safeValue(record.data[col.key], col.key)}
+                                {safeValue(record, col.key)}
                               </td>
                             ))}
                           </tr>
@@ -648,6 +692,71 @@ export default function Stage12() {
               </Button>
             </DialogFooter>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={serialDialogOpen} onOpenChange={setSerialDialogOpen}>
+        <DialogContent className="w-[450px] h-[450px] max-w-[450px] max-h-[450px] flex flex-col p-0 overflow-hidden rounded-xl bg-white">
+          <DialogHeader className="p-4 bg-slate-50 border-b shrink-0">
+            <DialogTitle className="text-sm font-bold flex items-center gap-2 text-slate-800">
+              <Eye className="w-4 h-4 text-blue-600" />
+              S-No. & Photo Details
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="space-y-2">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Item Details</span>
+              <div className="p-2.5 bg-slate-50 border border-slate-100 rounded-lg text-xs space-y-1">
+                <div><span className="font-semibold text-slate-500">Indent:</span> {selectedSerialRecord?.data?.indentNumber || "-"}</div>
+                <div><span className="font-semibold text-slate-500">Item:</span> {selectedSerialRecord?.data?.itemName || "-"}</div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Serials & Photos</span>
+              <div className="space-y-2 pr-1">
+                {selectedSerialRecord?.data?.serialNo && selectedSerialRecord.data.serialNo !== "-" ? (
+                  (() => {
+                    const serials = String(selectedSerialRecord.data.serialNo).split(",").map(s => s.trim()).filter(Boolean);
+                    const images = selectedSerialRecord?.data?.serialPhoto && selectedSerialRecord.data.serialPhoto !== "-"
+                      ? String(selectedSerialRecord.data.serialPhoto).split(",").map(i => i.trim()).filter(Boolean)
+                      : [];
+                    return serials.map((serial, idx) => {
+                      const imageUrl = images[idx] || "";
+                      return (
+                        <div key={idx} className="flex items-center justify-between p-2 bg-slate-50 border border-slate-100 rounded-lg text-xs">
+                          <span className="font-semibold text-slate-400">#{idx + 1}</span>
+                          <span className="font-medium text-slate-700 truncate max-w-[150px]" title={serial}>{serial}</span>
+                          {imageUrl ? (
+                            <a
+                              href={imageUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] font-semibold text-blue-600 hover:underline flex items-center gap-1 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm hover:bg-slate-50"
+                            >
+                              <FileText className="w-3 h-3 text-blue-500" />
+                              View Image
+                            </a>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 italic">No image</span>
+                          )}
+                        </div>
+                      );
+                    });
+                  })()
+                ) : (
+                  <span className="text-xs text-slate-400 italic">No serial numbers recorded</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="p-3 bg-slate-50 border-t flex justify-end shrink-0">
+            <Button variant="outline" size="sm" onClick={() => setSerialDialogOpen(false)} className="text-xs">
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

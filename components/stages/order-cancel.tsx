@@ -296,7 +296,7 @@ export default function OrderCancelPage() {
             const indentNumber = String(row[1] || "").trim()
             const poNumber = String(row[54] || "").trim()
             const itemName = String(row[4] || "").trim()
-            const quantity = String(row[14] || "").trim()
+            const remainingQty = String(row[64] || "").trim()
 
             if (!indentNumber) return
 
@@ -315,7 +315,7 @@ export default function OrderCancelPage() {
                 indentNumber,
                 poNumber: poNumber || "—",
                 itemName,
-                quantity: quantity || "—"
+                remainingQty: remainingQty || "—"
               })
             }
           }
@@ -350,7 +350,7 @@ export default function OrderCancelPage() {
 
     // Validate that each selected row has a valid cancel quantity
     for (const row of selectedRows) {
-      const q = cancelQuantities[row.id] ?? row.quantity
+      const q = cancelQuantities[row.id] ?? row.remainingQty
       if (!q || isNaN(Number(q)) || Number(q) <= 0) {
         toast.error(`Please enter a valid cancellation quantity for Indent: ${row.indentNumber}`)
         return
@@ -373,7 +373,7 @@ export default function OrderCancelPage() {
         formData.append("sheetName", SHEET_NAME)
         formData.append("action", "insert")
 
-        const rowQty = cancelQuantities[row.id] ?? row.quantity
+        const rowQty = cancelQuantities[row.id] ?? row.remainingQty
 
         const rowData = [
           timestamp,                // A - Cancelled At
@@ -610,9 +610,6 @@ export default function OrderCancelPage() {
       <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-6 overflow-hidden">
         <DialogHeader className="shrink-0">
           <DialogTitle>Cancel Order</DialogTitle>
-          <DialogDescription>
-            Search for records from the main sheet, select them, and enter cancellation details.
-          </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto pr-1 space-y-4 py-2">
@@ -716,7 +713,7 @@ export default function OrderCancelPage() {
                       <TableHead className="text-xs uppercase font-semibold text-slate-600">Indent No.</TableHead>
                       <TableHead className="text-xs uppercase font-semibold text-slate-600">PO Number</TableHead>
                       <TableHead className="text-xs uppercase font-semibold text-slate-600">Item Name</TableHead>
-                      <TableHead className="w-[80px] text-center text-xs uppercase font-semibold text-slate-600">Orig. Qty</TableHead>
+                      <TableHead className="w-[110px] text-center text-xs uppercase font-semibold text-slate-600">Remaining Qty</TableHead>
                       <TableHead className="w-[120px] text-center text-xs uppercase font-semibold text-slate-600">Qty to Cancel</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -746,13 +743,13 @@ export default function OrderCancelPage() {
                         <TableCell className="text-xs text-slate-700 max-w-[200px] truncate" title={row.itemName}>
                           {row.itemName}
                         </TableCell>
-                        <TableCell className="text-center text-xs text-slate-700">{row.quantity}</TableCell>
+                        <TableCell className="text-center text-xs text-slate-700">{row.remainingQty}</TableCell>
                         <TableCell className="text-center py-1">
                           <Input
                             type="number"
                             min="1"
-                            max={isNaN(Number(row.quantity)) ? undefined : Number(row.quantity)}
-                            value={cancelQuantities[row.id] ?? row.quantity}
+                            max={isNaN(Number(row.remainingQty)) ? undefined : Number(row.remainingQty)}
+                            value={cancelQuantities[row.id] ?? row.remainingQty}
                             onChange={(e) => {
                               const val = e.target.value
                               setCancelQuantities(prev => ({
@@ -834,7 +831,7 @@ export default function OrderCancelPage() {
               !cancelReason ||
               submitting ||
               selectedSearchRowIds.some(id => {
-                const q = cancelQuantities[id] ?? searchResults.find(r => r.id === id)?.quantity
+                const q = cancelQuantities[id] ?? searchResults.find(r => r.id === id)?.remainingQty
                 return !q || isNaN(Number(q)) || Number(q) <= 0
               })
             }

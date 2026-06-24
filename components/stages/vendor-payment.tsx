@@ -41,6 +41,7 @@ const PENDING_COLUMNS = [
     { key: "pendingAmount", label: "Pending" },
     { key: "plan1", label: "Planned" },
     { key: "invoiceDate", label: "Inv. Date" },
+    { key: "dueDate", label: "Due Date" },
     { key: "vendor", label: "Vendor" },
     { key: "poNumber", label: "PO Number" },
     { key: "invoiceCopy", label: "Invoice Copy" },
@@ -70,6 +71,62 @@ const parseNum = (val: any): number =>
     parseFloat(String(val || 0).replace(/,/g, "")) || 0;
 
 const gsNow = (): string => getFmsTimestamp();
+
+const formatAmount = (val: any): string => {
+    const num = parseNum(val);
+    return `₹ ${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
+const parseDateString = (dateStr: any): Date | null => {
+    if (!dateStr || dateStr === "-" || dateStr === "—") return null;
+    if (dateStr instanceof Date) return dateStr;
+    const str = String(dateStr).trim();
+    
+    // Check for DD-Mon-YYYY format
+    const parts = str.split('-');
+    if (parts.length === 3) {
+        const day = parseInt(parts[0], 10);
+        const monStr = parts[1].toLowerCase();
+        let year = parseInt(parts[2], 10);
+        if (year < 100) year += 2000;
+
+        const months: Record<string, number> = {
+            jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+            jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+        };
+        const month = months[monStr.substring(0, 3)];
+        if (month !== undefined && !isNaN(day) && !isNaN(year)) {
+            return new Date(year, month, day);
+        }
+    }
+    
+    const parsed = new Date(str);
+    if (!isNaN(parsed.getTime())) return parsed;
+    return null;
+};
+
+const isDueDateOverdueOrToday = (dueDateStr: any): boolean => {
+    const dueDate = parseDateString(dueDateStr);
+    if (!dueDate) return false;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    dueDate.setHours(0, 0, 0, 0);
+    
+    return dueDate.getTime() <= today.getTime();
+};
+
+const formatToDdMonYyyy = (dateVal: any): string => {
+    const d = parseDateString(dateVal);
+    if (!d || isNaN(d.getTime())) return "-";
+    
+    const day = String(d.getDate()).padStart(2, "0");
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const mon = months[d.getMonth()];
+    const year = d.getFullYear();
+    
+    return `${day}-${mon}-${year}`;
+};
 
 const safeValue = (val: any) => {
     if (!val || val === "-" || val === "") return "-";
@@ -109,6 +166,7 @@ export default function Stage13() {
     const [selectedPendingColumns, setSelectedPendingColumns] = useState<string[]>(ALL_PENDING_KEYS);
 
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
+    const [showOverdueOnly, setShowOverdueOnly] = useState(false);
 
     // Bulk payment modal state
     const [bulkOpen, setBulkOpen] = useState(false);
@@ -155,6 +213,7 @@ export default function Stage13() {
 
                         const invNo = String(row[1] || "").trim();
                         const vendorName = String(row[4] || "").trim();
+                        const dueDateVal = row[21] ? String(row[21]).trim() : "-";
 
                         const totalRcvd = String(row[10] || "").split(',')
                             .map(v => parseFloat(v.trim()) || 0)
@@ -169,6 +228,7 @@ export default function Stage13() {
                                 invoiceNo: invNo,
                                 invoiceCopy: row[2] || "",        // C
                                 invoiceDate: toDate(row[3]),       // D
+                                dueDate: dueDateVal,               // V
                                 vendor: vendorName,           // E
                                 poNumber: row[5] || "",        // F
                                 totalRcvd,
@@ -248,16 +308,22 @@ export default function Stage13() {
                 r.data.invoiceNo?.toLowerCase().includes(searchLower) ||
                 r.data.vendor?.toLowerCase().includes(searchLower) ||
                 r.data.receivedItems?.toLowerCase().includes(searchLower) ||
-                String(r.data.poNumber || "").toLowerCase().includes(searchLower)
+                String(r.data.poNumber || "").toLowerCase().includes(searchLower) ||
+                String(r.data.dueDate || "").toLowerCase().includes(searchLower)
             );
         });
 
+        // Filter: Show only overdue if active (due date is crossed: overdue or today)
+        if (showOverdueOnly) {
+            result = result.filter(r => isDueDateOverdueOrToday(r.data.dueDate));
+        }
+
         if (sortConfig !== null) {
             result.sort((a, b) => {
-                if (sortConfig.key === 'plan1') {
+                if (sortConfig.key === 'dueDate') {
                     // Due Date sorting
-                    const dateA = a.data.plan1 && a.data.plan1 !== "-" ? new Date(a.data.plan1.split('-').reverse().join('-')).getTime() : 0;
-                    const dateB = b.data.plan1 && b.data.plan1 !== "-" ? new Date(b.data.plan1.split('-').reverse().join('-')).getTime() : 0;
+                    const dateA = parseDateString(a.data.dueDate)?.getTime() || 0;
+                    const dateB = parseDateString(b.data.dueDate)?.getTime() || 0;
 
                     if (dateA < dateB) return sortConfig.direction === 'asc' ? -1 : 1;
                     if (dateA > dateB) return sortConfig.direction === 'asc' ? 1 : -1;
@@ -267,7 +333,7 @@ export default function Stage13() {
             });
         }
         return result;
-    }, [records, searchLower, sortConfig]);
+    }, [records, searchLower, sortConfig, showOverdueOnly]);
 
     const filteredHistoryRecords = useMemo(() => {
         if (!searchLower) return historyRecords;
@@ -479,26 +545,21 @@ export default function Stage13() {
                                 />
                             </div>
 
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleSort('plan1')}
-                                    className={cn(
-                                        "h-10 rounded-xl border-slate-200 bg-white hover:bg-slate-50 gap-2 whitespace-nowrap px-4",
-                                        sortConfig?.key === 'plan1' && "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                    )}
-                                    title="Sort by Due Date"
-                                >
-                                    <span className="text-sm font-medium">Due Date</span>
-                                    {sortConfig?.key === 'plan1' ? (
-                                        sortConfig.direction === 'asc' ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />
-                                    ) : (
-                                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
-                                    )}
-                                </Button>
+                             <div className="flex items-center gap-2">
+                                 <Button
+                                     variant="outline"
+                                     size="sm"
+                                     onClick={() => setShowOverdueOnly(prev => !prev)}
+                                     className={cn(
+                                         "h-10 rounded-xl border-slate-200 bg-white hover:bg-slate-50 gap-2 whitespace-nowrap px-4 transition-all duration-200",
+                                         showOverdueOnly && "border-red-200 bg-red-50 text-red-700 hover:bg-red-100/50 shadow-sm"
+                                     )}
+                                     title={showOverdueOnly ? "Show All Invoices" : "Show Overdue Invoices"}
+                                 >
+                                     <span className="text-sm font-medium">Due Records</span>
+                                 </Button>
 
-                                <Select value="" onValueChange={() => { }}>
+                                 <Select value="" onValueChange={() => { }}>
                                     <SelectTrigger className="h-10 w-32 rounded-xl border-slate-200 bg-white hover:bg-slate-50">
                                         <SelectValue placeholder="Columns" />
                                     </SelectTrigger>
@@ -590,19 +651,43 @@ export default function Stage13() {
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
-                                                {filteredRecords.map(rec => (
-                                                    <tr key={rec.id} className="hover:bg-slate-50/80 transition-all group duration-150">
-                                                        {visiblePendingColumns.map(c => (
-                                                            <td key={c.key} className={cn(
-                                                                "px-5 py-4 whitespace-nowrap transition-colors",
-                                                                c.key === "invoiceNo" ? "text-slate-900 font-bold" : "text-slate-600 font-medium",
-                                                                c.key === "pendingAmount" && rec.data[c.key] > 0 ? "text-red-600 font-bold bg-red-50/30" : ""
-                                                            )}>
-                                                                {c.key === "pendingAmount" ? `₹ ${parseNum(rec.data[c.key]).toLocaleString()}` : safeValue(rec.data[c.key])}
-                                                            </td>
-                                                        ))}
-                                                    </tr>
-                                                ))}
+                                                {filteredRecords.map(rec => {
+                                                    const isOverdue = isDueDateOverdueOrToday(rec.data.dueDate);
+                                                    return (
+                                                        <tr 
+                                                            key={rec.id} 
+                                                            className={cn(
+                                                                "hover:bg-slate-50/80 transition-all group duration-150",
+                                                                isOverdue && "bg-red-50/30 hover:bg-red-100/40"
+                                                            )}
+                                                        >
+                                                            {visiblePendingColumns.map(c => {
+                                                                const isAmountCol = c.key === "totalVal" || c.key === "totalPaid" || c.key === "pendingAmount";
+                                                                return (
+                                                                    <td key={c.key} className={cn(
+                                                                        "px-5 py-4 whitespace-nowrap transition-colors",
+                                                                        isOverdue ? (
+                                                                            c.key === "invoiceNo" ? "text-red-955 font-bold" : "text-red-800 font-medium"
+                                                                        ) : (
+                                                                            c.key === "invoiceNo" ? "text-slate-900 font-bold" : "text-slate-600 font-medium"
+                                                                        ),
+                                                                        c.key === "pendingAmount" && rec.data[c.key] > 0 ? (
+                                                                            isOverdue ? "text-red-700 font-bold bg-red-100/30" : "text-red-600 font-bold bg-red-50/30"
+                                                                        ) : ""
+                                                                    )}>
+                                                                        {isAmountCol ? (
+                                                                            formatAmount(rec.data[c.key])
+                                                                        ) : c.key === "dueDate" ? (
+                                                                            formatToDdMonYyyy(rec.data[c.key])
+                                                                        ) : (
+                                                                            safeValue(rec.data[c.key])
+                                                                        )}
+                                                                    </td>
+                                                                );
+                                                            })}
+                                                        </tr>
+                                                    );
+                                                })}
                                             </tbody>
                                         </table>
                                     </div>
@@ -639,7 +724,7 @@ export default function Stage13() {
                                                         {HISTORY_COLUMNS.map(c => (
                                                             <td key={c.key} className="px-5 py-4 whitespace-nowrap">
                                                                 {c.key === "amountPaid" ? (
-                                                                    <span className="font-bold text-slate-900 tracking-tight">₹ {parseNum(rec[c.key]).toLocaleString()}</span>
+                                                                    <span className="font-bold text-slate-900 tracking-tight">{formatAmount(rec[c.key])}</span>
                                                                 ) : c.key === "status" ? (
                                                                     <Badge variant="outline" className={cn(
                                                                         "px-2.5 py-0.5 rounded-lg font-bold border-2 transition-colors",
@@ -744,9 +829,9 @@ export default function Stage13() {
                                                     </td>
                                                     <td className="px-4 py-3 font-bold text-slate-900">{rec.data.invoiceNo}</td>
                                                     <td className="px-4 py-3 text-slate-600">{rec.data.invoiceDate}</td>
-                                                    <td className="px-4 py-3 text-right text-slate-600 italic">₹ {parseNum(rec.data.totalVal).toLocaleString()}</td>
-                                                    <td className="px-4 py-3 text-right text-slate-600 italic">₹ {parseNum(rec.data.totalPaid).toLocaleString()}</td>
-                                                    <td className="px-4 py-3 text-right text-red-600 font-bold">₹ {info.originalPending.toFixed(2)}</td>
+                                                    <td className="px-4 py-3 text-right text-slate-600 italic">{formatAmount(rec.data.totalVal)}</td>
+                                                    <td className="px-4 py-3 text-right text-slate-600 italic">{formatAmount(rec.data.totalPaid)}</td>
+                                                    <td className="px-4 py-3 text-right text-red-600 font-bold">{formatAmount(info.originalPending)}</td>
                                                     <td className="px-4 py-3">
                                                         <div className="relative">
                                                             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-bold">₹</span>

@@ -123,7 +123,7 @@ const HISTORY_COLUMNS = [
     { key: "receivedQty", label: "Received Qty" },
     { key: "invoiceDate", label: "Invoice Date" },
     { key: "invoiceNumber", label: "Invoice No." },
-    { key: "srnNumber", label: "SRN #" },
+    { key: "extraFreight", label: "Extra Freight" },
     { key: "qcRequirement", label: "QC Required" },
     { key: "receivedItemImage", label: "Rec. Item Img" },
     { key: "billAttachment", label: "Bill Attach" },
@@ -182,6 +182,7 @@ export default function Stage7() {
         paymentAmountHydra: "",
         paymentAmountLabour: "",
         paymentAmountHamali: "",
+        extraFreight: "",
         remarks: "",
         pkgAmount: "",
         pkgGST: "",
@@ -291,7 +292,7 @@ export default function Stage7() {
                                 invoiceType: row[22] || "",       // W
                                 receivedQty: row[25] || "",       // Z
                                 invoiceDate: row[23] || "",       // X
-                                srnNumber: row[27] || "",         // AB
+                                extraFreight: row[27] || "",      // AB
                                 receivedItemImage: row[26] || "", // AA
                                 billAttachment: row[29] || "",    // AD
                                 paymentAmountHydra: row[30] || "",// AE
@@ -350,6 +351,7 @@ export default function Stage7() {
         paymentAmountHydra: "",
         paymentAmountLabour: "",
         paymentAmountHamali: "",
+        extraFreight: "",
         qcRequirement: "no",
         warrantyClaim: "",
         productClaim: "",
@@ -403,6 +405,7 @@ export default function Stage7() {
             paymentAmountHydra: "",
             paymentAmountLabour: "",
             paymentAmountHamali: "",
+            extraFreight: "",
             remarks: "",
             pkgAmount: "",
             pkgGST: "",
@@ -477,7 +480,7 @@ export default function Stage7() {
                 rowArray[24] = commonData.invoiceNumber; // Y
                 rowArray[25] = item.receivedQty;        // Z
                 rowArray[26] = itemImgUrl;              // AA
-                rowArray[27] = "";                      // AB: SRN
+                rowArray[27] = commonData.extraFreight || ""; // AB: Extra Freight
                 rowArray[28] = item.qcRequirement;      // AC
                 rowArray[29] = billUrl;                 // AD
                 rowArray[30] = commonData.paymentAmountHydra; // AE
@@ -543,6 +546,7 @@ export default function Stage7() {
             paymentAmountHydra: "",
             paymentAmountLabour: "",
             paymentAmountHamali: "",
+            extraFreight: "",
             qcRequirement: "no",
             warrantyClaim: "",
             productClaim: "",
@@ -592,7 +596,7 @@ export default function Stage7() {
             rowArray[24] = form.invoiceNumber;    // Y
             rowArray[25] = form.receivedQty;      // Z
             rowArray[26] = imageUrl;              // AA
-            rowArray[27] = "";                    // AB: SRN
+            rowArray[27] = form.extraFreight || ""; // AB: Extra Freight
             rowArray[28] = form.qcRequirement;   // AC
             rowArray[29] = billUrl;               // AD
             rowArray[30] = form.paymentAmountHydra;  // AE
@@ -724,7 +728,7 @@ export default function Stage7() {
 
     const productClaimField = (
         <div className="space-y-1.5">
-            <Label>Product Claim <span className="text-red-500">*</span></Label>
+            <Label>Product Expiry <span className="text-red-500">*</span></Label>
             <Select
                 value={form.productClaim}
                 onValueChange={(v) => {
@@ -748,7 +752,7 @@ export default function Stage7() {
 
     const productExpiryField = (
         <div className="space-y-1.5">
-            <Label>Product Expiry <span className="text-red-500">*</span></Label>
+            <Label>Expiry Date <span className="text-red-500">*</span></Label>
             <div className="flex items-center gap-2">
                 <Input
                     type="date"
@@ -1262,7 +1266,8 @@ export default function Stage7() {
                                                             col.key === "advanceAmount" ||
                                                             col.key === "paymentAmountHydra" ||
                                                             col.key === "paymentAmountLabour" ||
-                                                            col.key === "paymentAmountHamali"
+                                                            col.key === "paymentAmountHamali" ||
+                                                            col.key === "extraFreight"
                                                         ) {
                                                             return (
                                                                 <TableCell key={col.key} className="border-b px-4 py-2 text-center text-slate-700">
@@ -1292,21 +1297,19 @@ export default function Stage7() {
 
             {/* ==================== MODAL ==================== */}
             <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent className="max-w-4xl max-h-[95vh] sm:max-h-[90vh] flex flex-col p-4 sm:p-6">
+                <DialogContent className="max-w-4xl max-h-[95vh] sm:max-h-[90vh] flex flex-col p-6">
                     <DialogHeader className="flex-shrink-0">
                         <DialogTitle>
                             {isBulkMode
                                 ? "Bulk Material Receipt"
                                 : "Record Material Receipt"}
                         </DialogTitle>
-                        <p className="text-sm text-gray-600">
-                            Confirm delivery, attach documents, and update QC/payment.
-                        </p>
+                        <p></p>
                     </DialogHeader>
 
                     {isBulkMode ? (
                         /* BULK FORM */
-                        <form onSubmit={handleBulkSubmit} className="flex-1 overflow-y-auto space-y-4 pr-2">
+                        <form onSubmit={handleBulkSubmit} className="flex-1 overflow-y-auto space-y-4 p-4 pb-8 pr-2">
                             {/* Individual Items Table */}
                             <div className="space-y-4">
                                 <h3 className="font-semibold text-lg border-b pb-2">Items ({bulkItems.length})</h3>
@@ -1703,7 +1706,7 @@ export default function Stage7() {
                                     <p className="text-xs text-amber-700">Per item share: ₹{getPkgTotals(commonData.pkgAmount, commonData.pkgGST, bulkItems.length).perItemPkgTotal.toFixed(2)}</p>
                                 </div>
 
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-4 gap-3">
                                     <div className="space-y-1.5">
                                         <Label>Hydra Amt</Label>
                                         <Input
@@ -1731,6 +1734,15 @@ export default function Stage7() {
                                             onChange={(e) => setCommonData({ ...commonData, paymentAmountHamali: e.target.value })}
                                         />
                                     </div>
+                                    <div className="space-y-1.5">
+                                        <Label>Extra Freight</Label>
+                                        <Input
+                                            type="number"
+                                            step="0.01"
+                                            value={commonData.extraFreight}
+                                            onChange={(e) => setCommonData({ ...commonData, extraFreight: e.target.value })}
+                                        />
+                                    </div>
                                 </div>
                                 <div className="space-y-1.5">
                                     <Label>Remarks</Label>
@@ -1747,7 +1759,7 @@ export default function Stage7() {
                         /* SINGLE FORM (Existing) */
                         <form
                             onSubmit={handleSubmit}
-                            className="flex-1 overflow-y-auto space-y-4 pr-2"
+                            className="flex-1 overflow-y-auto space-y-4 p-4 pb-8 pr-2"
                         >
                             <div className="grid grid-cols-4 gap-3">
                                 <div className="space-y-1.5 col-span-2">
@@ -1984,7 +1996,7 @@ export default function Stage7() {
                             {/* Payment Heads */}
                             <div className="space-y-3">
                                 <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 border-b pb-1 mb-2">Others Payment Head</h3>
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-4 gap-3">
                                     <div className="space-y-1.5">
                                         <Label>Hydra Amount</Label>
                                         <Input
@@ -2020,6 +2032,20 @@ export default function Stage7() {
                                                 setForm({
                                                     ...form,
                                                     paymentAmountHamali: e.target.value,
+                                                })
+                                            }
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label>Extra Freight</Label>
+                                        <Input
+                                            type="number"
+                                            step="0.01"
+                                            value={form.extraFreight}
+                                            onChange={(e) =>
+                                                setForm({
+                                                    ...form,
+                                                    extraFreight: e.target.value,
                                                 })
                                             }
                                         />
