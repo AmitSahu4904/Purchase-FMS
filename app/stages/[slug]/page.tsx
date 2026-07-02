@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import MasterPage from "@/components/stages/master";
+import MasterPage from "../../../components/stages/master";
 import CreateIndent from "@/components/stages/create-indent";
 import IndentApproval from "@/components/stages/indent-approval";
 import Quotation from "@/components/stages/quotation";
