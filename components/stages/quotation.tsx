@@ -460,7 +460,9 @@ export default function Quotation() {
       const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI;
       if (!SHEET_API_URL) return;
 
+      const timestamp = getFmsTimestamp();
       const rowArray = new Array(60).fill("");
+      rowArray[46] = timestamp; // AU: Actual completion of Stage 3 (Quotation)
 
       // Save vendor names to columns so links fetch correctly
       if (mappedInputs[0]) {
@@ -511,20 +513,9 @@ export default function Quotation() {
         body: params,
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Save error");
-
-      setVendorsInput(mappedInputs);
-
-      // Generate simulated links
-      const links = mappedInputs.map((v, i) => ({
-        name: v.name,
-        link: `${window.location.origin}/quotation-form?id=${currentRecord.id}&v=${i + 1}`,
-      }));
-
-      setGeneratedLinks(links);
-      setEmailSent(true);
-      toast.success("Enquiry generated and sent to suppliers successfully!");
+      toast.success("Enquiry generated and sent! Indent moved to Approved Vendor stage.");
       await fetchData();
+      resetForm();
     } catch (e: any) {
       console.error(e);
       toast.error("Failed to send details to vendors.");
@@ -1224,32 +1215,9 @@ export default function Quotation() {
                     type="button"
                     variant="outline"
                     onClick={() => setEmailSent(false)}
-                    className="flex-1"
+                    className="w-full"
                   >
                     Resend / Change Vendors
-                  </Button>
-
-                  <Button
-                    type="button"
-                    onClick={handleProceedToApproval}
-                    disabled={
-                      isSubmitting ||
-                      !(
-                        (currentRecord.data.vendor1Rate && currentRecord.data.vendor1Rate !== "-") ||
-                        (currentRecord.data.vendor2Rate && currentRecord.data.vendor2Rate !== "-") ||
-                        (currentRecord.data.vendor3Rate && currentRecord.data.vendor3Rate !== "-")
-                      )
-                    }
-                    className="flex-1 bg-slate-900 text-white hover:bg-slate-800 transition-colors"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Transitioning...
-                      </>
-                    ) : (
-                      "Proceed to Approval Stage"
-                    )}
                   </Button>
                 </div>
               </div>

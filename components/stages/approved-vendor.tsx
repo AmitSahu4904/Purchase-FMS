@@ -31,7 +31,7 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import { Loader2, Search, CheckCircle2, ShieldCheck } from "lucide-react";
+import { Loader2, Search, CheckCircle2, ShieldCheck, Copy, ExternalLink, CheckCircle, RefreshCw } from "lucide-react";
 import { formatDate, parseSheetDate, getFmsTimestamp } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -410,6 +410,35 @@ export default function ApprovedVendor() {
     return list;
   }, [currentRecord]);
 
+  const generatedLinks = useMemo(() => {
+    if (!currentRecord) return [];
+    const links = [];
+    if (currentRecord.data.vendor1Name && currentRecord.data.vendor1Name !== "-") {
+      links.push({
+        name: currentRecord.data.vendor1Name,
+        link: `${window.location.origin}/quotation-form?id=${currentRecord.id}&v=1`,
+      });
+    }
+    if (currentRecord.data.vendor2Name && currentRecord.data.vendor2Name !== "-") {
+      links.push({
+        name: currentRecord.data.vendor2Name,
+        link: `${window.location.origin}/quotation-form?id=${currentRecord.id}&v=2`,
+      });
+    }
+    if (currentRecord.data.vendor3Name && currentRecord.data.vendor3Name !== "-") {
+      links.push({
+        name: currentRecord.data.vendor3Name,
+        link: `${window.location.origin}/quotation-form?id=${currentRecord.id}&v=3`,
+      });
+    }
+    return links;
+  }, [currentRecord]);
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success("Link copied to clipboard!");
+  };
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-slate-50/50 p-6 space-y-6">
       {/* Header Card */}
@@ -449,6 +478,15 @@ export default function ApprovedVendor() {
               <Label className="text-sm font-semibold text-slate-600 hidden md:inline-block">Show Columns:</Label>
               <ColumnSelector />
             </div>
+
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => window.location.reload()}
+              className="h-10 w-10 rounded-xl bg-white hover:bg-slate-50 text-slate-600 border-slate-200 shrink-0"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </Button>
           </div>
         </div>
       </div>
@@ -605,7 +643,7 @@ export default function ApprovedVendor() {
 
       {/* APPROVED VENDOR SUBMIT MODAL */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle>Approved Vendor Decision</DialogTitle>
           </DialogHeader>
@@ -627,6 +665,49 @@ export default function ApprovedVendor() {
               </div>
             </div>
 
+            {/* RFQ Links Display */}
+            {generatedLinks.length > 0 && (
+              <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 space-y-3">
+                <div className="flex items-center gap-2 text-emerald-800 font-bold text-sm">
+                  <CheckCircle className="w-5 h-5 text-emerald-600" />
+                  Details Dispatched! Quotation forms generated below:
+                </div>
+                <div className="space-y-2 pt-1">
+                  {generatedLinks.map((item, idx) => (
+                    <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-2.5 bg-white border border-emerald-100 rounded-lg text-xs">
+                      <div className="font-semibold text-slate-800">
+                        {item.name}:
+                      </div>
+                      <div className="flex items-center gap-2 w-full sm:w-auto font-mono text-[10px] bg-slate-50 p-1.5 rounded truncate text-slate-600">
+                        <span className="truncate max-w-[200px] sm:max-w-xs">{item.link}</span>
+                      </div>
+                      <div className="flex gap-2 shrink-0 w-full sm:w-auto justify-end">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => copyToClipboard(item.link)}
+                          className="h-8 text-slate-600 hover:text-slate-900 border bg-white"
+                        >
+                          <Copy className="w-3.5 h-3.5 mr-1" />
+                          Copy Link
+                        </Button>
+                        <a
+                          href={item.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center h-8 px-3 text-xs font-semibold text-blue-600 border border-blue-200 bg-blue-50/50 rounded-md hover:bg-blue-50"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5 mr-1" />
+                          Open
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Vendor Comparison Layout */}
             <div className="space-y-2">
               <Label className="text-xs uppercase font-extrabold text-slate-500 tracking-wider">Vendor Proposals Comparison</Label>
@@ -639,21 +720,36 @@ export default function ApprovedVendor() {
                       <th className="p-3 font-semibold text-slate-700">Rate Per Qty</th>
                       <th className="p-3 font-semibold text-slate-700">Terms</th>
                       <th className="p-3 font-semibold text-slate-700">Exp. Delivery</th>
+                      <th className="p-3 font-semibold text-slate-700">Status</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {currentRecordVendors.map((v, i) => (
-                      <tr key={v.id} className="border-b last:border-0 hover:bg-slate-50/50">
-                        <td className="p-3 font-bold text-slate-600">Vendor #{i + 1}</td>
-                        <td className="p-3 font-semibold text-slate-900">{v.name}</td>
-                        <td className="p-3 text-slate-900">₹{v.rate}</td>
-                        <td className="p-3 text-slate-700">{paymentTermsOptions.find(opt => opt.value === v.terms)?.label || v.terms}</td>
-                        <td className="p-3 text-slate-600">{formatDateDash(v.delivery)}</td>
-                      </tr>
-                    ))}
+                    {currentRecordVendors.map((v, i) => {
+                      const hasSubmitted = v.rate && v.rate !== "-";
+                      return (
+                        <tr key={v.id} className="border-b last:border-0 hover:bg-slate-50/50">
+                          <td className="p-3 font-bold text-slate-600">Vendor #{i + 1}</td>
+                          <td className="p-3 font-semibold text-slate-900">{v.name}</td>
+                          <td className="p-3 text-slate-900 font-semibold">{hasSubmitted ? `₹${v.rate}` : "—"}</td>
+                          <td className="p-3 text-slate-700">{hasSubmitted ? (paymentTermsOptions.find(opt => opt.value === v.terms)?.label || v.terms) : "—"}</td>
+                          <td className="p-3 text-slate-600">{hasSubmitted ? formatDateDash(v.delivery) : "—"}</td>
+                          <td className="p-3">
+                            {hasSubmitted ? (
+                              <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50" variant="outline">
+                                Submitted
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50" variant="outline">
+                                Awaiting Response
+                              </Badge>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                     {currentRecordVendors.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="p-6 text-center text-slate-400">No vendor quotations found.</td>
+                        <td colSpan={6} className="p-6 text-center text-slate-400">No vendor quotations found.</td>
                       </tr>
                     )}
                   </tbody>
