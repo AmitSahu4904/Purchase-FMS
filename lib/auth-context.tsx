@@ -45,9 +45,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setPageAccess(JSON.parse(storedAccess));
           }
 
-          // 2. Background Refresh from API
+          // 2. Background Refresh from API (skip for hardcoded credentials)
           const apiUri = process.env.NEXT_PUBLIC_API_URI;
-          if (apiUri) {
+          const isHardcoded = storedUser === "user" || storedUser === "admin";
+          if (apiUri && !isHardcoded) {
             try {
               const response = await fetch(`${apiUri}?sheet=Master`);
               if (response.ok) {
@@ -97,6 +98,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
+      const u = username.trim().toLowerCase();
+      const p = password.trim();
+
+      let matchedUser = null;
+
+      if (u === "admin" && p === "admin123") {
+        matchedUser = {
+          username: "admin",
+          fullName: "Admin",
+          role: "Admin",
+          pageAccess: []
+        };
+      } else if (u === "user" && p === "user123") {
+        matchedUser = {
+          username: "user",
+          fullName: "User",
+          role: "User",
+          pageAccess: []
+        };
+      }
+
+      if (matchedUser) {
+        setIsAuthenticated(true);
+        setUser(matchedUser.username);
+        setFullName(matchedUser.fullName);
+        setRole(matchedUser.role);
+        setPageAccess(matchedUser.pageAccess);
+
+        localStorage.setItem("isAuthenticated", "true");
+        localStorage.setItem("user", matchedUser.username);
+        localStorage.setItem("fullName", matchedUser.fullName);
+        localStorage.setItem("role", matchedUser.role);
+        localStorage.setItem("pageAccess", JSON.stringify(matchedUser.pageAccess));
+
+        router.push("/");
+        return true;
+      }
+
       const apiUri = process.env.NEXT_PUBLIC_API_URI;
       if (!apiUri) {
         console.error("API URI not found in environment variables");

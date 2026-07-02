@@ -321,7 +321,7 @@ export default function Stage2() {
 
         const actualDate = getFmsTimestamp();
         // Column K (index 10): Actual 1 Date
-        rowArray[10] = actualDate; 
+        rowArray[10] = actualDate;
 
         const itemData = (approvalData as any).lineData?.[record.id];
         const finalStatus = itemData?.status || approvalData.status || "approved";
@@ -448,10 +448,10 @@ export default function Stage2() {
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-slate-900 rounded-lg shadow-slate-100 shadow-xl text-white">
-              <UserCheck className="w-6 h-6" />
+              <CheckCircle2 className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage 2: Approval</h2>
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage 2: Indent Approval</h2>
             </div>
           </div>
 

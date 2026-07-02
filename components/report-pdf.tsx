@@ -37,10 +37,10 @@ export const ReportDocument = ({ summaryData, detailedData }: { summaryData: any
     if (stageName === "Indent Approval") {
       return ["Indent No", "Created By", "Item", "Qty", "Delay (Hours)"];
     }
-    if (stageName === "PO Entry") {
+    if (stageName === "Make PO") {
       return ["Indent No", "Item", "Vendor", "Qty", "Delay (Hours)"];
     }
-    if (stageName === "Follow-Up Vendor") {
+    if (stageName === "Lifting") {
       return ["PO Number", "Vendor", "Planned Date", "Delay (Days)"];
     }
     if (stageName === "Transporter Follow-Up") {
@@ -87,7 +87,7 @@ export const ReportDocument = ({ summaryData, detailedData }: { summaryData: any
   };
 
   const formatDelay = (delay: any, stage?: string) => {
-    if (!delay || delay === "-" || delay === "0") return stage === "Follow-Up Vendor" ? "0" : "0:00:00";
+    if (!delay || delay === "-" || delay === "0") return stage === "Lifting" ? "0" : "0:00:00";
     
     const delayStr = String(delay).trim();
     let totalHours = 0;
@@ -115,7 +115,7 @@ export const ReportDocument = ({ summaryData, detailedData }: { summaryData: any
     }
 
     // 2. Format based on stage
-    if (stage === "Follow-Up Vendor") {
+    if (stage === "Lifting") {
       const days = totalHours / 24;
       if (Math.abs(totalHours) < 12 && Math.abs(totalHours) > 0) {
         const absHours = Math.abs(totalHours);
@@ -157,10 +157,10 @@ export const ReportDocument = ({ summaryData, detailedData }: { summaryData: any
     if (stage === "Indent Approval") {
       return [row.indent, row.party, row.item, row.qty, formatDelay(row.delay, stage)];
     }
-    if (stage === "PO Entry") {
+    if (stage === "Make PO") {
       return [row.indent, row.item, row.party, row.qty, formatDelay(row.delay, stage)];
     }
-    if (stage === "Follow-Up Vendor") {
+    if (stage === "Lifting") {
       return [row.poNumber, row.party, formatDateDisplay(row.plannedDate), formatDelay(row.delay, stage)];
     }
     if (stage === "Transporter Follow-Up") {
@@ -186,7 +186,7 @@ export const ReportDocument = ({ summaryData, detailedData }: { summaryData: any
                 <View style={styles.colSumStage}><Text style={styles.tableCell}>{String(row.stage)}</Text></View>
                 <View style={styles.colSumPending}>
                   <Text style={styles.tableCell}>
-                    {row.stage === "Follow-Up Vendor" && row.uniquePoCount 
+                    {row.stage === "Lifting" && row.uniquePoCount 
                       ? `${row.pending} (${row.uniquePoCount} Unique)`
                       : String(row.pending)}
                   </Text>
@@ -203,8 +203,7 @@ export const ReportDocument = ({ summaryData, detailedData }: { summaryData: any
       {Object.entries(groupedDetailedData).map(([stageName, itemsArray], idx) => {
         let items = itemsArray as any[];
         
-        // Alphabetical sort by vendor name for Follow-Up Vendor
-        if (stageName === "Follow-Up Vendor") {
+        if (stageName === "Lifting") {
           items = [...items].sort((a, b) => String(a.party || "").localeCompare(String(b.party || "")));
         }
 
@@ -212,7 +211,7 @@ export const ReportDocument = ({ summaryData, detailedData }: { summaryData: any
         const colStyles = getColStyles(heads);
         
         let headerText = `Detailed Report: ${String(stageName)} (${String(items.length)} Overdue)`;
-        if (stageName === "Follow-Up Vendor") {
+        if (stageName === "Lifting") {
           const summaryItem = summaryData.find(s => String(s.stage).trim() === String(stageName).trim());
           const totalOverdue = summaryItem ? summaryItem.pending : items.length;
           headerText = `Detailed Report: ${String(stageName)} (Total Overdue: ${totalOverdue} | Unique PO: ${items.length})`;

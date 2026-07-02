@@ -26,9 +26,8 @@ export default function Sidebar() {
   // Helper to check if a page is allowed
   const isPageAllowed = useCallback((pageName: string) => {
     if (!pageAccess || pageAccess.length === 0) return true; // Show all if no restrictions
-    if (pageName === "IMS" || pageName === "Damaged Records" || pageName === "Order Cancel") return true; // Always show IMS, Damaged Records, and Order Cancel
-    if (pageName === "Verification by Accounts") return pageAccess.includes("Verification") || pageAccess.includes("Verification by Accounts");
-    return pageAccess.includes(pageName) || (pageName === "Material Testing" && pageAccess.includes("QC Requirement"));
+    if (pageName === "Order Cancel") return true; // Always show Order Cancel
+    return pageAccess.includes(pageName);
   }, [pageAccess]);
 
   const filteredStages = STAGES.filter(stage => isPageAllowed(stage.name));
@@ -46,17 +45,16 @@ export default function Sidebar() {
       const activeStageNames = filteredStages.map(s => s.name);
       
       const needsIndentLift = activeStageNames.some(name => 
-        ["Create Indent", "Indent Approval", "Update 3 Vendors", "Negotiation", "PO Entry", "Follow-Up Vendor"].includes(name)
+        ["Create Indent", "Indent Approval", "Quotation", "Approved Vendor", "Make PO", "Payment", "Lifting"].includes(name)
       );
       const needsReceivingAccounts = activeStageNames.some(name => 
-        ["Transporter Follow-Up", "Material Received", "Serial Generation", "Receipt in Tally", "Submit Invoice (HO)", "Submit Invoice", "Verification by Accounts", "Material Testing"].includes(name)
+        ["Transporter Follow-Up", "Material Received", "Billing"].includes(name)
       );
       const needsPartialQc = activeStageNames.some(name => 
-        ["Purchase Return", "Return Approval"].includes(name)
+        ["Purchase Return"].includes(name)
       );
       const needsVendorPayments = activeStageNames.includes("Vendor Payment");
       const needsFreightPayments = activeStageNames.includes("Freight Payments");
-      const needsWarrantyClaim = activeStageNames.includes("Warranty Claim");
 
       const fetchPromises: Record<string, Promise<any>> = {};
       if (needsIndentLift) {
@@ -73,10 +71,6 @@ export default function Sidebar() {
       }
       if (needsFreightPayments) {
         fetchPromises["FREIGHT-PAYMENTS"] = fetch(`${SHEET_API_URL}?sheet=FREIGHT-PAYMENTS&action=getAll`).then(r => r.json());
-      }
-      if (needsWarrantyClaim) {
-        fetchPromises["Serial-Generation"] = fetch(`${SHEET_API_URL}?sheet=Serial-Generation&action=getAll`).then(r => r.json());
-        fetchPromises["Warranty_Claim"] = fetch(`${SHEET_API_URL}?sheet=Warranty_Claim&action=getAll`).then(r => r.json());
       }
 
       const results = await Promise.all(
@@ -114,9 +108,10 @@ export default function Sidebar() {
         const dataRows = indentLiftRows.slice(6);
         let createIndentCount = 0;
         let indentApprovalCount = 0;
-        let update3VendorsCount = 0;
-        let negotiationCount = 0;
+        let quotationCount = 0;
+        let approvedVendorCount = 0;
         let poEntryCount = 0;
+        let paymentCount = 0;
         let followUpVendorCount = 0;
 
         dataRows.forEach((row) => {
@@ -134,19 +129,20 @@ export default function Sidebar() {
             indentApprovalCount++;
           }
 
-          const rawStatus = String(row[13] || "").toLowerCase();
-          const isApprovedForStage3 = rawStatus === "approved";
-          const hasVendorData = has(row, 18) && has(row, 19);
-          if (isApprovedForStage3 && !hasVendorData) {
-            update3VendorsCount++;
+          if (has(row, 45) && missing(row, 46)) {
+            quotationCount++;
           }
 
-          if (has(row, 45) && missing(row, 46)) {
-            negotiationCount++;
+          if (has(row, 46) && missing(row, 51)) {
+            approvedVendorCount++;
           }
 
           if (has(row, 51) && missing(row, 52)) {
             poEntryCount++;
+          }
+
+          if (has(row, 72) && missing(row, 73)) {
+            paymentCount++;
           }
 
           if (has(row, 60) && String(row[67] || "").trim() === "Pending") {
@@ -156,10 +152,11 @@ export default function Sidebar() {
 
         newCounts["Create Indent"] = createIndentCount;
         newCounts["Indent Approval"] = indentApprovalCount;
-        newCounts["Update 3 Vendors"] = update3VendorsCount;
-        newCounts["Negotiation"] = negotiationCount;
-        newCounts["PO Entry"] = poEntryCount;
-        newCounts["Follow-Up Vendor"] = followUpVendorCount;
+        newCounts["Quotation"] = quotationCount;
+        newCounts["Approved Vendor"] = approvedVendorCount;
+        newCounts["Make PO"] = poEntryCount;
+        newCounts["Payment"] = paymentCount;
+        newCounts["Lifting"] = followUpVendorCount;
       }
 
       // 2. RECEIVING-ACCOUNTS dependent counts
@@ -168,12 +165,7 @@ export default function Sidebar() {
         const dataRows = receivingAccountsRows.slice(6);
         let transporterFollowUpCount = 0;
         let materialReceivedCount = 0;
-        let serialGenerationCount = 0;
         let tallyEntryCount = 0;
-        let submitInvoiceHoCount = 0;
-        let submitInvoiceCount = 0;
-        let verificationCount = 0;
-        let materialTestingCount = 0;
 
         dataRows.forEach((row) => {
           if (!row || !row[1] || String(row[1]).trim() === "") return;
@@ -186,39 +178,14 @@ export default function Sidebar() {
             materialReceivedCount++;
           }
 
-          if (has(row, 108) && missing(row, 109)) {
-            serialGenerationCount++;
-          }
-
           if (has(row, 35) && missing(row, 36)) {
             tallyEntryCount++;
-          }
-
-          if (has(row, 43) && missing(row, 44)) {
-            submitInvoiceHoCount++;
-          }
-
-          if (has(row, 48) && missing(row, 49)) {
-            submitInvoiceCount++;
-          }
-
-          if (has(row, 54) && missing(row, 55)) {
-            verificationCount++;
-          }
-
-          if (has(row, 61) && missing(row, 62)) {
-            materialTestingCount++;
           }
         });
 
         newCounts["Transporter Follow-Up"] = transporterFollowUpCount;
         newCounts["Material Received"] = materialReceivedCount;
-        newCounts["Serial Generation"] = serialGenerationCount;
-        newCounts["Receipt in Tally"] = tallyEntryCount;
-        newCounts["Submit Invoice (HO)"] = submitInvoiceHoCount;
-        newCounts["Submit Invoice"] = submitInvoiceCount;
-        newCounts["Verification by Accounts"] = verificationCount;
-        newCounts["Material Testing"] = materialTestingCount;
+        newCounts["Billing"] = tallyEntryCount;
       }
 
       // 3. Partial QC dependent counts
@@ -226,7 +193,6 @@ export default function Sidebar() {
       if (partialQcRows && Array.isArray(partialQcRows)) {
         const dataRows = partialQcRows.slice(7);
         let purchaseReturnCount = 0;
-        let returnApprovalCount = 0;
 
         dataRows.forEach((row) => {
           if (!row || !row[1] || String(row[1]).trim() === "") return;
@@ -236,14 +202,9 @@ export default function Sidebar() {
           if (isRejected && isReturn && has(row, 13) && missing(row, 14)) {
             purchaseReturnCount++;
           }
-
-          if (has(row, 23) && missing(row, 24)) {
-            returnApprovalCount++;
-          }
         });
 
         newCounts["Purchase Return"] = purchaseReturnCount;
-        newCounts["Return Approval"] = returnApprovalCount;
       }
 
       // 4. VENDOR-PAYMENTS dependent counts
@@ -301,35 +262,7 @@ export default function Sidebar() {
         newCounts["Freight Payments"] = freightPaymentsCount;
       }
 
-      // 6. Warranty Claim dependent counts
-      const serialGenRows = sheetData["Serial-Generation"];
-      const warrantyClaimRows = sheetData["Warranty_Claim"];
-      if (activeStageNames.includes("Warranty Claim")) {
-        let warrantyClaimCount = 0;
 
-        if (serialGenRows && Array.isArray(serialGenRows)) {
-          serialGenRows.slice(6).forEach((row) => {
-            if (!row || !row[0] || String(row[0]).trim() === "") return;
-            const hasPlan = has(row, 8);
-            const hasActual = has(row, 9);
-            if (hasPlan && !hasActual) {
-              warrantyClaimCount++;
-            }
-          });
-        }
-
-        if (warrantyClaimRows && Array.isArray(warrantyClaimRows)) {
-          warrantyClaimRows.slice(6).forEach((row) => {
-            if (!row || !row[0] || String(row[0]).trim() === "") return;
-            const status = String(row[10] || "Pending").trim().toLowerCase();
-            if (status !== "closure") {
-              warrantyClaimCount++;
-            }
-          });
-        }
-
-        newCounts["Warranty Claim"] = warrantyClaimCount;
-      }
 
       setCounts(newCounts);
     } catch (e) {

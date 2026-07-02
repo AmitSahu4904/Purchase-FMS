@@ -1,0 +1,775 @@
+"use client";
+
+import React, { useState, useEffect, useMemo } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from "@/components/ui/table";
+import { Loader2, Search, CheckCircle2, ShieldCheck } from "lucide-react";
+import { formatDate, parseSheetDate, getFmsTimestamp } from "@/lib/utils";
+import { toast } from "sonner";
+
+const formatDateDash = (dateStr: string) => {
+  if (!dateStr || dateStr === "-" || dateStr === "—") return "-";
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    const d = date.getDate().toString().padStart(2, '0');
+    const m = (date.getMonth() + 1).toString().padStart(2, '0');
+    const y = date.getFullYear();
+    return `${d}-${m}-${y}`;
+  } catch {
+    return dateStr;
+  }
+};
+
+export default function ApprovedVendor() {
+  const [open, setOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"pending" | "history">("pending");
+  const [currentRecord, setCurrentRecord] = useState<any>(null);
+  const [sheetRecords, setSheetRecords] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Bulk State
+  const [selectedIndents, setSelectedIndents] = useState<string[]>([]);
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [bulkRecords, setBulkRecords] = useState<any[]>([]);
+
+  // Form State
+  const [approvedVendor, setApprovedVendor] = useState("vendor1");
+  const [formData, setFormData] = useState({
+    remarks: "",
+  });
+
+  const [approverList, setApproverList] = useState<string[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const fetchData = async () => {
+    const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI;
+    if (!SHEET_API_URL) return;
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${SHEET_API_URL}?sheet=INDENT-LIFT&action=getAll`);
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        const rows = json.data.slice(6)
+          .map((row: any, i: number) => ({ row, originalIndex: i + 7 }))
+          .filter(({ row }: any) => row[1] && String(row[1]).trim() !== "") // Skip empty rows
+          .map(({ row, originalIndex }: any) => {
+            // Stage 4 routing check:
+            // Purchase Enquiry completed (has actual3: row[46]) and PO Entry plan not yet set (missing plan4: row[51])
+            const hasActual3 = !!row[46] && String(row[46]).trim() !== "" && String(row[46]).trim() !== "-";
+            const hasPlan4 = !!row[51] && String(row[51]).trim() !== "" && String(row[51]).trim() !== "-";
+
+            return {
+              id: `${row[1]}_${originalIndex}`,
+              rowIndex: originalIndex,
+              stage: 4,
+              status: (hasActual3 && hasPlan4) ? "completed" : (hasActual3 && !hasPlan4 ? "pending" : "not_ready"),
+              createdAt: parseSheetDate(row[0]),
+              data: {
+                indentNumber: row[1],
+                timestamp: row[0],
+                createdBy: row[2],
+                category: row[3],
+                itemName: row[4],
+                quantity: row[14], // O: Approved Qty
+                planned3: row[45], // Stage 3 Planned
+                actual3: row[46],  // Stage 3 Actual (Stage 4 Planned)
+                planned4: row[51], // Stage 4 Actual
+                selectedVendor: row[47],
+                selectedVendorName: row[48],
+                finalApprovedBy: row[49],
+                negotiationRemarks: row[50],
+
+                // Vendors details
+                vendor1Name: row[21],
+                vendor1Rate: row[22],
+                vendor1Terms: row[23],
+                vendor1Delivery: row[24],
+                vendor1Remarks: row[28],
+
+                vendor2Name: row[29],
+                vendor2Rate: row[30],
+                vendor2Terms: row[31],
+                vendor2Delivery: row[32],
+                vendor2Remarks: row[36],
+
+                vendor3Name: row[37],
+                vendor3Rate: row[38],
+                vendor3Terms: row[39],
+                vendor3Delivery: row[40],
+                vendor3Remarks: row[44],
+              }
+            };
+          });
+        setSheetRecords(rows);
+      }
+
+      // Fetch approvers
+      const dropRes = await fetch(`${SHEET_API_URL}?sheet=Dropdown&action=getAll`);
+      const dropJson = await dropRes.json();
+      if (dropJson.success && Array.isArray(dropJson.data)) {
+        const approvers = dropJson.data.slice(1)
+          .map((row: any) => String(row[8] || "").trim())
+          .filter((a: string) => a !== "");
+        setApproverList(approvers);
+      }
+    } catch (e) {
+      console.error("Fetch error Stage 4:", e);
+    }
+    setIsLoading(false);
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const pending = useMemo(() => sheetRecords
+    .filter((r) => r.status === "pending")
+    .filter((r) => {
+      const searchLower = searchTerm.toLowerCase();
+      return (
+        r.data.indentNumber?.toLowerCase().includes(searchLower) ||
+        r.data.itemName?.toLowerCase().includes(searchLower)
+      );
+    }), [sheetRecords, searchTerm]);
+
+  const completed = useMemo(() => sheetRecords
+    .filter((r) => r.status === "completed")
+    .filter((r) => {
+      const searchLower = searchTerm.toLowerCase();
+      return (
+        r.data.indentNumber?.toLowerCase().includes(searchLower) ||
+        r.data.itemName?.toLowerCase().includes(searchLower)
+      );
+    }), [sheetRecords, searchTerm]);
+
+  const baseColumns = [
+    { key: "indentNumber", label: "Indent" },
+    { key: "itemName", label: "Item" },
+    { key: "quantity", label: "Qty" },
+    { key: "actual3", label: "Planned Date" },
+  ];
+
+  const [selectedColumns, setSelectedColumns] = useState<string[]>(
+    baseColumns.map((c) => c.key)
+  );
+
+  const ColumnSelector = () => (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="w-40 justify-start h-10 rounded-xl bg-white border-slate-200">
+          {selectedColumns.length === baseColumns.length
+            ? "All columns"
+            : `${selectedColumns.length} column${
+                selectedColumns.length !== 1 ? "s" : ""
+              } selected`}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-40 p-2 bg-white border shadow-md">
+        <div className="space-y-2">
+          <div className="flex items-center space-x-2 pb-2 border-b">
+            <Checkbox
+              checked={selectedColumns.length === baseColumns.length}
+              onCheckedChange={(c) => {
+                if (c) setSelectedColumns(baseColumns.map((col) => col.key));
+                else setSelectedColumns([]);
+              }}
+            />
+            <Label className="text-sm font-medium">All Columns</Label>
+          </div>
+
+          {baseColumns.map((col) => (
+            <div key={col.key} className="flex items-center space-x-2 py-1">
+              <Checkbox
+                checked={selectedColumns.includes(col.key)}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    setSelectedColumns((prev) => [...prev, col.key]);
+                  } else {
+                    setSelectedColumns((prev) =>
+                      prev.filter((c) => c !== col.key)
+                    );
+                  }
+                }}
+              />
+              <Label className="text-sm">{col.label}</Label>
+            </div>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+
+  const paymentTermsOptions = [
+    { value: "Advance", label: "Advance" },
+    { value: "30", label: "30 days" },
+    { value: "60", label: "60 days" },
+    { value: "90", label: "90 days" }
+  ];
+
+  const handleOpenForm = (recordId: string) => {
+    const record = sheetRecords.find((r) => r.id === recordId);
+    if (!record) return;
+
+    setCurrentRecord(record);
+    setApprovedVendor(record.data.selectedVendor || "vendor1");
+    setFormData({
+      remarks: record.data.negotiationRemarks || "",
+    });
+    setOpen(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentRecord) {
+      toast.error("Please fill in all required fields.");
+      return;
+    }
+
+    const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI;
+    if (!SHEET_API_URL) return;
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const timestamp = getFmsTimestamp();
+      const rowArray = new Array(60).fill("");
+
+      const selIdx = parseInt(approvedVendor.replace("vendor", ""), 10);
+      const approvedName = currentRecord.data[`vendor${selIdx}Name`] || "";
+
+      // Stage 4 approval details
+      rowArray[47] = approvedVendor; // AV: Selected Vendor ID
+      rowArray[48] = approvedName;   // AW: Selected Vendor Name
+      rowArray[49] = ""; // AX: Approved By
+      rowArray[50] = formData.remarks;    // AY: Remarks
+      rowArray[51] = timestamp; // AZ: Actual Approved Vendor (Planned Stage 5 PO Entry)
+
+      const params = new URLSearchParams();
+      params.append("action", "update");
+      params.append("sheetName", "INDENT-LIFT");
+      params.append("rowIndex", currentRecord.rowIndex.toString());
+      params.append("rowData", JSON.stringify(rowArray));
+
+      const response = await fetch(SHEET_API_URL, {
+        method: "POST",
+        body: params,
+      });
+
+      if (!response.ok) throw new Error("Update failed");
+
+      const result = await response.json();
+      if (result.success) {
+        toast.success("Approved Vendor set successfully!");
+        await fetchData();
+        resetForm();
+      } else {
+        throw new Error(result.error || "Unknown error");
+      }
+    } catch (err: any) {
+      console.error("Stage 4 Submit Error:", err);
+      setSubmitError(err.message || "Failed to submit Approved Vendor");
+      toast.error(err.message || "Failed submission");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const resetForm = () => {
+    setOpen(false);
+    setCurrentRecord(null);
+    setApprovedVendor("vendor1");
+    setFormData({ remarks: "" });
+  };
+
+  // Bulk options
+  const toggleIndentSelection = (indentId: string) => {
+    setSelectedIndents(prev =>
+      prev.includes(indentId)
+        ? prev.filter(id => id !== indentId)
+        : [...prev, indentId]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIndents.length === pending.length) {
+      setSelectedIndents([]);
+    } else {
+      setSelectedIndents(pending.map(r => r.id));
+    }
+  };
+
+  const handleOpenBulkModal = () => {
+    const records = selectedIndents.map(id => sheetRecords.find(r => r.id === id)).filter(Boolean);
+    setBulkRecords(records);
+    setApprovedVendor("vendor1");
+    setFormData({ remarks: "" });
+    setBulkModalOpen(true);
+  };
+
+  const handleBulkSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (bulkRecords.length === 0) {
+      toast.error("Please fill in all required fields.");
+      return;
+    }
+
+    const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI;
+    if (!SHEET_API_URL) return;
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const timestamp = getFmsTimestamp();
+
+      for (const record of bulkRecords) {
+        const rowArray = new Array(60).fill("");
+        const selIdx = parseInt(approvedVendor.replace("vendor", ""), 10);
+        const approvedName = record.data[`vendor${selIdx}Name`] || "";
+
+        rowArray[47] = approvedVendor;
+        rowArray[48] = approvedName;
+        rowArray[49] = "";
+        rowArray[50] = formData.remarks;
+        rowArray[51] = timestamp;
+
+        const params = new URLSearchParams();
+        params.append("action", "update");
+        params.append("sheetName", "INDENT-LIFT");
+        params.append("rowIndex", record.rowIndex.toString());
+        params.append("rowData", JSON.stringify(rowArray));
+
+        const response = await fetch(SHEET_API_URL, {
+          method: "POST",
+          body: params,
+        });
+
+        if (!response.ok) throw new Error(`Failed to update row ${record.id}`);
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error || `Failed to update ${record.id}`);
+      }
+
+      toast.success("Bulk Approved Vendor submission completed!");
+      await fetchData();
+      setBulkModalOpen(false);
+      setSelectedIndents([]);
+    } catch (err: any) {
+      console.error("Bulk Stage 4 Submit Error:", err);
+      setSubmitError(err.message || "Bulk submission failed");
+      toast.error(err.message || "Failed bulk submission");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Get active vendors for the currently viewed record
+  const currentRecordVendors = useMemo(() => {
+    if (!currentRecord) return [];
+    const list = [];
+    if (currentRecord.data.vendor1Name) {
+      list.push({ id: "vendor1", name: currentRecord.data.vendor1Name, rate: currentRecord.data.vendor1Rate, terms: currentRecord.data.vendor1Terms, delivery: currentRecord.data.vendor1Delivery, remarks: currentRecord.data.vendor1Remarks });
+    }
+    if (currentRecord.data.vendor2Name && currentRecord.data.vendor2Name !== "-") {
+      list.push({ id: "vendor2", name: currentRecord.data.vendor2Name, rate: currentRecord.data.vendor2Rate, terms: currentRecord.data.vendor2Terms, delivery: currentRecord.data.vendor2Delivery, remarks: currentRecord.data.vendor2Remarks });
+    }
+    if (currentRecord.data.vendor3Name && currentRecord.data.vendor3Name !== "-") {
+      list.push({ id: "vendor3", name: currentRecord.data.vendor3Name, rate: currentRecord.data.vendor3Rate, terms: currentRecord.data.vendor3Terms, delivery: currentRecord.data.vendor3Delivery, remarks: currentRecord.data.vendor3Remarks });
+    }
+    return list;
+  }, [currentRecord]);
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden bg-slate-50/50 p-6 space-y-6">
+      {/* Header Card */}
+      <div className="p-6 bg-gradient-to-br from-slate-50 to-white border border-slate-200 rounded-xl shadow-sm shrink-0">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-slate-900 rounded-lg shadow-slate-100 shadow-xl text-white">
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage 4: Approved Vendor</h2>
+              <p className="text-slate-500 text-sm">Select the approved vendor from the submitted enquiries.</p>
+            </div>
+          </div>
+
+          <div className="flex-1 flex items-center justify-end gap-4 w-full md:w-auto">
+            {selectedIndents.length > 0 && (
+              <Button
+                onClick={handleOpenBulkModal}
+                className="bg-slate-900 text-white hover:bg-slate-800 transition-colors shadow-sm h-10 rounded-xl px-4"
+              >
+                Approve Bulk ({selectedIndents.length})
+              </Button>
+            )}
+
+            <div className="relative w-full max-w-sm">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
+              <Input
+                placeholder="Search by Indent or Item Name..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 bg-white"
+              />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Label className="text-sm font-semibold text-slate-600 hidden md:inline-block">Show Columns:</Label>
+              <ColumnSelector />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={(val: any) => setActiveTab(val)} className="flex-1 flex flex-col overflow-hidden">
+        <TabsList className="bg-slate-100/80 p-1 w-fit rounded-lg mb-4">
+          <TabsTrigger value="pending" className="px-4 py-2 text-sm font-medium rounded-md transition-all">
+            Pending Approval ({pending.length})
+          </TabsTrigger>
+          <TabsTrigger value="history" className="px-4 py-2 text-sm font-medium rounded-md transition-all">
+            History ({completed.length})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="pending" className="mt-0 flex-1 flex flex-col overflow-hidden">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-24 bg-white border rounded-lg shadow-sm">
+              <Loader2 className="w-12 h-12 animate-spin text-black mb-4" />
+              <p className="text-lg font-medium text-gray-900">Loading Indents...</p>
+            </div>
+          ) : pending.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 border rounded-lg bg-gray-50">
+              <p className="text-lg">No pending approved vendor decisions</p>
+              <p className="text-sm mt-1">All caught up!</p>
+            </div>
+          ) : (
+            <div className="flex-1 overflow-auto border rounded-xl bg-white shadow-sm scrollbar-thin scrollbar-thumb-slate-200">
+              <table className="w-full caption-bottom text-sm border-collapse">
+                <TableHeader className="sticky top-0 z-30 bg-slate-200 shadow-sm border-none">
+                  <TableRow className="bg-slate-200 hover:bg-slate-200 border-none">
+                    <TableHead className="w-[50px] sticky top-0 z-30 bg-slate-200 border-none px-4">
+                      <Checkbox
+                        checked={pending.length > 0 && selectedIndents.length === pending.length}
+                        onCheckedChange={toggleSelectAll}
+                      />
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-30 bg-slate-200 border-none px-4 py-3 text-slate-700 font-bold uppercase text-[13px] tracking-wider">
+                      Actions
+                    </TableHead>
+                    {baseColumns.filter((col) => selectedColumns.includes(col.key)).map((col) => (
+                      <TableHead key={col.key} className="sticky top-0 z-30 bg-slate-200 border-none px-4 py-3 text-slate-700 font-bold uppercase text-[13px] tracking-wider">
+                        {col.label}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pending.map((record) => (
+                    <TableRow key={record.id} className="hover:bg-muted/50 odd:bg-white even:bg-slate-50/80 group">
+                      <TableCell className="px-4">
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={selectedIndents.includes(record.id)}
+                            onCheckedChange={() => toggleIndentSelection(record.id)}
+                          />
+                        </div>
+                      </TableCell>
+                      <TableCell className="px-4 py-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenForm(record.id)}
+                          className="h-8 text-xs font-semibold px-3 border-slate-200 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+                        >
+                          Approve
+                        </Button>
+                      </TableCell>
+                      {baseColumns.filter((col) => selectedColumns.includes(col.key)).map((col) => (
+                        <TableCell key={col.key} className="text-sm text-slate-700 px-4">
+                          {col.key === "actual3"
+                            ? formatDateDash(record.data[col.key])
+                            : String(record.data[col.key] ?? "-")}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </table>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="history" className="mt-0 flex-1 flex flex-col overflow-hidden">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-24 bg-white border rounded-lg shadow-sm">
+              <Loader2 className="w-12 h-12 animate-spin text-black mb-4" />
+              <p className="text-lg font-medium text-gray-900">Loading History...</p>
+            </div>
+          ) : completed.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 border rounded-lg bg-gray-50">
+              <p className="text-lg">No completed approved vendors</p>
+            </div>
+          ) : (
+            <div className="flex-1 overflow-auto border rounded-xl bg-white shadow-sm scrollbar-thin scrollbar-thumb-slate-200">
+              <table className="w-full caption-bottom text-sm border-collapse">
+                <TableHeader className="sticky top-0 z-30 bg-slate-200 shadow-sm border-none">
+                  <TableRow className="bg-slate-200 hover:bg-slate-200 border-none">
+                    {baseColumns.filter((col) => selectedColumns.includes(col.key)).map((col) => (
+                      <TableHead key={col.key} className="sticky top-0 z-30 bg-slate-200 border-none px-4 py-3 text-slate-700 font-bold uppercase text-[13px] tracking-wider">
+                        {col.label}
+                      </TableHead>
+                    ))}
+                    <TableHead className="sticky top-0 z-30 bg-slate-200 border-none px-4 py-3 text-slate-700 font-bold uppercase text-[13px] tracking-wider">
+                      Approval Date
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-30 bg-slate-200 border-none px-4 py-3 text-slate-700 font-bold uppercase text-[13px] tracking-wider">
+                      Approved Vendor
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-30 bg-slate-200 border-none px-4 py-3 text-slate-700 font-bold uppercase text-[13px] tracking-wider">
+                      Rate Per Qty
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {completed.map((record) => {
+                    const selId = String(record.data.selectedVendor || "vendor1");
+                    const idx = parseInt(selId.replace("vendor", ""), 10) || 1;
+
+                    const vendorName = record.data[`vendor${idx}Name`] || record.data.selectedVendorName;
+                    const vendorRate = record.data[`vendor${idx}Rate`];
+
+                    return (
+                      <TableRow key={record.id} className="hover:bg-muted/50 odd:bg-white even:bg-slate-50/80 group">
+                        {baseColumns.filter((col) => selectedColumns.includes(col.key)).map((col) => (
+                          <TableCell key={col.key} className="text-sm text-slate-700 px-4">
+                            {col.key === "actual3"
+                              ? formatDateDash(record.data[col.key])
+                              : String(record.data[col.key] ?? "-")}
+                          </TableCell>
+                        ))}
+                        <TableCell className="text-sm text-slate-700 px-4">
+                          {formatDateDash(record.data.planned4)}
+                        </TableCell>
+                        <TableCell className="text-sm text-slate-700 px-4 font-semibold">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-slate-900">{vendorName || "-"}</span>
+                            <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200 py-0 px-1 font-bold">
+                              {selId.toUpperCase()}
+                            </Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm text-slate-700 px-4 font-semibold">
+                          {vendorRate && vendorRate !== "-" ? `₹${vendorRate}` : "-"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </table>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {/* APPROVED VENDOR SUBMIT MODAL */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle>Approved Vendor Decision</DialogTitle>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto space-y-6 pr-2 py-2">
+            {/* Item Details */}
+            <div className="border rounded-lg p-3 bg-slate-50 text-sm grid grid-cols-3 gap-3">
+              <div>
+                <span className="font-semibold text-slate-500">Indent:</span>
+                <p className="font-medium text-slate-900">{currentRecord?.data?.indentNumber || "—"}</p>
+              </div>
+              <div>
+                <span className="font-semibold text-slate-500">Item:</span>
+                <p className="font-medium text-slate-900">{currentRecord?.data?.itemName || "—"}</p>
+              </div>
+              <div>
+                <span className="font-semibold text-slate-500">Qty:</span>
+                <p className="font-medium text-slate-900">{currentRecord?.data?.quantity || "—"}</p>
+              </div>
+            </div>
+
+            {/* Vendor Comparison Layout */}
+            <div className="space-y-2">
+              <Label className="text-xs uppercase font-extrabold text-slate-500 tracking-wider">Vendor Proposals Comparison</Label>
+              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                <table className="w-full text-xs text-left">
+                  <thead>
+                    <tr className="bg-slate-100 border-b border-slate-200">
+                      <th className="p-3 font-semibold text-slate-700">Proposal</th>
+                      <th className="p-3 font-semibold text-slate-700">Vendor Name</th>
+                      <th className="p-3 font-semibold text-slate-700">Rate Per Qty</th>
+                      <th className="p-3 font-semibold text-slate-700">Terms</th>
+                      <th className="p-3 font-semibold text-slate-700">Exp. Delivery</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currentRecordVendors.map((v, i) => (
+                      <tr key={v.id} className="border-b last:border-0 hover:bg-slate-50/50">
+                        <td className="p-3 font-bold text-slate-600">Vendor #{i + 1}</td>
+                        <td className="p-3 font-semibold text-slate-900">{v.name}</td>
+                        <td className="p-3 text-slate-900">₹{v.rate}</td>
+                        <td className="p-3 text-slate-700">{paymentTermsOptions.find(opt => opt.value === v.terms)?.label || v.terms}</td>
+                        <td className="p-3 text-slate-600">{formatDateDash(v.delivery)}</td>
+                      </tr>
+                    ))}
+                    {currentRecordVendors.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="p-6 text-center text-slate-400">No vendor quotations found.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Approved Vendor Select */}
+            <div className="space-y-1.5 bg-green-50/50 p-4 border border-green-100 rounded-xl">
+              <Label htmlFor="selVendor" className="text-green-800 font-bold text-xs uppercase tracking-wider block mb-1">Approved Vendor <span className="text-red-500">*</span></Label>
+              <Select
+                value={approvedVendor}
+                onValueChange={(v) => setApprovedVendor(v)}
+              >
+                <SelectTrigger id="selVendor" className="bg-white border-green-200">
+                  <SelectValue placeholder="Select approved vendor..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {currentRecordVendors.map((v, i) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      Vendor #{i + 1} ({v.name}) — ₹{v.rate}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+
+            {/* Remarks */}
+            <div className="space-y-1.5">
+              <Label htmlFor="remarks">Remarks</Label>
+              <Textarea
+                id="remarks"
+                value={formData.remarks}
+                onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                placeholder="Negotiation or general approval comments..."
+                className="min-h-16"
+              />
+            </div>
+
+            {submitError && (
+              <p className="text-red-500 text-xs font-semibold">{submitError}</p>
+            )}
+
+            <DialogFooter className="flex-shrink-0 border-t pt-4">
+              <Button type="button" variant="outline" onClick={resetForm} disabled={isSubmitting}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                Confirm & Approve
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* BULK FORM MODAL */}
+      <Dialog open={bulkModalOpen} onOpenChange={setBulkModalOpen}>
+        <DialogContent className="max-w-xl max-h-[90vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle>Bulk Approved Vendor Decision</DialogTitle>
+          </DialogHeader>
+
+          <form onSubmit={handleBulkSubmit} className="flex-1 overflow-y-auto space-y-6 pr-2 py-2">
+            <div className="bg-slate-50 p-3 rounded-lg border text-sm text-slate-600 font-medium">
+              Applying selection to {bulkRecords.length} items.
+            </div>
+
+            {/* Approved Vendor Select */}
+            <div className="space-y-1.5 bg-green-50/50 p-4 border border-green-100 rounded-xl">
+              <Label htmlFor="bulkSelVendor" className="text-green-800 font-bold text-xs uppercase tracking-wider block mb-1">Approved Vendor Slot <span className="text-red-500">*</span></Label>
+              <Select
+                value={approvedVendor}
+                onValueChange={(v) => setApprovedVendor(v)}
+              >
+                <SelectTrigger id="bulkSelVendor" className="bg-white border-green-200">
+                  <SelectValue placeholder="Select approved vendor slot..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="vendor1">Vendor Slot 1 (Primary Vendor)</SelectItem>
+                  <SelectItem value="vendor2">Vendor Slot 2</SelectItem>
+                  <SelectItem value="vendor3">Vendor Slot 3</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+
+            {/* Remarks */}
+            <div className="space-y-1.5">
+              <Label htmlFor="bulkRemarks">Remarks</Label>
+              <Textarea
+                id="bulkRemarks"
+                value={formData.remarks}
+                onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                placeholder="Overall negotiation or general comments..."
+                className="min-h-16"
+              />
+            </div>
+
+            {submitError && (
+              <p className="text-red-500 text-xs font-semibold">{submitError}</p>
+            )}
+
+            <DialogFooter className="flex-shrink-0 border-t pt-4">
+              <Button type="button" variant="outline" onClick={() => setBulkModalOpen(false)} disabled={isSubmitting}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                Confirm & Approve
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

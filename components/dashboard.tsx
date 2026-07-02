@@ -73,22 +73,18 @@ import {
 // Define all purchase order stages with pending counts (Excluding Create Indent)
 const purchaseStages = [
   { id: 2, name: "Indent Approval", color: "bg-purple-500" },
-  { id: 3, name: "Update 3 Vendors", color: "bg-indigo-500" },
-  { id: 4, name: "Negotiation", color: "bg-cyan-500" },
-  { id: 5, name: "PO Entry", color: "bg-teal-500" },
-  { id: 6, name: "Follow-Up Vendor", color: "bg-emerald-500" },
-  { id: 7, name: "Transporter Follow-Up", color: "bg-green-500" },
-  { id: 8, name: "Material Received", color: "bg-lime-500" },
-  { id: 9, name: "Serial Generation", color: "bg-yellow-500" },
-  { id: 11, name: "Receipt in Tally", color: "bg-orange-500" },
-  { id: 12, name: "Submit Invoice (HO)", color: "bg-red-500" },
-  { id: 13, name: "Submit Invoice", color: "bg-rose-500" },
-  { id: 14, name: "Verification by Accounts", color: "bg-pink-500" },
-  { id: 15, name: "QC Requirement", color: "bg-fuchsia-500" },
-  { id: 16, name: "Purchase Return", color: "bg-violet-500" },
-  { id: 17, name: "Return Approval", color: "bg-indigo-600" },
-  { id: 18, name: "Vendor Payment", color: "bg-slate-500" },
-  { id: 19, name: "Freight Payments", color: "bg-zinc-500" },
+  { id: 3, name: "Quotation", color: "bg-indigo-500" },
+  { id: 4, name: "Approved Vendor", color: "bg-cyan-500" },
+  { id: 5, name: "Make PO", color: "bg-teal-500" },
+  { id: 6, name: "Payment", color: "bg-blue-500" },
+  { id: 7, name: "Lifting", color: "bg-emerald-500" },
+  { id: 8, name: "Transporter Follow-Up", color: "bg-green-500" },
+  { id: 9, name: "Material Received", color: "bg-lime-500" },
+  { id: 10, name: "Billing", color: "bg-orange-500" },
+  { id: 11, name: "Purchase Return", color: "bg-violet-500" },
+  { id: 12, name: "Vendor Payment", color: "bg-slate-500" },
+  { id: 13, name: "Freight Payments", color: "bg-zinc-500" },
+  { id: 14, name: "Order Cancel", color: "bg-red-500" },
 ];
 
 export default function PurchaseDashboard() {
@@ -319,7 +315,7 @@ export default function PurchaseDashboard() {
           setOverviewItems(parsedOverviewItems);
 
           // Calculate Pending Items by Stage (Only PO Stages)
-          const poStages = ["Indent Approval", "Update 3 Vendors", "Negotiation", "PO Entry", "Follow-Up Vendor"];
+          const poStages = ["Indent Approval", "Quotation", "Approved Vendor", "Make PO", "Payment", "Lifting"];
           const counts: Record<string, number> = {};
           const overdueCounts: Record<string, number> = {};
           poStages.forEach(name => {
@@ -350,10 +346,11 @@ export default function PurchaseDashboard() {
 
               // Indices verified against stage components
               check("Indent Approval", 9, 10, 11);
-              check("Update 3 Vendors", 18, 19, 20);
-              check("Negotiation", 45, 46, 45); // Negotiation delay is same as start
-              check("PO Entry", 51, 52, 53);
-              check("Follow-Up Vendor", 60, 61, 62);
+              check("Quotation", 45, 46, 47);
+              check("Approved Vendor", 46, 51, 46);
+              check("Make PO", 51, 52, 53);
+              check("Payment", 72, 73, 72);
+              check("Lifting", 60, 61, 62);
             }
           }
 
@@ -466,7 +463,7 @@ export default function PurchaseDashboard() {
           setTopReceivedOrders(processedOrders.slice(0, 10));
 
           // Calculate Pending Items by Stage (Only RA Stages)
-          const raStages = ["Transporter Follow-Up", "Material Received", "Serial Generation", "QC Requirement", "Receipt in Tally", "Submit Invoice (HO)", "Submit Invoice", "Verification by Accounts", "Purchase Return"];
+          const raStages = ["Transporter Follow-Up", "Material Received", "Billing", "Purchase Return"];
           const recCounts: Record<string, number> = {};
           const overdueRecCounts: Record<string, number> = {};
           raStages.forEach(name => {
@@ -492,12 +489,7 @@ export default function PurchaseDashboard() {
               // Indices verified against specialized stage components:
               check("Transporter Follow-Up", 88, 89, 88);
               check("Material Received", 19, 20, 19);
-              check("Serial Generation", 104, 109, 108);
-              check("QC Requirement", 61, 62, 61);
-              check("Receipt in Tally", 35, 36, 35);
-              check("Submit Invoice (HO)", 43, 44, 43);
-              check("Submit Invoice", 48, 49, 48);
-              check("Verification by Accounts", 54, 55, 54);
+              check("Billing", 35, 36, 35);
               check("Purchase Return", 63, 64, 63);
             }
           }
@@ -568,33 +560,18 @@ export default function PurchaseDashboard() {
       }
     };
 
-    const fetchSpecializedStages = async () => {
+    const fetchCancelledOrders = async () => {
       try {
-        const API = process.env.NEXT_PUBLIC_API_URI;
-        const [warrantyRes, partialRes] = await Promise.all([
-          fetch(`${API}?sheet=Serial-Generation`),
-          fetch(`${API}?sheet=${encodeURIComponent("Partial QC")}`)
-        ]);
-        const [warrantyJson, partialJson] = await Promise.all([warrantyRes.json(), partialRes.json()]);
-
-        const counts: Record<string, number> = { "Return Approval": 0 };
-        const overdue: Record<string, number> = { "Return Approval": 0 };
-
-        if (partialJson.success && Array.isArray(partialJson.data)) {
-          partialJson.data.slice(1).forEach((row: any) => {
-            const has = (idx: number) => row[idx] !== null && row[idx] !== undefined && String(row[idx]).trim() !== "" && String(row[idx]).trim() !== "-";
-            // Check for valid Indent Number (index 1) to avoid counting empty rows
-            if (has(1) && has(23) && !has(24)) {
-              counts["Return Approval"]++;
-              overdue["Return Approval"]++;
-            }
-          });
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URI}?sheet=ORDER-CANCEL`);
+        const result = await response.json();
+        if (result.success && result.data) {
+          const rows = result.data;
+          const count = Math.max(0, rows.length - 1);
+          setStageCounts((prev: any) => ({ ...prev, "Order Cancel": count }));
+          setStageOverdueCounts((prev: any) => ({ ...prev, "Order Cancel": 0 }));
         }
-
-        setStageCounts((prev: any) => ({ ...prev, ...counts }));
-        setStageOverdueCounts((prev: any) => ({ ...prev, ...overdue }));
       } catch (error) {
-        console.error("Error specialized stages:", error);
+        console.error("Error fetching cancelled orders:", error);
       }
     };
 
@@ -649,7 +626,7 @@ export default function PurchaseDashboard() {
         fetchVendorPayments(),
         fetchFreightPayments(),
         fetchWarrantyData(),
-        fetchSpecializedStages()
+        fetchCancelledOrders()
       ]);
       setLoading(false);
     };
@@ -885,8 +862,8 @@ export default function PurchaseDashboard() {
       const fmsHas = (r: any, idx: number) => r[idx] !== null && r[idx] !== undefined && String(r[idx]).trim() !== "" && String(r[idx]).trim() !== "-";
       const fmsMiss = (r: any, idx: number) => !fmsHas(r, idx);
 
-      // Track unique POs for Follow-Up Vendor
-      const followUpVendorPOs = new Set<string>();
+      // Track unique POs for Lifting
+      const liftingPOs = new Set<string>();
 
       // FMS loop logic
       for (let i = 6; i < fmsRows.length; i++) {
@@ -929,7 +906,7 @@ export default function PurchaseDashboard() {
                 party = r[3] || "-";
               }
 
-              const qty = (name === "PO Entry" || name === "Follow-Up Vendor" || name === "Negotiation") ? (r[14] || r[5] || "-") : (r[5] || "-");
+              const qty = (name === "Make PO" || name === "Payment" || name === "Lifting" || name === "Approved Vendor" || name === "Quotation") ? (r[14] || r[5] || "-") : (r[5] || "-");
 
               detailed.push({
                 indent: r[1] || "-",
@@ -945,17 +922,20 @@ export default function PurchaseDashboard() {
         };
 
         checkStage("Indent Approval", 9, 10, 11, 11, 'category');
-        checkStage("PO Entry", 51, 52, 51, 53, 'vendor');
+        checkStage("Quotation", 45, 46, 45, 47, 'category');
+        checkStage("Approved Vendor", 46, 51, 46, 46, 'vendor');
+        checkStage("Make PO", 51, 52, 51, 53, 'vendor');
+        checkStage("Payment", 72, 73, 72, 72, 'vendor');
 
-        // Follow-Up Vendor: unique PO deduplication logic
+        // Lifting: unique PO deduplication logic
         const fuvIsOverdue = fmsHas(r, 60) && fmsMiss(r, 61) && fmsHas(r, 62);
         const fuvRawPo = String(r[54] || "").trim();
         if (fuvIsOverdue && fuvRawPo && fuvRawPo !== "-") {
           const poNumKey = fuvRawPo.toUpperCase().replace(/\s+/g, '');
-          totalCounts["Follow-Up Vendor"]++;
-          overdueCounts["Follow-Up Vendor"]++;
-          if (!followUpVendorPOs.has(poNumKey)) {
-            followUpVendorPOs.add(poNumKey);
+          totalCounts["Lifting"]++;
+          overdueCounts["Lifting"]++;
+          if (!liftingPOs.has(poNumKey)) {
+            liftingPOs.add(poNumKey);
             let fuvParty = "-";
             const awName = String(r[48] || "").trim();
             const axName = String(r[49] || "").trim();
@@ -973,7 +953,7 @@ export default function PurchaseDashboard() {
               party: fuvParty,
               item: r[4] || "-",
               qty: r[14] || r[5] || "-",
-              stage: "Follow-Up Vendor",
+              stage: "Lifting",
               delay: r[62] || "0",
               poNumber: fuvRawPo,
               plannedDate: r[60] || "-" // Column BI
@@ -1018,17 +998,20 @@ export default function PurchaseDashboard() {
         };
 
         checkStageRA("Transporter Follow-Up", 88, 89, 88, 90, 7);
+        checkStageRA("Material Received", 19, 20, 19, 19, 7);
+        checkStageRA("Billing", 35, 36, 35, 35, 7);
+        checkStageRA("Purchase Return", 63, 64, 63, 63, 7);
       }
 
       // Filter summary to only stages with overdueCount > 0 and only the 4 requested stages
-      const allowedStages = ["Indent Approval", "PO Entry", "Follow-Up Vendor", "Transporter Follow-Up"];
+      const allowedStages = ["Indent Approval", "Quotation", "Approved Vendor", "Make PO", "Payment", "Lifting", "Transporter Follow-Up", "Material Received", "Billing", "Purchase Return"];
       const summaryData = purchaseStages
         .filter(s => allowedStages.includes(s.name) && overdueCounts[s.name] > 0)
         .map(s => ({
           stage: s.name,
           pending: overdueCounts[s.name],
           responsible: respMap[s.name] || "-",
-          uniquePoCount: s.name === "Follow-Up Vendor" ? followUpVendorPOs.size : undefined
+          uniquePoCount: s.name === "Lifting" ? liftingPOs.size : undefined
         }));
 
       // Sort detailed data by stage sequence to match summary

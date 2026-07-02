@@ -139,7 +139,7 @@ export default function Stage9() {
         await fetch(SHEET_API_URL, { method: "POST", body: params });
       }
 
-      toast.success(formData.checkedStatus === "Yes" ? "Tally Entry Completed (Bulk)!" : "Tally Entry Saved (Bulk Pending)");
+      toast.success(formData.checkedStatus === "Yes" ? "Billing Completed (Bulk)!" : "Billing Saved (Bulk Pending)");
       setIsModalOpen(false);
       setSelectedRows(new Set());
       fetchData();
@@ -224,7 +224,7 @@ export default function Stage9() {
             return {
               id: `${row[1] || "row"}-${originalIndex}`,
               rowIndex: originalIndex,
-              stage: 9,
+              stage: 8,
               status,
               originalRow: row,
               data: {
@@ -384,10 +384,10 @@ export default function Stage9() {
   const historyColumns = [
     ...pendingColumns,
     { key: "actual8", label: "Actual" },
-    { key: "doneBy", label: "Tally Done By" },
-    { key: "doneDate", label: "Tally Date" },
-    { key: "tallyStatus", label: "Tally Status" },
-    { key: "remarks", label: "Tally Remarks" },
+    { key: "doneBy", label: "Billing Done By" },
+    { key: "doneDate", label: "Billing Date" },
+    { key: "tallyStatus", label: "Billing Status" },
+    { key: "remarks", label: "Billing Remarks" },
     { key: "checkedStatus", label: "Checked" },
     { key: "checkedByAcc", label: "Checked By" },
   ];
@@ -519,7 +519,7 @@ export default function Stage9() {
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle>Tally Entry ({selectedRows.size} Selected)</DialogTitle>
+            <DialogTitle>Billing ({selectedRows.size} Selected)</DialogTitle>
           </DialogHeader>
 
           {bulkError && (
@@ -627,11 +627,13 @@ export default function Stage9() {
           {/* Header Card */}
           <div className="mb-4 md:mb-6 p-4 md:p-6 bg-white border rounded-lg shadow-sm">
             <div className="flex items-start justify-between flex-wrap gap-4">
-              <div className="flex items-center gap-3">
-                <FileText className="w-7 h-7 text-indigo-600" />
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-slate-900 rounded-lg text-white shadow-xl">
+                  <FileText className="w-6 h-6" />
+                </div>
                 <div>
                   <h2 className="text-2xl font-bold text-slate-900">
-                    Stage 9: Tally Entry
+                    Stage 10: Billing
                   </h2>
                 </div>
               </div>
@@ -775,7 +777,7 @@ export default function Stage9() {
                     onClick={handleOpenModal}
                     className="bg-indigo-600 hover:bg-indigo-700 text-white h-9 shadow-sm whitespace-nowrap"
                   >
-                    Tally Entry ({selectedRows.size})
+                    Billing ({selectedRows.size})
                   </Button>
                 )}
               </div>
@@ -804,7 +806,7 @@ export default function Stage9() {
           {(pending.length === 0 && !isLoading) ? (
             <div className="text-center py-12 text-gray-500 bg-white border rounded-lg shadow-sm">
               <FileText className="w-12 h-12 mx-auto mb-3 text-slate-200" />
-              <p className="text-lg text-slate-600 font-medium">No pending Tally entries</p>
+              <p className="text-lg text-slate-600 font-medium">No pending Billing entries</p>
             </div>
           ) : (
             <div className="border rounded-lg overflow-x-auto h-[70vh] relative shadow-sm overflow-y-auto">
@@ -882,7 +884,7 @@ export default function Stage9() {
         <TabsContent value="history" className="mt-6">
           {(completed.length === 0 && !isLoading) ? (
             <div className="text-center py-12 text-gray-500">
-              <p className="text-lg">No Tally history</p>
+              <p className="text-lg">No Billing history</p>
             </div>
           ) : (
             <div className="border rounded-lg overflow-x-auto h-[70vh] relative shadow-sm overflow-y-auto">

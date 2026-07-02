@@ -111,7 +111,7 @@ export default function OrderCancelPage() {
   // Helper function to parse Google Sheets date format and display as YYYY-MM-DD HH:MM:SS
   const parseGoogleSheetsDate = (dateString: any) => {
     if (!dateString) return "—"
-    
+
     let d: Date
     if (dateString instanceof Date) {
       d = dateString
@@ -151,10 +151,7 @@ export default function OrderCancelPage() {
     setError(null)
 
     try {
-      const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI
-      if (!SHEET_API_URL) {
-        throw new Error("API URI not defined in environment variables")
-      }
+      const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI || ""
 
       const response = await fetch(`${SHEET_API_URL}?sheet=${SHEET_NAME}`)
       if (!response.ok) {
@@ -199,8 +196,7 @@ export default function OrderCancelPage() {
 
   const fetchCancelStages = async () => {
     try {
-      const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI
-      if (!SHEET_API_URL) return
+      const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI || ""
 
       const response = await fetch(`${SHEET_API_URL}?sheet=Master`)
       if (!response.ok) return
@@ -223,8 +219,7 @@ export default function OrderCancelPage() {
 
   const fetchDropdownItems = async () => {
     try {
-      const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI
-      if (!SHEET_API_URL) return
+      const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI || ""
 
       const response = await fetch(`${SHEET_API_URL}?sheet=Dropdown&action=getAll`)
       if (!response.ok) return
@@ -275,10 +270,7 @@ export default function OrderCancelPage() {
     setSelectedSearchRowIds([])
 
     try {
-      const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI
-      if (!SHEET_API_URL) {
-        throw new Error("API URI not defined in environment variables")
-      }
+      const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI || ""
 
       const response = await fetch(`${SHEET_API_URL}?sheet=INDENT-LIFT&action=getAll`)
       if (!response.ok) {
@@ -360,10 +352,7 @@ export default function OrderCancelPage() {
     setSubmitting(true)
 
     try {
-      const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI
-      if (!SHEET_API_URL) {
-        throw new Error("API URI not defined in environment variables")
-      }
+      const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI || ""
 
       const today = new Date()
       const timestamp = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')} ${today.getHours().toString().padStart(2, '0')}:${today.getMinutes().toString().padStart(2, '0')}:${today.getSeconds().toString().padStart(2, '0')}`
@@ -483,20 +472,20 @@ export default function OrderCancelPage() {
       {/* Header Section */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="p-2.5 bg-red-600 rounded-xl shadow-lg text-white">
+          <div className="p-3 bg-slate-900 rounded-lg text-white shadow-xl">
             <XCircle className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Order Cancel</h2>
+            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage 14: Order Cancel</h2>
             <p className="text-[13px] text-muted-foreground mt-0">Manage and track cancelled orders</p>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-3 w-full md:w-auto">
           <div className="relative flex-1 md:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <Input 
-              placeholder="Search cancelled orders..." 
+            <Input
+              placeholder="Search cancelled orders..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9 bg-white border-slate-200 shadow-sm focus:ring-red-500 focus:border-red-500 rounded-lg h-10"
@@ -574,8 +563,8 @@ export default function OrderCancelPage() {
                             order.cancelReason === "Customer Request"
                               ? "default"
                               : order.cancelReason === "Quality Issues"
-                              ? "destructive"
-                              : "secondary"
+                                ? "destructive"
+                                : "secondary"
                           }
                         >
                           {order.cancelReason}
@@ -605,252 +594,252 @@ export default function OrderCancelPage() {
         </CardContent>
       </Card>
 
-    {/* Cancel Order Dialog */}
-    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-6 overflow-hidden">
-        <DialogHeader className="shrink-0">
-          <DialogTitle>Cancel Order</DialogTitle>
-        </DialogHeader>
+      {/* Cancel Order Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-6 overflow-hidden">
+          <DialogHeader className="shrink-0">
+            <DialogTitle>Cancel Order</DialogTitle>
+          </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto pr-1 space-y-4 py-2">
-          {/* Search Section */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end bg-slate-50 p-4 rounded-lg border border-slate-200">
-            <div className="md:col-span-4 space-y-1.5">
-              <Label htmlFor="searchType">Search By</Label>
-              <Select
-                value={searchType}
-                onValueChange={(val: any) => {
-                  setSearchType(val)
-                  setSearchQuery("")
-                  setSearchResults([])
-                  setSelectedSearchRowIds([])
-                }}
-              >
-                <SelectTrigger className="bg-white border-slate-200">
-                  <SelectValue placeholder="Search parameter" />
-                </SelectTrigger>
-                <SelectContent className="bg-white border shadow-md">
-                  <SelectItem value="indent-no">Indent-No.</SelectItem>
-                  <SelectItem value="po-number">PO Number</SelectItem>
-                  <SelectItem value="item-name">Item-Name</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="md:col-span-6 space-y-1.5">
-              <Label>Search Value *</Label>
-              {searchType === "item-name" ? (
-                <ItemCombobox
-                  value={searchQuery}
-                  onChange={(val) => setSearchQuery(val)}
-                  options={dropdownItemsList}
-                />
-              ) : (
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={
-                    searchType === "indent-no"
-                      ? "Enter Indent Number (e.g. IN-...)"
-                      : "Enter PO Number"
-                  }
-                  className="bg-white border-slate-200"
-                />
-              )}
-            </div>
-
-            <div className="md:col-span-2">
-              <Button
-                onClick={handleSearch}
-                disabled={searchLoading || !searchQuery.trim()}
-                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-medium flex items-center justify-center gap-2 h-10"
-              >
-                {searchLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Search className="w-4 h-4" />
-                )}
-                Search
-              </Button>
-            </div>
-          </div>
-
-          {/* Results Table Section */}
-          {searchLoading ? (
-            <div className="flex flex-col items-center justify-center py-10 gap-2 border border-dashed rounded-lg">
-              <Loader2 className="w-8 h-8 animate-spin text-red-600" />
-              <span className="text-sm text-slate-500 font-medium">Searching FMS Sheet...</span>
-            </div>
-          ) : searchResults.length > 0 ? (
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <h4 className="text-sm font-semibold text-slate-700">
-                  Search Results ({searchResults.length} found)
-                </h4>
-                <Badge variant="secondary" className="bg-slate-100 text-slate-700">
-                  {selectedSearchRowIds.length} Selected
-                </Badge>
+          <div className="flex-1 overflow-y-auto pr-1 space-y-4 py-2">
+            {/* Search Section */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end bg-slate-50 p-4 rounded-lg border border-slate-200">
+              <div className="md:col-span-4 space-y-1.5">
+                <Label htmlFor="searchType">Search By</Label>
+                <Select
+                  value={searchType}
+                  onValueChange={(val: any) => {
+                    setSearchType(val)
+                    setSearchQuery("")
+                    setSearchResults([])
+                    setSelectedSearchRowIds([])
+                  }}
+                >
+                  <SelectTrigger className="bg-white border-slate-200">
+                    <SelectValue placeholder="Search parameter" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border shadow-md">
+                    <SelectItem value="indent-no">Indent-No.</SelectItem>
+                    <SelectItem value="po-number">PO Number</SelectItem>
+                    <SelectItem value="item-name">Item-Name</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="border border-slate-200 rounded-lg overflow-hidden max-h-48 overflow-y-auto">
-                <Table>
-                  <TableHeader className="bg-slate-50 sticky top-0 z-10">
-                    <TableRow className="bg-slate-50">
-                      <TableHead className="w-12 text-center">
-                        <Checkbox
-                          checked={
-                            searchResults.length > 0 &&
-                            selectedSearchRowIds.length === searchResults.length
-                          }
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setSelectedSearchRowIds(searchResults.map(r => r.id))
-                            } else {
-                              setSelectedSearchRowIds([])
-                            }
-                          }}
-                        />
-                      </TableHead>
-                      <TableHead className="text-xs uppercase font-semibold text-slate-600">Indent No.</TableHead>
-                      <TableHead className="text-xs uppercase font-semibold text-slate-600">PO Number</TableHead>
-                      <TableHead className="text-xs uppercase font-semibold text-slate-600">Item Name</TableHead>
-                      <TableHead className="w-[110px] text-center text-xs uppercase font-semibold text-slate-600">Remaining Qty</TableHead>
-                      <TableHead className="w-[120px] text-center text-xs uppercase font-semibold text-slate-600">Qty to Cancel</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {searchResults.map((row) => (
-                      <TableRow
-                        key={row.id}
-                        className={cn(
-                          "hover:bg-slate-50/50 transition-colors border-b border-slate-100",
-                          selectedSearchRowIds.includes(row.id) && "bg-red-50/20"
-                        )}
-                      >
-                        <TableCell className="text-center">
+
+              <div className="md:col-span-6 space-y-1.5">
+                <Label>Search Value *</Label>
+                {searchType === "item-name" ? (
+                  <ItemCombobox
+                    value={searchQuery}
+                    onChange={(val) => setSearchQuery(val)}
+                    options={dropdownItemsList}
+                  />
+                ) : (
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder={
+                      searchType === "indent-no"
+                        ? "Enter Indent Number (e.g. IN-...)"
+                        : "Enter PO Number"
+                    }
+                    className="bg-white border-slate-200"
+                  />
+                )}
+              </div>
+
+              <div className="md:col-span-2">
+                <Button
+                  onClick={handleSearch}
+                  disabled={searchLoading || !searchQuery.trim()}
+                  className="w-full bg-slate-900 hover:bg-slate-800 text-white font-medium flex items-center justify-center gap-2 h-10"
+                >
+                  {searchLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Search className="w-4 h-4" />
+                  )}
+                  Search
+                </Button>
+              </div>
+            </div>
+
+            {/* Results Table Section */}
+            {searchLoading ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-2 border border-dashed rounded-lg">
+                <Loader2 className="w-8 h-8 animate-spin text-red-600" />
+                <span className="text-sm text-slate-500 font-medium">Searching FMS Sheet...</span>
+              </div>
+            ) : searchResults.length > 0 ? (
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-sm font-semibold text-slate-700">
+                    Search Results ({searchResults.length} found)
+                  </h4>
+                  <Badge variant="secondary" className="bg-slate-100 text-slate-700">
+                    {selectedSearchRowIds.length} Selected
+                  </Badge>
+                </div>
+                <div className="border border-slate-200 rounded-lg overflow-hidden max-h-48 overflow-y-auto">
+                  <Table>
+                    <TableHeader className="bg-slate-50 sticky top-0 z-10">
+                      <TableRow className="bg-slate-50">
+                        <TableHead className="w-12 text-center">
                           <Checkbox
-                            checked={selectedSearchRowIds.includes(row.id)}
+                            checked={
+                              searchResults.length > 0 &&
+                              selectedSearchRowIds.length === searchResults.length
+                            }
                             onCheckedChange={(checked) => {
                               if (checked) {
-                                setSelectedSearchRowIds(prev => [...prev, row.id])
+                                setSelectedSearchRowIds(searchResults.map(r => r.id))
                               } else {
-                                setSelectedSearchRowIds(prev => prev.filter(id => id !== row.id))
+                                setSelectedSearchRowIds([])
                               }
                             }}
                           />
-                        </TableCell>
-                        <TableCell className="font-medium text-xs text-slate-900">{row.indentNumber}</TableCell>
-                        <TableCell className="font-mono text-[11px] text-slate-500">{row.poNumber}</TableCell>
-                        <TableCell className="text-xs text-slate-700 max-w-[200px] truncate" title={row.itemName}>
-                          {row.itemName}
-                        </TableCell>
-                        <TableCell className="text-center text-xs text-slate-700">{row.remainingQty}</TableCell>
-                        <TableCell className="text-center py-1">
-                          <Input
-                            type="number"
-                            min="1"
-                            max={isNaN(Number(row.remainingQty)) ? undefined : Number(row.remainingQty)}
-                            value={cancelQuantities[row.id] ?? row.remainingQty}
-                            onChange={(e) => {
-                              const val = e.target.value
-                              setCancelQuantities(prev => ({
-                                ...prev,
-                                [row.id]: val
-                              }))
-                            }}
-                            className="w-20 text-center h-8 bg-white border-slate-200 focus-visible:ring-red-500 mx-auto"
-                            placeholder="Qty"
-                            disabled={!selectedSearchRowIds.includes(row.id)}
-                          />
-                        </TableCell>
+                        </TableHead>
+                        <TableHead className="text-xs uppercase font-semibold text-slate-600">Indent No.</TableHead>
+                        <TableHead className="text-xs uppercase font-semibold text-slate-600">PO Number</TableHead>
+                        <TableHead className="text-xs uppercase font-semibold text-slate-600">Item Name</TableHead>
+                        <TableHead className="w-[110px] text-center text-xs uppercase font-semibold text-slate-600">Remaining Qty</TableHead>
+                        <TableHead className="w-[120px] text-center text-xs uppercase font-semibold text-slate-600">Qty to Cancel</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          ) : searchQuery.trim() && !searchLoading ? (
-            <div className="text-center py-6 text-sm text-slate-500 border border-dashed rounded-lg">
-              No search results yet. Click Search to retrieve matching rows.
-            </div>
-          ) : null}
- 
-          {/* Cancellation Details Form (Visible only when rows are selected) */}
-          {selectedSearchRowIds.length > 0 && (
-            <div className="border border-red-100 bg-red-50/10 p-5 rounded-lg space-y-4 animate-in slide-in-from-top-4 duration-300">
-              <h4 className="text-sm font-semibold text-red-900 border-b pb-2 flex items-center gap-2">
-                <span className="w-2 h-2 bg-red-600 rounded-full" />
-                Cancellation Details for {selectedSearchRowIds.length} Selected Item(s)
-              </h4>
- 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="cancelStage">Order Cancel Stage *</Label>
-                  <Select value={cancelStage} onValueChange={setCancelStage}>
-                    <SelectTrigger className="bg-white border-slate-200">
-                      <SelectValue placeholder="Select cancel stage" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white border shadow-md">
-                      {stageOptions.map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {option}
-                        </SelectItem>
+                    </TableHeader>
+                    <TableBody>
+                      {searchResults.map((row) => (
+                        <TableRow
+                          key={row.id}
+                          className={cn(
+                            "hover:bg-slate-50/50 transition-colors border-b border-slate-100",
+                            selectedSearchRowIds.includes(row.id) && "bg-red-50/20"
+                          )}
+                        >
+                          <TableCell className="text-center">
+                            <Checkbox
+                              checked={selectedSearchRowIds.includes(row.id)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedSearchRowIds(prev => [...prev, row.id])
+                                } else {
+                                  setSelectedSearchRowIds(prev => prev.filter(id => id !== row.id))
+                                }
+                              }}
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium text-xs text-slate-900">{row.indentNumber}</TableCell>
+                          <TableCell className="font-mono text-[11px] text-slate-500">{row.poNumber}</TableCell>
+                          <TableCell className="text-xs text-slate-700 max-w-[200px] truncate" title={row.itemName}>
+                            {row.itemName}
+                          </TableCell>
+                          <TableCell className="text-center text-xs text-slate-700">{row.remainingQty}</TableCell>
+                          <TableCell className="text-center py-1">
+                            <Input
+                              type="number"
+                              min="1"
+                              max={isNaN(Number(row.remainingQty)) ? undefined : Number(row.remainingQty)}
+                              value={cancelQuantities[row.id] ?? row.remainingQty}
+                              onChange={(e) => {
+                                const val = e.target.value
+                                setCancelQuantities(prev => ({
+                                  ...prev,
+                                  [row.id]: val
+                                }))
+                              }}
+                              className="w-20 text-center h-8 bg-white border-slate-200 focus-visible:ring-red-500 mx-auto"
+                              placeholder="Qty"
+                              disabled={!selectedSearchRowIds.includes(row.id)}
+                            />
+                          </TableCell>
+                        </TableRow>
                       ))}
-                    </SelectContent>
-                  </Select>
-                </div>
- 
-                <div className="space-y-1.5">
-                  <Label htmlFor="cancelReason">Order Cancel Reason *</Label>
-                  <Input
-                    id="cancelReason"
-                    value={cancelReason}
-                    onChange={(e) => setCancelReason(e.target.value)}
-                    placeholder="Enter cancel reason description"
-                    className="bg-white border-slate-200"
-                    required
-                  />
+                    </TableBody>
+                  </Table>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
- 
-        <div className="shrink-0 border-t pt-4 flex justify-end gap-2 bg-white">
-          <Button
-            variant="outline"
-            onClick={() => setIsDialogOpen(false)}
-            disabled={submitting}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={submitCancellation}
-            disabled={
-              selectedSearchRowIds.length === 0 ||
-              !cancelStage ||
-              !cancelReason ||
-              submitting ||
-              selectedSearchRowIds.some(id => {
-                const q = cancelQuantities[id] ?? searchResults.find(r => r.id === id)?.remainingQty
-                return !q || isNaN(Number(q)) || Number(q) <= 0
-              })
-            }
-            className="bg-red-600 hover:bg-red-700 text-white font-medium"
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Cancelling...
-              </>
-            ) : (
-              `Cancel ${selectedSearchRowIds.length} Order(s)`
+            ) : searchQuery.trim() && !searchLoading ? (
+              <div className="text-center py-6 text-sm text-slate-500 border border-dashed rounded-lg">
+                No search results yet. Click Search to retrieve matching rows.
+              </div>
+            ) : null}
+
+            {/* Cancellation Details Form (Visible only when rows are selected) */}
+            {selectedSearchRowIds.length > 0 && (
+              <div className="border border-red-100 bg-red-50/10 p-5 rounded-lg space-y-4 animate-in slide-in-from-top-4 duration-300">
+                <h4 className="text-sm font-semibold text-red-900 border-b pb-2 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-red-600 rounded-full" />
+                  Cancellation Details for {selectedSearchRowIds.length} Selected Item(s)
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cancelStage">Order Cancel Stage *</Label>
+                    <Select value={cancelStage} onValueChange={setCancelStage}>
+                      <SelectTrigger className="bg-white border-slate-200">
+                        <SelectValue placeholder="Select cancel stage" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border shadow-md">
+                        {stageOptions.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cancelReason">Order Cancel Reason *</Label>
+                    <Input
+                      id="cancelReason"
+                      value={cancelReason}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                      placeholder="Enter cancel reason description"
+                      className="bg-white border-slate-200"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
             )}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-    
-    <style jsx global>{`
+          </div>
+
+          <div className="shrink-0 border-t pt-4 flex justify-end gap-2 bg-white">
+            <Button
+              variant="outline"
+              onClick={() => setIsDialogOpen(false)}
+              disabled={submitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={submitCancellation}
+              disabled={
+                selectedSearchRowIds.length === 0 ||
+                !cancelStage ||
+                !cancelReason ||
+                submitting ||
+                selectedSearchRowIds.some(id => {
+                  const q = cancelQuantities[id] ?? searchResults.find(r => r.id === id)?.remainingQty
+                  return !q || isNaN(Number(q)) || Number(q) <= 0
+                })
+              }
+              className="bg-red-600 hover:bg-red-700 text-white font-medium"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Cancelling...
+                </>
+              ) : (
+                `Cancel ${selectedSearchRowIds.length} Order(s)`
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <style jsx global>{`
       .custom-scrollbar::-webkit-scrollbar {
         width: 8px;
         height: 8px;
@@ -866,6 +855,6 @@ export default function OrderCancelPage() {
         background: #94a3b8;
       }
     `}</style>
-  </div>
-)
+    </div>
+  )
 }

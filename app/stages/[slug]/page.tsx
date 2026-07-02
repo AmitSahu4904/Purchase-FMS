@@ -3,52 +3,34 @@
 import { useParams } from "next/navigation";
 import CreateIndent from "@/components/stages/create-indent";
 import IndentApproval from "@/components/stages/indent-approval";
-import Update3Vendors from "@/components/stages/update-3-vendors";
-import Negotiation from "@/components/stages/negotiation";
+import Quotation from "@/components/stages/quotation";
+import ApprovedVendor from "@/components/stages/approved-vendor";
 import POEntry from "@/components/stages/po-entry";
-import FollowUpVendor from "@/components/stages/follow-up-vendor";
+import Payment from "@/components/stages/payment";
+import Lifting from "@/components/stages/lifting";
 import TransporterFollowUp from "@/components/stages/transporter-follow-up";
 import MaterialReceived from "@/components/stages/material-received";
-import QCRequirement from "@/components/stages/material-testing";
-import ReceiptInTally from "@/components/stages/tally-entry";
-import SubmitInvoice from "@/components/stages/submit-invoice";
-import Verification from "@/components/stages/verification";
+import BillingStage from "@/components/stages/billing";
 import PurchaseReturn from "@/components/stages/purchase-return";
 import VendorPayment from "@/components/stages/vendor-payment";
 import FreightPayments from "@/components/stages/freight-payments";
-import ReturnApproval from "@/components/stages/return-approval";
-import VerificationByAccounts from "@/components/stages/verification";
-
-import SubmitInvoiceHO from "@/components/stages/submit-invoice-ho";
-import SerialGeneration from "@/components/stages/serial-generation";
-import WarrantyClaim from "@/components/stages/warranty-claim";
-import ImsPage from "@/components/stages/ims";
-import DamagedRecords from "@/components/stages/damaged-records";
 import OrderCancelPage from "@/components/stages/order-cancel";
 
 const stageComponents: Record<string, React.ComponentType> = {
     "create-indent": CreateIndent,
     "indent-approval": IndentApproval,
-    "update-3-vendors": Update3Vendors,
-    "negotiation": Negotiation,
+    "quotation": Quotation,
+    "purchase-enquiry": Quotation,
+    "approved-vendor": ApprovedVendor,
     "po-entry": POEntry,
-    "follow-up-vendor": FollowUpVendor,
+    "payment": Payment,
+    "follow-up-vendor": Lifting,
     "transporter-follow-up": TransporterFollowUp,
     "material-received": MaterialReceived,
-    "material-testing": QCRequirement,
-    "receipt-in-tally": ReceiptInTally,
-    "submit-invoice-ho": SubmitInvoiceHO,
-    "submit-invoice": SubmitInvoice,
-    "verification": Verification,
-    "verification-by-accounts": VerificationByAccounts,
-    "warranty-info": SerialGeneration,
-    "warranty-claim": WarrantyClaim,
+    "receipt-in-tally": BillingStage,
     "purchase-return": PurchaseReturn,
     "vendor-payment": VendorPayment,
     "freight-payments": FreightPayments,
-    "return-approval": ReturnApproval,
-    "ims": ImsPage,
-    "damaged-records": DamagedRecords,
     "order-cancel": OrderCancelPage,
 };
 

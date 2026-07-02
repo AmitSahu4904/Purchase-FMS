@@ -46,6 +46,7 @@ import {
   History,
   Search,
   Download,
+  Phone,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -310,10 +311,10 @@ export default function Stage6() {
               id: indentId,
               rowIndex: originalIndex,
               row: row, // Pass raw row for updates
-              stage: 6,
+              stage: 5,
               status: status,
               createdAt: parseSheetDate(row[0]),
-              history: (status === "completed") ? [{ stage: 6, date: parseSheetDate(row[61] || row[60] || row[0]), data: {} }] : [],
+              history: (status === "completed") ? [{ stage: 5, date: parseSheetDate(row[61] || row[60] || row[0]), data: {} }] : [],
               data: {
                 timestamp: row[0],
                 indentNumber: row[1],
@@ -1034,7 +1035,7 @@ export default function Stage6() {
 
         const rowData = pending.map((record) => {
           const v = getVendorData(record);
-          
+
           const baseData = baseColumns
             .filter((c) => selectedColumns.includes(c.key))
             .map((col) => {
@@ -1112,10 +1113,10 @@ export default function Stage6() {
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-slate-900 rounded-lg shadow-slate-100 shadow-xl text-white">
-              <Truck className="w-6 h-6" />
+              <Phone className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage 6: Vendor Follow-Up</h2>
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage 7: Lifting</h2>
             </div>
           </div>
           <div className="flex items-center gap-4">

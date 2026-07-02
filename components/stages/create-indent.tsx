@@ -282,16 +282,12 @@ export default function Stage1() {
     }>,
   });
 
-  const [itemForm, setItemForm] = useState({
-    items: [
-      {
-        category: "",
-        itemName: "",
-        quantity: "",
-        uom: "",
-        itemCode: "",
-      },
-    ],
+  const [itemInput, setItemInput] = useState({
+    category: "",
+    itemName: "",
+    quantity: "",
+    uom: "",
+    itemCode: "",
   });
 
 
@@ -607,84 +603,53 @@ export default function Stage1() {
     }
   };
 
-  const handleAddItem = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (
-      itemForm.items.every(
-        (item) =>
-          item.category && item.itemName && item.quantity && item.itemCode && item.uom
-      )
-    ) {
-      setFormData((prev) => ({
-        ...prev,
-        items: [...prev.items, ...itemForm.items],
-      }));
-      setItemForm({
-        items: [
-          {
-            category: "",
-            itemName: "",
-            quantity: "",
-            uom: "",
-            itemCode: "",
-          },
-        ],
-      });
-      setAddItemOpen(false);
-    }
-  };
-
-  const addNewItem = () => {
-    setItemForm({
-      ...itemForm,
-      items: [
-        ...itemForm.items,
-        {
-          category: "",
-          itemName: "",
-          quantity: "",
-          uom: "",
-          itemCode: "",
-        },
-      ],
-    });
-  };
-
-  const removeItem = (index: number) => {
-    if (itemForm.items.length > 1) {
-      setItemForm({
-        ...itemForm,
-        items: itemForm.items.filter((_, i) => i !== index),
-      });
-    }
-  };
-
-  const updateItem = (index: number, field: string, value: string) => {
-    const updatedItems = itemForm.items.map((item, i) => {
-      if (i !== index) return item;
-
+  const handleItemFieldChange = (field: string, value: string) => {
+    setItemInput((prev) => {
       if (field === "category") {
-        // Reset itemName and itemCode when category changes
-        return { ...item, category: value, itemName: "", itemCode: "" };
+        return { ...prev, category: value, itemName: "", itemCode: "" };
       }
-
       if (field === "itemName") {
-        // Auto-fill itemCode when item name is selected
         const selectedItem = dropdownData.find(
-          d => d.category === item.category && d.itemName === value
+          (d) => d.category === prev.category && d.itemName === value
         );
-
-        // If we found a match, auto-fill. If not (new item), leave empty for manual entry
         return {
-          ...item,
+          ...prev,
           itemName: value,
-          itemCode: selectedItem?.itemCode || ""
+          itemCode: selectedItem?.itemCode || "",
         };
       }
-
-      return { ...item, [field]: value };
+      return { ...prev, [field]: value };
     });
-    setItemForm({ ...itemForm, items: updatedItems });
+  };
+
+  const handleAddItemToList = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (
+      !itemInput.category ||
+      !itemInput.itemName ||
+      !itemInput.quantity ||
+      !itemInput.uom ||
+      !itemInput.itemCode
+    ) {
+      toast.error("Please fill in all item fields before adding.");
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      items: [...prev.items, { ...itemInput }],
+    }));
+
+    // Clear inputs but preserve category to make sequential adding faster
+    setItemInput({
+      category: itemInput.category,
+      itemName: "",
+      quantity: "",
+      uom: "",
+      itemCode: "",
+    });
+
+    toast.success("Item added to the indent list!");
   };
 
   // === Edit Record Handler ===
@@ -802,156 +767,44 @@ export default function Stage1() {
       console.error("Error updating record:", error);
       alert("Error updating record: " + (error?.message || "Please check console."));
     } finally {
-      setIsEditSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="p-6 h-[calc(100vh-2rem)] flex flex-col overflow-hidden">
-      {/* Header Card */}
-      <div className="mb-6 p-6 bg-linear-to-br from-slate-50 to-white border border-slate-200 rounded-xl shadow-sm shrink-0">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-slate-900 rounded-lg shadow-slate-100 shadow-xl text-white">
-              <LayoutGrid className="w-6 h-6" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage 1: Create Indent</h2>
-            </div>
-          </div>
-
-          <div className="relative w-full max-w-sm">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
-            <Input
-              placeholder="Search by Indent No, Item Name..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 bg-white"
-            />
-          </div>
-
-          {activeTab === "pending" && (
-            <div className="flex items-center gap-2 w-full md:w-auto">
-              <Button
-                onClick={() => setOpen(true)}
-                className="px-6 h-11 bg-slate-900 hover:bg-slate-800 shadow-lg shadow-slate-100 transition-all rounded-lg text-white font-semibold"
-              >
-                <PlusCircle className="w-4 h-4 mr-2" />
-                Create Indent
-              </Button>
-            </div>
-          )}
+    <div className="p-6 overflow-y-auto space-y-6 bg-slate-50/50 min-h-screen">
+      {/* Header */}
+      <div className="flex items-center gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm max-w-4xl mx-auto">
+        <div className="p-3 bg-slate-900 rounded-lg text-white shadow-xl">
+          <PlusCircle className="w-6 h-6" />
+        </div>
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage 1: Create Indent</h2>
+          <p className="text-slate-500 text-sm">Initiate a new purchase indent by filling in the details below.</p>
         </div>
       </div>
 
-      {/* Content Area */}
-      {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-24 text-gray-500">
-          <Loader2 className="w-8 h-8 animate-spin mb-4 text-black" />
-          <p className="text-lg animate-pulse text-black font-medium">Loading records...</p>
-        </div>
-      ) : (
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="flex-1 flex flex-col overflow-hidden">
-          <TabsList className="bg-slate-100/50 p-1 rounded-xl h-auto grid grid-cols-2 gap-1 border border-slate-200/50">
-            <TabsTrigger
-              value="pending"
-              className="text-base py-3 px-6 rounded-lg data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm flex items-center gap-3 transition-all"
-            >
-              <ClipboardList className="w-5 h-5" />
-              <div className="flex flex-col items-start leading-none gap-1">
-                <span className="font-bold">Pending</span>
-                <span className="text-[10px] opacity-70">Awaiting processing</span>
-              </div>
-              <Badge variant="secondary" className="bg-slate-100 text-black border-slate-200 px-2">
-                {pending.length}
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger
-              value="history"
-              className="text-base py-3 px-6 rounded-lg data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm flex items-center gap-3 transition-all"
-            >
-              <HistoryIcon className="w-5 h-5" />
-              <div className="flex flex-col items-start leading-none gap-1">
-                <span className="font-bold">History</span>
-                <span className="text-[10px] opacity-70">Completed records</span>
-              </div>
-              <Badge variant="secondary" className="bg-slate-100 text-black border-slate-200 px-2">
-                {history.length}
-              </Badge>
-            </TabsTrigger>
-          </TabsList>
+      <div className="max-w-4xl mx-auto bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+        <div className="p-6 md:p-8 space-y-8">
+          {/* Step 1: General Specifications */}
+          {/* Step 1: General Specifications & Item Input */}
+          <div className="space-y-6">
+            <h3 className="text-lg font-bold text-slate-800 border-b pb-2 flex items-center gap-2">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-xs font-bold text-slate-700">1</span>
+              General Specifications & Item Details
+            </h3>
 
-          <TabsContent value="pending" className="mt-0 outline-none flex-1 flex flex-col overflow-hidden">
-            <StageTable
-              title=""
-              stage={1}
-              pending={pending}
-              history={[]} // Strictly hide history
-              onSelectRecord={(record) => handleEditRecord(record)}
-              showPending={true}
-              hideTableTitle={true}
-              columns={[
-                { key: "indentNumber", label: "Indent" },
-                { key: "createdBy", label: "Created By" },
-                { key: "category", label: "Category" },
-                { key: "warehouseLocation", label: "Warehouse" },
-                { key: "leadTime", label: "Lead Time" },
-                { key: "itemName", label: "Item" },
-                { key: "quantity", label: "Qty" },
-                { key: "uom", label: "UOM" },
-                { key: "itemCode", label: "Item Code" },
-                { key: "status", label: "Status" },
-                { key: "attachment", label: "Attachment" },
-              ]}
-            />
-          </TabsContent>
-
-          <TabsContent value="history" className="mt-0 outline-none flex-1 flex flex-col overflow-hidden">
-            <StageTable
-              title=""
-              stage={1}
-              pending={[]} // Strictly hide pending
-              history={history}
-              onSelectRecord={() => { }}
-              showPending={false}
-              hideTableTitle={true}
-              columns={[
-                { key: "indentNumber", label: "Indent" },
-                { key: "createdBy", label: "Created By" },
-                { key: "category", label: "Category" },
-                { key: "warehouseLocation", label: "Warehouse" },
-                { key: "leadTime", label: "Lead Time" },
-                { key: "itemName", label: "Item" },
-                { key: "quantity", label: "Qty" },
-                { key: "uom", label: "UOM" },
-                { key: "itemCode", label: "Item Code" },
-                { key: "status", label: "Status" },
-                { key: "attachment", label: "Attachment" },
-              ]}
-            />
-          </TabsContent>
-        </Tabs>
-      )}
-
-
-      {/* === ORIGINAL INDENT CREATION MODAL (UNCHANGED) === */}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-4 sm:p-6">
-          <DialogHeader className="flex-shrink-0">
-            <DialogTitle>Create New Indent</DialogTitle>
-          </DialogHeader>
-
-          <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-            <form onSubmit={handleSubmit} className="space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor="createdBy">Created By</Label>
+            {/* General Specs */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="createdBy">Created By <span className="text-red-500">*</span></Label>
                 <Select
                   value={formData.createdBy}
                   onValueChange={(val) =>
                     setFormData({ ...formData, createdBy: val })
                   }
                 >
-                  <SelectTrigger id="createdBy">
+                  <SelectTrigger id="createdBy" className="w-full">
                     <SelectValue placeholder="Select creator" />
                   </SelectTrigger>
                   <SelectContent>
@@ -964,15 +817,15 @@ export default function Stage1() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="warehouseLocation">Warehouse Location</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="warehouseLocation">Warehouse Location <span className="text-red-500">*</span></Label>
                 <Select
                   value={formData.warehouseLocation}
                   onValueChange={(val) =>
                     setFormData({ ...formData, warehouseLocation: val })
                   }
                 >
-                  <SelectTrigger id="warehouseLocation">
+                  <SelectTrigger id="warehouseLocation" className="w-full">
                     <SelectValue placeholder="Select warehouse" />
                   </SelectTrigger>
                   <SelectContent>
@@ -984,9 +837,11 @@ export default function Stage1() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="leadTime">Lead Time (Days)</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="leadTime">Lead Time (Days) <span className="text-red-500">*</span></Label>
                 <Input
                   id="leadTime"
                   type="number"
@@ -999,9 +854,9 @@ export default function Stage1() {
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label>Attachment (Optional)</Label>
-                <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-3">
                   <input
                     id="indent-attachment"
                     type="file"
@@ -1013,126 +868,177 @@ export default function Stage1() {
                   />
                   <label
                     htmlFor="indent-attachment"
-                    className="flex items-center justify-center w-full p-6 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-slate-400 hover:bg-slate-50 transition-all group"
+                    className="flex-1 flex items-center justify-between px-3 h-10 border border-slate-200 rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 text-xs transition-colors"
                   >
-                    <div className="flex flex-col items-center gap-2">
-                      <div className="p-2 bg-slate-100 rounded-full group-hover:bg-slate-200 transition-colors">
-                        <Upload className="w-5 h-5 text-slate-600" />
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm font-semibold text-slate-700">Click to upload document</p>
-                        <p className="text-xs text-slate-500">PDF, JPG, PNG or DOC (max 10MB)</p>
-                      </div>
-                    </div>
+                    <span className="text-slate-500 truncate max-w-[200px]">
+                      {formData.attachment ? formData.attachment.name : "Choose file..."}
+                    </span>
+                    <Upload className="w-4 h-4 text-slate-500 shrink-0" />
                   </label>
-
                   {formData.attachment && (
-                    <div className="flex items-center justify-between p-3 bg-blue-50/50 border border-blue-100 rounded-lg animate-in fade-in slide-in-from-top-1">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-100 rounded-lg">
-                          <FileText className="w-4 h-4 text-blue-600" />
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-sm font-medium text-slate-900 truncate max-w-[250px]">
-                            {formData.attachment.name}
-                          </span>
-                          <span className="text-[10px] text-slate-500">
-                            {(formData.attachment.size / 1024 / 1024).toFixed(2)} MB
-                          </span>
-                        </div>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                        onClick={() => setFormData({ ...formData, attachment: null })}
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-10 w-10 text-slate-400 hover:text-red-600 hover:bg-red-50 shrink-0"
+                      onClick={() => setFormData({ ...formData, attachment: null })}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
                   )}
                 </div>
               </div>
+            </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Items</Label>
-                  <Button
-                    type="button"
-                    onClick={() => setAddItemOpen(true)}
-                    size="sm"
-                  >
-                    Add Item
-                  </Button>
-                </div>
+            {/* Divider for Item Input */}
+            <div className="border-t border-slate-100 pt-4 mt-6">
+              <h4 className="text-sm font-bold text-slate-700 mb-3">Item Details</h4>
+            </div>
 
-                {formData.items.length === 0 ? (
-                  <div className="p-4 sm:p-6 text-center border rounded-lg border-dashed">
-                    <p className="text-sm text-gray-500">
-                      No items added yet. Click "Add Item" to begin.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
+            {/* Item Inputs Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <Label>Category <span className="text-red-500">*</span></Label>
+                <Combobox
+                  options={categoryOptions}
+                  value={itemInput.category}
+                  onChange={(val) => handleItemFieldChange("category", val)}
+                  placeholder="Select category"
+                  searchPlaceholder="Search category..."
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Item Name <span className="text-red-500">*</span></Label>
+                <Combobox
+                  options={itemInput.category ? getItemsByCategory(itemInput.category).map(i => i.itemName) : []}
+                  value={itemInput.itemName}
+                  onChange={(val) => handleItemFieldChange("itemName", val)}
+                  placeholder={itemInput.category ? "Select or type item..." : "Select category first"}
+                  searchPlaceholder="Search or create item..."
+                  disabled={!itemInput.category}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Item Code <span className="text-red-500">*</span></Label>
+                <Input
+                  type="text"
+                  placeholder="e.g. IC-001"
+                  value={itemInput.itemCode}
+                  onChange={(e) => handleItemFieldChange("itemCode", e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Quantity <span className="text-red-500">*</span></Label>
+                <Input
+                  type="number"
+                  min="1"
+                  placeholder="Enter quantity"
+                  value={itemInput.quantity}
+                  onChange={(e) => handleItemFieldChange("quantity", e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>UOM <span className="text-red-500">*</span></Label>
+                <Select
+                  value={itemInput.uom}
+                  onValueChange={(val) => handleItemFieldChange("uom", val)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select UOM" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {uomOptions.map((opt) => (
+                      <SelectItem key={opt} value={opt}>
+                        {opt}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <Button
+                type="button"
+                onClick={handleAddItemToList}
+                variant="outline"
+                className="w-full sm:w-auto px-6 border-slate-200 text-slate-800 hover:bg-slate-100 hover:text-black font-semibold h-10 transition-colors"
+              >
+                + Add Item to List
+              </Button>
+            </div>
+          </div>
+
+          {/* Step 2: Item List (Bottom) */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold text-slate-800 border-b pb-2 flex items-center gap-2">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-xs font-bold text-slate-700">2</span>
+              Added Items List ({formData.items.length})
+            </h3>
+
+            {formData.items.length === 0 ? (
+              <div className="p-8 text-center border-2 border-dashed border-slate-100 rounded-xl bg-slate-50/30">
+                <p className="text-sm text-slate-400">
+                  No items added to the list yet. Fill in the section above and click "+ Add Item to List".
+                </p>
+              </div>
+            ) : (
+              <div className="border border-slate-100 rounded-xl overflow-hidden bg-white">
+                <table className="w-full text-sm text-left">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-150">
+                      <th className="p-3 font-semibold text-slate-700">Category</th>
+                      <th className="p-3 font-semibold text-slate-700">Item Name</th>
+                      <th className="p-3 font-semibold text-slate-700">Quantity</th>
+                      <th className="p-3 font-semibold text-slate-700">UOM</th>
+                      <th className="p-3 font-semibold text-slate-700">Item Code</th>
+                      <th className="p-3 font-semibold text-slate-700 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
                     {formData.items.map((item, index) => (
-                      <div key={index} className="p-3 border rounded-lg">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                            <div>
-                              <span className="font-medium">
-                                {item.itemName}
-                              </span>
-                            </div>
-                            <div>
-                              <Badge variant="secondary" className="text-xs">
-                                {item.category}
-                              </Badge>
-                            </div>
-                            <div>
-                              <span>Qty: {item.quantity} {item.uom}</span>
-                            </div>
-                            <div className="col-span-2">
-                              <span>
-                                Item Code: {item.itemCode}
-                              </span>
-                            </div>
-                          </div>
+                      <tr key={index} className="border-b last:border-0 hover:bg-slate-50/50">
+                        <td className="p-3"><Badge variant="outline" className="bg-slate-100 text-slate-700 border-slate-200">{item.category}</Badge></td>
+                        <td className="p-3 font-semibold text-slate-800">{item.itemName}</td>
+                        <td className="p-3">{item.quantity}</td>
+                        <td className="p-3">{item.uom}</td>
+                        <td className="p-3 font-mono text-xs">{item.itemCode}</td>
+                        <td className="p-3 text-right">
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon"
+                            className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
                             onClick={() => {
                               setFormData({
                                 ...formData,
-                                items: formData.items.filter(
-                                  (_, i) => i !== index
-                                ),
+                                items: formData.items.filter((_, i) => i !== index),
                               });
                             }}
                           >
                             <X className="w-4 h-4" />
                           </Button>
-                        </div>
-                      </div>
+                        </td>
+                      </tr>
                     ))}
-                  </div>
-                )}
+                  </tbody>
+                </table>
               </div>
-            </form>
+            )}
           </div>
 
-          <DialogFooter className="flex-shrink-0 border-t pt-3 flex-col sm:flex-row gap-2">
+          {/* Step 4: Create Indent Submit Action */}
+          <div className="pt-6 border-t flex justify-end">
             <Button
               type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-              className="w-full sm:w-auto"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
               disabled={
                 !formData.createdBy ||
                 !formData.warehouseLocation ||
@@ -1141,12 +1047,12 @@ export default function Stage1() {
                 isSubmitting
               }
               onClick={handleSubmit}
-              className="w-full sm:w-auto"
+              className="w-full sm:w-80 bg-slate-900 text-white hover:bg-slate-800 h-11 text-sm font-semibold tracking-wide shadow-lg shadow-slate-150 transition-all rounded-lg"
             >
               {isSubmitting ? (
                 <>
-                  <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                  Creating...
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating Indent...
                 </>
               ) : (
                 <>
@@ -1155,144 +1061,9 @@ export default function Stage1() {
                 </>
               )}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* === ADD ITEM SUB-MODAL (UNCHANGED) === */}
-      <Dialog open={addItemOpen} onOpenChange={setAddItemOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-4 sm:p-6">
-          <DialogHeader className="flex-shrink-0">
-            <DialogTitle>Add Multiple Items</DialogTitle>
-            <p className="text-sm text-gray-600">
-              Add one or more items to the indent.
-            </p>
-          </DialogHeader>
-
-          <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-            <form onSubmit={handleAddItem} className="space-y-3">
-              {itemForm.items.map((item, index) => (
-                <div key={index} className="border rounded-lg p-3 relative">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-medium text-sm">Item {index + 1}</h3>
-                    {itemForm.items.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => removeItem(index)}
-                        className="text-red-600 hover:text-red-700 h-8"
-                      >
-                        Remove
-                      </Button>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label>Category</Label>
-                      <Combobox
-                        options={categoryOptions}
-                        value={item.category}
-                        onChange={(val) => updateItem(index, "category", val)}
-                        placeholder="Select category"
-                        searchPlaceholder="Search category..."
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Item Name</Label>
-                      <Combobox
-                        options={item.category ? getItemsByCategory(item.category).map(i => i.itemName) : []}
-                        value={item.itemName}
-                        onChange={(val) => updateItem(index, "itemName", val)}
-                        placeholder={item.category ? "Select or type item" : "Select category first"}
-                        searchPlaceholder="Search or create item..."
-                        disabled={!item.category}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Quantity</Label>
-                      <Input
-                        type="number"
-                        min="1"
-                        placeholder="e.g. 5"
-                        value={item.quantity}
-                        onChange={(e) =>
-                          updateItem(index, "quantity", e.target.value)
-                        }
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>UOM</Label>
-                      <Select
-                        value={item.uom}
-                        onValueChange={(val) =>
-                          updateItem(index, "uom", val)
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Unit" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {uomOptions.map((opt) => (
-                            <SelectItem key={opt} value={opt}>
-                              {opt}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Item Code</Label>
-                      <Input
-                        type="text"
-                        placeholder="e.g. IC-001"
-                        value={item.itemCode}
-                        onChange={(e) =>
-                          updateItem(index, "itemCode", e.target.value)
-                        }
-                        required
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              <div className="flex justify-center pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={addNewItem}
-                  className="w-full"
-                  size="sm"
-                >
-                  + Add Another Item
-                </Button>
-              </div>
-
-              <DialogFooter className="flex-col sm:flex-row gap-2 pt-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setAddItemOpen(false)}
-                  className="w-full sm:w-auto"
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" className="w-full sm:w-auto">
-                  Add {itemForm.items.length} Item
-                  {itemForm.items.length > 1 ? "s" : ""} to Indent
-                </Button>
-              </DialogFooter>
-            </form>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      </div>
 
       {/* === EDIT RECORD MODAL === */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
@@ -1321,7 +1092,7 @@ export default function Stage1() {
                       setEditFormData({ ...editFormData, createdBy: val })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select creator" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1342,7 +1113,7 @@ export default function Stage1() {
                       setEditFormData({ ...editFormData, warehouseLocation: val })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select warehouse" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1420,7 +1191,7 @@ export default function Stage1() {
                       setEditFormData({ ...editFormData, uom: val })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select UOM" />
                     </SelectTrigger>
                     <SelectContent>

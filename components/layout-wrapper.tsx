@@ -17,7 +17,7 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
         if (isLoading) return;
 
         // 1. Auth Check
-        if (!isAuthenticated && pathname !== "/login") {
+        if (!isAuthenticated && pathname !== "/login" && pathname !== "/quotation-form") {
             router.push("/login");
             return;
         } else if (isAuthenticated && pathname === "/login") {
@@ -36,8 +36,7 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
                     (!pageAccess || pageAccess.length === 0) ||
                     (currentStage.name === "IMS" || currentStage.name === "Damaged Records" || currentStage.name === "Order Cancel") ||
                     (currentStage.name === "Verification by Accounts" && (pageAccess.includes("Verification") || pageAccess.includes("Verification by Accounts"))) ||
-                    pageAccess.includes(currentStage.name) ||
-                    (currentStage.name === "Material Testing" && pageAccess.includes("QC Requirement"));
+                    pageAccess.includes(currentStage.name);
 
                 if (!hasAccess) {
                     console.warn(`Access denied to ${currentStage.name}. Redirecting to dashboard.`);
@@ -58,6 +57,11 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
     // specific routing for login page
     if (pathname === "/login") {
         if (isAuthenticated) return null; // Wait for redirect
+        return <>{children}</>;
+    }
+
+    // specific routing for public quotation-form page
+    if (pathname === "/quotation-form") {
         return <>{children}</>;
     }
 

@@ -35,17 +35,17 @@ import { getFmsTimestamp } from "@/lib/utils";
 const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI;
 
 const formatDateDash = (date: any) => {
-  if (!date || date === "-" || date === "—") return "-";
-  try {
-    const d = new Date(date);
-    if (isNaN(d.getTime())) return typeof date === 'string' ? date : "-";
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    return `${dd}-${mm}-${yyyy}`;
-  } catch (e) {
-    return typeof date === 'string' ? date : "-";
-  }
+    if (!date || date === "-" || date === "—") return "-";
+    try {
+        const d = new Date(date);
+        if (isNaN(d.getTime())) return typeof date === 'string' ? date : "-";
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        return `${dd}-${mm}-${yyyy}`;
+    } catch (e) {
+        return typeof date === 'string' ? date : "-";
+    }
 };
 
 export default function TransporterFollowUp() {
@@ -413,7 +413,7 @@ export default function TransporterFollowUp() {
                 if (record.rowIndex) {
                     const updateRow = new Array(120).fill(""); // Use 120 to be safe
                     updateRow[34] = formData.expectedDate || ""; // Column AI (Next Follow-Up)
-                    
+
                     if (formData.status === "Received") {
                         updateRow[89] = timestamp; // Column CL (Actual Date)
                     }
@@ -530,7 +530,7 @@ export default function TransporterFollowUp() {
                             <Truck className="w-6 h-6" />
                         </div>
                         <div>
-                            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage 7: Transporter Follow-Up</h2>
+                            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage 8: Transporter Follow-Up</h2>
                         </div>
                     </div>
 
@@ -625,70 +625,70 @@ export default function TransporterFollowUp() {
                     <TabsContent value="pending" className="mt-0 flex-1 flex flex-col overflow-hidden">
                         {pending.length === 0 ? (
                             <div className="text-center py-12 text-gray-500">No pending transporter follow-ups</div>
-                        ) : (                            <div className="border rounded-lg flex-1 overflow-auto shadow-sm relative h-full">
-                                <table className="w-full caption-bottom text-sm border-separate border-spacing-0 min-w-max">
-                                    <TableHeader className="sticky top-0 z-30 bg-slate-200 shadow-sm border-none">
-                                        <TableRow className="bg-slate-200 hover:bg-slate-200 border-none">
-                                            <TableHead className="w-[50px] sticky top-0 left-0 z-40 bg-slate-200 border-none pl-4 py-3">
-                                                <Checkbox
-                                                    checked={selectedRows.size === pending.length && pending.length > 0}
-                                                    onCheckedChange={toggleAll}
-                                                />
-                                            </TableHead>
-                                            <TableHead className="w-[120px] sticky top-0 left-[50px] z-40 bg-slate-200 border-none px-4 py-3 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] text-center font-bold text-slate-700 uppercase">Actions</TableHead>
-                                            {pendingColumns.map(c => (
-                                                <TableHead key={c.key} className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-center font-bold text-slate-700 uppercase whitespace-nowrap">{c.label}</TableHead>
-                                            ))}
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {pending.map(rec => (
-                                            <TableRow key={rec.id}>
-                                                <TableCell className="sticky left-0 z-10 bg-white border-b border-r px-4 py-2">
-                                                    <Checkbox
-                                                        checked={selectedRows.has(rec.id)}
-                                                        onCheckedChange={() => toggleRow(rec.id)}
-                                                    />
-                                                </TableCell>
-                                                <TableCell className="sticky left-[50px] z-10 bg-white border-b border-r px-4 py-2 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] text-center">
-                                                    <Button size="sm" onClick={() => handleOpenForm(rec)} className="bg-blue-600 hover:bg-blue-700">
-                                                        Follow-Up
-                                                    </Button>
-                                                </TableCell>
-                                                {pendingColumns.map((c) => {
-                                                    const val = rec.data[c.key];
-
-                                                    // LR Copy Logic
-                                                    if (c.key === "lrCopy") {
-                                                        return (
-                                                            <TableCell key={c.key} className="text-center border-b px-4 py-2">
-                                                                {val && val.trim() !== "" ? (
-                                                                    <a
-                                                                        href={val}
-                                                                        target="_blank"
-                                                                        rel="noreferrer"
-                                                                        className="text-blue-600 underline"
-                                                                    >
-                                                                        View
-                                                                    </a>
-                                                                ) : "-"}
-                                                            </TableCell>
-                                                        );
-                                                    }
-
-                                                    // Planned & Expected Date Logic
-                                                    if (c.key === "plannedDate" || c.key === "expectedDate") {
-                                                        return <TableCell key={c.key} className="text-center border-b px-4 py-2 text-slate-700">{formatDateDash(val)}</TableCell>;
-                                                    }
-
-                                                    // Default Logic
-                                                    return <TableCell key={c.key} className="text-center border-b px-4 py-2 text-slate-700">{safeValue(val)}</TableCell>;
-                                                })}
-                                            </TableRow>
+                        ) : (<div className="border rounded-lg flex-1 overflow-auto shadow-sm relative h-full">
+                            <table className="w-full caption-bottom text-sm border-separate border-spacing-0 min-w-max">
+                                <TableHeader className="sticky top-0 z-30 bg-slate-200 shadow-sm border-none">
+                                    <TableRow className="bg-slate-200 hover:bg-slate-200 border-none">
+                                        <TableHead className="w-[50px] sticky top-0 left-0 z-40 bg-slate-200 border-none pl-4 py-3">
+                                            <Checkbox
+                                                checked={selectedRows.size === pending.length && pending.length > 0}
+                                                onCheckedChange={toggleAll}
+                                            />
+                                        </TableHead>
+                                        <TableHead className="w-[120px] sticky top-0 left-[50px] z-40 bg-slate-200 border-none px-4 py-3 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] text-center font-bold text-slate-700 uppercase">Actions</TableHead>
+                                        {pendingColumns.map(c => (
+                                            <TableHead key={c.key} className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-center font-bold text-slate-700 uppercase whitespace-nowrap">{c.label}</TableHead>
                                         ))}
-                                    </TableBody>
-                                </table>
-                            </div>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {pending.map(rec => (
+                                        <TableRow key={rec.id}>
+                                            <TableCell className="sticky left-0 z-10 bg-white border-b border-r px-4 py-2">
+                                                <Checkbox
+                                                    checked={selectedRows.has(rec.id)}
+                                                    onCheckedChange={() => toggleRow(rec.id)}
+                                                />
+                                            </TableCell>
+                                            <TableCell className="sticky left-[50px] z-10 bg-white border-b border-r px-4 py-2 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] text-center">
+                                                <Button size="sm" onClick={() => handleOpenForm(rec)} className="bg-blue-600 hover:bg-blue-700">
+                                                    Follow-Up
+                                                </Button>
+                                            </TableCell>
+                                            {pendingColumns.map((c) => {
+                                                const val = rec.data[c.key];
+
+                                                // LR Copy Logic
+                                                if (c.key === "lrCopy") {
+                                                    return (
+                                                        <TableCell key={c.key} className="text-center border-b px-4 py-2">
+                                                            {val && val.trim() !== "" ? (
+                                                                <a
+                                                                    href={val}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                    className="text-blue-600 underline"
+                                                                >
+                                                                    View
+                                                                </a>
+                                                            ) : "-"}
+                                                        </TableCell>
+                                                    );
+                                                }
+
+                                                // Planned & Expected Date Logic
+                                                if (c.key === "plannedDate" || c.key === "expectedDate") {
+                                                    return <TableCell key={c.key} className="text-center border-b px-4 py-2 text-slate-700">{formatDateDash(val)}</TableCell>;
+                                                }
+
+                                                // Default Logic
+                                                return <TableCell key={c.key} className="text-center border-b px-4 py-2 text-slate-700">{safeValue(val)}</TableCell>;
+                                            })}
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </table>
+                        </div>
 
                         )}
                     </TabsContent>
@@ -696,52 +696,52 @@ export default function TransporterFollowUp() {
                     <TabsContent value="history" className="mt-0 flex-1 flex flex-col overflow-hidden">
                         {completed.length === 0 ? (
                             <div className="text-center py-12 text-gray-500">No follow-up history</div>
-                        ) : (                            <div className="border rounded-lg overflow-auto shadow-sm flex-1 relative h-full">
-                                <table className="w-full caption-bottom text-sm border-separate border-spacing-0">
-                                    <TableHeader className="sticky top-0 z-30 bg-slate-200 shadow-sm border-none">
-                                        <TableRow className="bg-slate-200 hover:bg-slate-200 border-none">
-                                            {historyColumns.map(c => (
-                                                <TableHead key={c.key} className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-center font-bold text-slate-700 uppercase whitespace-nowrap">{c.label}</TableHead>
-                                            ))}
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {completed.map(rec => (
-                                            <TableRow key={rec.id}>
-                                                {historyColumns.map((c) => {
-                                                    const val = rec.data[c.key];
-
-                                                    // LR Copy Logic
-                                                    if (c.key === "lrCopy") {
-                                                        return (
-                                                            <TableCell key={c.key} className="text-center border-b px-4 py-2">
-                                                                {val && val.trim() !== "" ? (
-                                                                    <a
-                                                                        href={val}
-                                                                        target="_blank"
-                                                                        rel="noreferrer"
-                                                                        className="text-blue-600 underline"
-                                                                    >
-                                                                        View
-                                                                    </a>
-                                                                ) : "-"}
-                                                            </TableCell>
-                                                        );
-                                                    }
-
-                                                    // Planned, Actual & Expected Date Logic
-                                                    if (c.key === "plannedDate" || c.key === "actualDate" || c.key === "expectedDate") {
-                                                        return <TableCell key={c.key} className="text-center border-b px-4 py-2 text-slate-700">{formatDateDash(val)}</TableCell>;
-                                                    }
-
-                                                    // Default Logic
-                                                    return <TableCell key={c.key} className="text-center border-b px-4 py-2 text-slate-700">{safeValue(val)}</TableCell>;
-                                                })}
-                                            </TableRow>
+                        ) : (<div className="border rounded-lg overflow-auto shadow-sm flex-1 relative h-full">
+                            <table className="w-full caption-bottom text-sm border-separate border-spacing-0">
+                                <TableHeader className="sticky top-0 z-30 bg-slate-200 shadow-sm border-none">
+                                    <TableRow className="bg-slate-200 hover:bg-slate-200 border-none">
+                                        {historyColumns.map(c => (
+                                            <TableHead key={c.key} className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-center font-bold text-slate-700 uppercase whitespace-nowrap">{c.label}</TableHead>
                                         ))}
-                                    </TableBody>
-                                </table>
-                            </div>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {completed.map(rec => (
+                                        <TableRow key={rec.id}>
+                                            {historyColumns.map((c) => {
+                                                const val = rec.data[c.key];
+
+                                                // LR Copy Logic
+                                                if (c.key === "lrCopy") {
+                                                    return (
+                                                        <TableCell key={c.key} className="text-center border-b px-4 py-2">
+                                                            {val && val.trim() !== "" ? (
+                                                                <a
+                                                                    href={val}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                    className="text-blue-600 underline"
+                                                                >
+                                                                    View
+                                                                </a>
+                                                            ) : "-"}
+                                                        </TableCell>
+                                                    );
+                                                }
+
+                                                // Planned, Actual & Expected Date Logic
+                                                if (c.key === "plannedDate" || c.key === "actualDate" || c.key === "expectedDate") {
+                                                    return <TableCell key={c.key} className="text-center border-b px-4 py-2 text-slate-700">{formatDateDash(val)}</TableCell>;
+                                                }
+
+                                                // Default Logic
+                                                return <TableCell key={c.key} className="text-center border-b px-4 py-2 text-slate-700">{safeValue(val)}</TableCell>;
+                                            })}
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </table>
+                        </div>
 
                         )}
                     </TabsContent>

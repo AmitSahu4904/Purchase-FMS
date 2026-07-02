@@ -21,7 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Upload, X, Shield, ShieldCheck, Loader2, ClipboardList, History, Search } from "lucide-react";
+import { FileText, Upload, X, Shield, ShieldCheck, Loader2, ClipboardList, History, Search, Plus, Trash2, Eye, Save, Edit2, FileEdit } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Popover,
@@ -57,6 +57,12 @@ const formatGSTDisplay = (gst: any) => {
     return `${Math.round(n * 100)}%`;
   }
   return s;
+};
+
+const formatInputDate = (date: any) => {
+  const parsed = parseSheetDate(date);
+  if (!parsed || isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().split("T")[0];
 };
 
 export default function Stage5() {
@@ -118,10 +124,10 @@ export default function Stage5() {
             return {
               id: row[1] || `row-${originalIndex}`,
               rowIndex: originalIndex,
-              stage: 5,
+              stage: 4,
               status: status,
               createdAt: parseSheetDate(row[0]),
-              history: (status === "completed") ? [{ stage: 5, date: parseSheetDate(row[52] || row[51] || row[0]), data: {} }] : [],
+              history: (status === "completed") ? [{ stage: 4, date: parseSheetDate(row[52] || row[51] || row[0]), data: {} }] : [],
               data: {
                 timestamp: row[0],
                 indentNumber: row[1],
@@ -231,7 +237,7 @@ export default function Stage5() {
         String(r.data.poNumber || "").toLowerCase().includes(searchLower)
       );
     }), [sheetRecords, searchTerm]);
-    
+
   const poTotalMap = useMemo(() => {
     const totals = new Map<string, number>();
     completed.forEach(record => {
@@ -264,6 +270,107 @@ export default function Stage5() {
     { value: "PI", label: "PI (Proforma Invoice)" },
   ];
 
+  const defaultTerms = [
+    "Payment within 30 days of invoice date.",
+    "Delivery within 2 weeks of purchase order.",
+    "Goods once sold will not be taken back.",
+    "All disputes subject to Mumbai jurisdiction.",
+    "Warranty for 1 year against manufacturing defects.",
+  ];
+
+  const defaultSuppliers = [
+    "INFOSYS TECH",
+    "KOTAK MAHINDRA",
+    "Vendor A",
+    "Vendor B",
+    "Vendor C",
+    "Vendor IT",
+    "Express Logistics",
+    "DHL Express"
+  ];
+
+  const defaultPOForm = {
+    firmName: "Divine Empire",
+    supplierName: "",
+    poDate: new Date().toISOString().split("T")[0],
+    deliveryDate: "",
+    supplierEmail: "",
+    supplierAddress: "",
+    gstin: "",
+    quotationNumber: "",
+    quotationDate: "",
+    enquiryNumber: "",
+    enquiryDate: "",
+    remarks: "",
+    companyGstin: "27ABCDE1234A1Z5",
+    companyPan: "ABCDE1234A",
+    billingName: "M/S Divine Empire",
+    billingAddress: "Gateway Park, HQ, Mumbai",
+    destinationName: "M/S Divine Empire",
+    destinationAddress: "Warehouse 1, Mumbai",
+  };
+
+  const [poForm, setPoForm] = useState(defaultPOForm);
+  const [terms, setTerms] = useState(defaultTerms);
+
+  const selectedPORecords = useMemo(() => {
+    return selectedRecordIds
+      .map((id) => sheetRecords.find((r) => r.id === id))
+      .filter(Boolean);
+  }, [selectedRecordIds, sheetRecords]);
+
+  const gstRateFor = (gst: string) => {
+    if (gst === "5%") return 0.05;
+    if (gst === "12%") return 0.12;
+    if (gst === "18%") return 0.18;
+    if (gst === "28%") return 0.28;
+    return 0;
+  };
+
+  const poSummary = useMemo(() => {
+    const subtotal = selectedRecordIds.reduce((sum, recordId) => {
+      const data = bulkFormData[recordId] || {};
+      return sum + (parseFloat(data.basicValue) || 0);
+    }, 0);
+
+    const itemGst = selectedRecordIds.reduce((sum, recordId) => {
+      const data = bulkFormData[recordId] || {};
+      const basic = parseFloat(data.basicValue) || 0;
+      return sum + basic * gstRateFor(data.gst || "");
+    }, 0);
+
+    const packaging = getPkgTotals(commonPkgAmount, commonPkgGST, selectedRecordIds.length).totalPkg;
+    return {
+      subtotal,
+      gst: itemGst + Math.max(0, packaging - (parseFloat(commonPkgAmount) || 0)),
+      grandTotal: subtotal + itemGst + packaging,
+    };
+  }, [bulkFormData, commonPkgAmount, commonPkgGST, selectedRecordIds]);
+
+  const resetPOForm = () => {
+    setPoForm(defaultPOForm);
+    setTerms(defaultTerms);
+    setCommonPONumber("");
+    setCommonPOCopy(null);
+    setCommonPkgAmount("");
+    setCommonPkgGST("");
+    const resetData: Record<string, any> = {};
+    selectedRecordIds.forEach((id) => {
+      const record = sheetRecords.find((r) => r.id === id);
+      const vendorData = record ? getVendorData(record) : { rate: 0 };
+      const rate = parseFloat(vendorData.rate) || 0;
+      const quantity = parseFloat(record?.data?.quantity) || 0;
+      const basicValue = (rate * quantity).toFixed(2);
+      resetData[id] = {
+        basicValue,
+        totalWithTax: basicValue,
+        hsn: "",
+        gst: "",
+      };
+    });
+    setBulkFormData(resetData);
+  };
+
   const handleOpenBulkForm = () => {
     if (selectedRecordIds.length === 0) return;
 
@@ -287,6 +394,16 @@ export default function Stage5() {
     setCommonPOCopy(null);
     setCommonPkgAmount("");
     setCommonPkgGST("");
+    setTerms(defaultTerms);
+    const firstRecord = sheetRecords.find((r) => r.id === selectedRecordIds[0]);
+    const firstVendor = firstRecord ? getVendorData(firstRecord) : null;
+    setPoForm({
+      ...defaultPOForm,
+      supplierName: firstVendor?.name && firstVendor.name !== "-" ? firstVendor.name : "",
+      deliveryDate: firstVendor?.delivery ? formatInputDate(firstVendor.delivery) : "",
+      quotationDate: new Date().toISOString().split("T")[0],
+      enquiryDate: new Date().toISOString().split("T")[0],
+    });
     setOpen(true);
   };
 
@@ -298,11 +415,6 @@ export default function Stage5() {
     // Validate shared PO Number and PO Copy
     if (!commonPONumber.trim()) {
       toast.error("Please enter the PO Number.");
-      return;
-    }
-
-    if (!commonPOCopy) {
-      toast.error("Please upload the PO Copy.");
       return;
     }
 
@@ -335,7 +447,7 @@ export default function Stage5() {
         let successCount = 0;
         let finalFileUrl = "";
 
-        // Upload shared PO Copy ONCE before processing all records
+        // Upload shared PO Copy ONCE before processing all records, when provided.
         if (commonPOCopy instanceof File) {
           const toBase64 = (file: File) => new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
@@ -527,11 +639,11 @@ export default function Stage5() {
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-slate-900 rounded-lg shadow-slate-100 shadow-xl text-white">
-              <FileText className="w-6 h-6" />
+              <FileEdit className="w-6 h-6" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage 5: PO Creation</h2>
+                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage 5: Make PO</h2>
               </div>
               {submitError && (
                 <p className="text-red-600 text-sm mt-2 font-medium bg-red-50 p-2 rounded border border-red-100 flex items-center gap-2">
@@ -639,7 +751,6 @@ export default function Stage5() {
                       <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase whitespace-nowrap">Exp. Delivery</TableHead>
                       <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase">Warranty</TableHead>
                       <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase">Attachment</TableHead>
-                      <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase whitespace-nowrap">Approved By</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -705,7 +816,6 @@ export default function Stage5() {
                               "-"
                             )}
                           </TableCell>
-                          <TableCell>{v.approvedBy}</TableCell>
                         </TableRow>
                       );
                     })}
@@ -739,7 +849,6 @@ export default function Stage5() {
                     <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase">Vendor Info</TableHead>
                     <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase whitespace-nowrap">Terms & Delivery</TableHead>
                     <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase whitespace-nowrap">Warranty/Quot.</TableHead>
-                    <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase whitespace-nowrap">Approved By</TableHead>
                     <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase">PO Details (Incl. HSN)</TableHead>
                     <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase">Financials (Incl. GST%)</TableHead>
                     <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase whitespace-nowrap">Total Amount</TableHead>
@@ -813,15 +922,6 @@ export default function Stage5() {
                           </div>
                         </TableCell>
 
-                        <TableCell>
-                          <div className="space-y-1 text-[11px]">
-                            <div className="flex flex-col">
-                              <span className="text-gray-400">Approved:</span>
-                              <span className="font-medium truncate max-w-[100px]">{v.approvedBy}</span>
-                            </div>
-                          </div>
-                        </TableCell>
-
                         <TableCell className="bg-white/50">
                           <div className="space-y-1">
                             <div className="font-mono text-sm font-bold text-green-700">{record.data.poNumber || "-"}</div>
@@ -869,80 +969,257 @@ export default function Stage5() {
 
       {/* BULK PO MODAL */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col">
-          <DialogHeader className="flex-shrink-0">
-            <DialogTitle>Bulk PO Creation ({selectedRecordIds.length} items)</DialogTitle>
-            <p className="text-sm text-gray-600">Fill PO details for all selected items</p>
-            {selectedRecordIds.length > 1 && (
-              <div className="mt-3 flex items-center gap-2 max-w-xs">
-                <Label htmlFor="grand-total-display" className="text-xs font-bold uppercase tracking-wider text-slate-700 whitespace-nowrap">
-                  Grand Total (w/ Tax):
-                </Label>
-                <div className="relative flex-1">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-slate-500 font-medium">₹</span>
-                  <Input
-                    id="grand-total-display"
-                    type="text"
-                    readOnly
-                    value={(selectedRecordIds.reduce((sum, recordId) => {
-                      const data = bulkFormData[recordId] || {};
-                      return sum + (parseFloat(data.totalWithTax) || 0);
-                    }, 0) + getPkgTotals(commonPkgAmount, commonPkgGST, selectedRecordIds.length).totalPkg).toLocaleString('en-IN', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2
-                    })}
-                    className="pl-7 bg-slate-100 cursor-not-allowed font-bold text-green-700 h-9"
-                  />
-                </div>
-              </div>
-            )}
+        <DialogContent className="max-w-7xl max-h-[94vh] flex flex-col gap-0 p-0 overflow-hidden bg-slate-50">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Create Purchase Order</DialogTitle>
           </DialogHeader>
 
-          <form onSubmit={handleBulkSubmit} className="flex-1 overflow-y-auto space-y-6 pr-2">
-            {/* SHARED PO NUMBER - AT TOP */}
-            <div className="border rounded-lg p-4 bg-blue-50">
-              <div className="space-y-2">
-                <Label htmlFor="common-poNumber" className="text-base font-semibold">
-                  PO Number <span className="text-red-500">*</span>
-                  <span className="text-xs font-normal text-gray-500 ml-2">(applies to all items)</span>
-                </Label>
-                <Input
-                  id="common-poNumber"
-                  value={commonPONumber}
-                  onChange={(e) => setCommonPONumber(e.target.value)}
-                  required
-                  placeholder="PO-2025-001"
-                  className="bg-white"
-                />
-              </div>
-            </div>
+          <div className="grid grid-cols-2 border-b bg-white text-sm font-semibold text-slate-600">
+            <button type="button" className="h-11 bg-indigo-50 text-indigo-700">Create</button>
+            <button type="button" className="h-11">Revise</button>
+          </div>
 
-            {/* SHARED PACKAGING/FORWARDING SECTION */}
-            <div className="border rounded-lg p-4 bg-amber-50">
-              <div className="space-y-3">
-                <Label className="text-base font-semibold">
-                  Packaging / Forwarding
-                  <span className="text-xs font-normal text-gray-500 ml-2">(applies to all items, divided equally)</span>
-                </Label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="common-pkgAmount">Amount</Label>
-                    <Input
-                      id="common-pkgAmount"
-                      type="number"
-                      step="0.01"
-                      value={commonPkgAmount}
-                      onChange={(e) => setCommonPkgAmount(e.target.value)}
-                      placeholder="0.00"
-                      className="bg-white"
+          <form onSubmit={handleBulkSubmit} className="flex-1 overflow-y-auto">
+            <div className="mx-auto max-w-6xl space-y-5 p-6">
+              <section className="overflow-hidden rounded-lg border bg-white shadow-sm">
+                <div className="flex items-center justify-center gap-8 bg-slate-50 px-6 py-6">
+                  <img src="/divine-logo.svg" alt="Logo" className="h-10 w-10 object-contain" />
+                  <div>
+                    <h2 className="text-2xl font-bold text-slate-900">Divine Empire</h2>
+                    <p className="text-sm text-slate-600">Gateway Park, Mumbai, Maharashtra</p>
+                    <p className="text-sm text-slate-600">Phone No: +9820012345</p>
+                  </div>
+                </div>
+                <div className="border-t bg-white py-4 text-center text-lg font-bold tracking-[0.2em] text-slate-800">
+                  PURCHASE ORDER
+                </div>
+              </section>
+
+              <section className="overflow-hidden rounded-lg border bg-white shadow-sm">
+                <div className="border-b bg-slate-50 px-4 py-3">
+                  <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                    <ClipboardList className="h-4 w-4 text-indigo-600" />
+                    Order Information
+                  </h3>
+                </div>
+                <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Firm Name</Label>
+                    <Select value={poForm.firmName} onValueChange={(value) => setPoForm((prev) => ({ ...prev, firmName: value }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Divine Empire">Divine Empire</SelectItem>
+                        <SelectItem value="Divine Services">Divine Services</SelectItem>
+                        <SelectItem value="Divine Retail">Divine Retail</SelectItem>
+                        <SelectItem value="Divine Logistics">Divine Logistics</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Supplier Name</Label>
+                    <Select value={poForm.supplierName || undefined} onValueChange={(value) => setPoForm((prev) => ({ ...prev, supplierName: value }))}>
+                      <SelectTrigger><SelectValue placeholder="Select Supplier" /></SelectTrigger>
+                      <SelectContent>
+                        {Array.from(new Set([
+                          ...selectedPORecords.map((record: any) => getVendorData(record).name).filter(Boolean),
+                          ...defaultSuppliers
+                        ])).map((name) => (
+                          <SelectItem key={name} value={name}>{name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">PO Number</Label>
+                    <Input value={commonPONumber} onChange={(e) => setCommonPONumber(e.target.value)} placeholder="Divine/Store/26-27/21" required />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">PO Date</Label>
+                    <Input type="date" value={poForm.poDate} onChange={(e) => setPoForm((prev) => ({ ...prev, poDate: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Delivery Date</Label>
+                    <Input type="date" value={poForm.deliveryDate} onChange={(e) => setPoForm((prev) => ({ ...prev, deliveryDate: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Supplier Email</Label>
+                    <Input type="email" value={poForm.supplierEmail} onChange={(e) => setPoForm((prev) => ({ ...prev, supplierEmail: e.target.value }))} placeholder="Email for notification" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Supplier Address</Label>
+                    <Input value={poForm.supplierAddress} onChange={(e) => setPoForm((prev) => ({ ...prev, supplierAddress: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">GSTIN</Label>
+                    <Input value={poForm.gstin} onChange={(e) => setPoForm((prev) => ({ ...prev, gstin: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Quotation Number</Label>
+                    <Input value={poForm.quotationNumber} onChange={(e) => setPoForm((prev) => ({ ...prev, quotationNumber: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Quotation Date</Label>
+                    <Input type="date" value={poForm.quotationDate} onChange={(e) => setPoForm((prev) => ({ ...prev, quotationDate: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Our Enq No.</Label>
+                    <Input value={poForm.enquiryNumber} onChange={(e) => setPoForm((prev) => ({ ...prev, enquiryNumber: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Enquiry Date</Label>
+                    <Input type="date" value={poForm.enquiryDate} onChange={(e) => setPoForm((prev) => ({ ...prev, enquiryDate: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5 md:col-span-2">
+                    <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Description / Remarks</Label>
+                    <textarea
+                      value={poForm.remarks}
+                      onChange={(e) => setPoForm((prev) => ({ ...prev, remarks: e.target.value }))}
+                      className="min-h-14 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     />
                   </div>
+                </div>
+              </section>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <section className="overflow-hidden rounded-lg border bg-white shadow-sm">
+                  <div className="border-b bg-slate-50 px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-slate-500">Commercial Details</div>
+                  <div className="space-y-3 p-4 text-sm">
+                    <div className="flex justify-between gap-4"><span className="text-xs font-semibold text-slate-500">GSTIN</span><span>{poForm.companyGstin}</span></div>
+                    <div className="flex justify-between gap-4"><span className="text-xs font-semibold text-slate-500">PAN</span><span>{poForm.companyPan}</span></div>
+                  </div>
+                </section>
+                <section className="overflow-hidden rounded-lg border bg-white shadow-sm">
+                  <div className="border-b bg-slate-50 px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-slate-500">Billing Address</div>
+                  <div className="p-4 text-sm">
+                    <p className="font-bold text-slate-900">{poForm.billingName}</p>
+                    <p className="mt-1 text-slate-600">{poForm.billingAddress}</p>
+                  </div>
+                </section>
+                <section className="overflow-hidden rounded-lg border bg-white shadow-sm">
+                  <div className="flex items-center justify-between border-b bg-slate-50 px-4 py-3">
+                    <span className="text-xs font-bold uppercase tracking-wide text-slate-500">Destination</span>
+                    <Edit2 className="h-4 w-4 text-slate-400" />
+                  </div>
+                  <div className="p-4 text-sm">
+                    <p className="font-bold text-slate-900">{poForm.destinationName}</p>
+                    <p className="mt-1 text-slate-600">{poForm.destinationAddress}</p>
+                  </div>
+                </section>
+              </div>
+
+              <section className="overflow-hidden rounded-lg border bg-white shadow-sm">
+                <div className="flex items-center justify-between border-b px-4 py-3">
+                  <h3 className="font-semibold text-slate-900">Items & Quantities</h3>
+                  <Badge variant="secondary" className="text-indigo-700">{selectedRecordIds.length} Items Selected</Badge>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-4 py-3 text-left">S/N</th>
+                        <th className="px-4 py-3 text-left">Item</th>
+                        <th className="px-4 py-3 text-left">Payment</th>
+                        <th className="px-4 py-3 text-right">Qty</th>
+                        <th className="px-4 py-3 text-right">Rate</th>
+                        <th className="px-4 py-3 text-left">HSN</th>
+                        <th className="px-4 py-3 text-left">GST%</th>
+                        <th className="px-4 py-3 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedPORecords.map((record: any, index) => {
+                        const v = getVendorData(record);
+                        const data = bulkFormData[record.id] || {};
+                        const baseTotal = parseFloat(data.totalWithTax) || 0;
+                        const pkgShare = getPkgTotals(commonPkgAmount, commonPkgGST, selectedRecordIds.length).perItemPkgTotal;
+                        return (
+                          <tr key={record.id} className="border-t">
+                            <td className="px-4 py-3 text-slate-500">{index + 1}</td>
+                            <td className="px-4 py-3">
+                              <div className="font-medium text-slate-900">{record.data.itemName}</div>
+                              <div className="text-xs text-slate-500">{record.data.indentNumber}</div>
+                            </td>
+                            <td className="px-4 py-3">{paymentTermsList.find((t) => t.value === v.terms)?.label || v.terms || "-"}</td>
+                            <td className="px-4 py-3 text-right">{record.data.quantity || "-"}</td>
+                            <td className="px-4 py-3 text-right">Rs. {v.rate || "0"}</td>
+                            <td className="px-4 py-3">
+                              <Input
+                                value={data.hsn || ""}
+                                onChange={(e) => setBulkFormData((prev) => ({ ...prev, [record.id]: { ...prev[record.id], hsn: e.target.value } }))}
+                                placeholder="HSN"
+                                className="h-8 min-w-24"
+                              />
+                            </td>
+                            <td className="px-4 py-3">
+                              <Select
+                                value={data.gst || ""}
+                                onValueChange={(val) => {
+                                  const basic = parseFloat(data.basicValue) || 0;
+                                  const total = (basic + basic * gstRateFor(val)).toFixed(2);
+                                  setBulkFormData((prev) => ({
+                                    ...prev,
+                                    [record.id]: { ...prev[record.id], gst: val, totalWithTax: total },
+                                  }));
+                                }}
+                              >
+                                <SelectTrigger className="h-8 min-w-24"><SelectValue placeholder="GST" /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="5%">5%</SelectItem>
+                                  <SelectItem value="12%">12%</SelectItem>
+                                  <SelectItem value="18%">18%</SelectItem>
+                                  <SelectItem value="28%">28%</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </td>
+                            <td className="px-4 py-3 text-right font-medium">Rs. {(baseTotal + pkgShare).toFixed(2)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="grid justify-end gap-3 border-t p-4 text-sm">
+                  <div className="flex min-w-72 justify-between gap-10"><span>Subtotal</span><span>Rs. {poSummary.subtotal.toFixed(2)}</span></div>
+                  <div className="flex min-w-72 justify-between gap-10"><span>GST</span><span>Rs. {poSummary.gst.toFixed(2)}</span></div>
+                  <div className="flex min-w-72 justify-between gap-10 pt-2 text-base font-bold"><span>GRAND TOTAL</span><span className="text-indigo-700">Rs. {poSummary.grandTotal.toFixed(2)}</span></div>
+                </div>
+              </section>
+
+              <section className="overflow-hidden rounded-lg border bg-white shadow-sm">
+                <div className="flex items-center justify-between border-b px-4 py-3">
+                  <h3 className="font-semibold text-slate-900">Terms & Conditions</h3>
+                  <Button type="button" variant="ghost" size="sm" className="h-8 text-indigo-700" onClick={() => setTerms((prev) => [...prev, ""])}>
+                    <Plus className="mr-1 h-4 w-4" />
+                    Add Term
+                  </Button>
+                </div>
+                <div className="divide-y">
+                  {terms.map((term, index) => (
+                    <div key={index} className="grid grid-cols-[2rem_1fr_2rem] items-center gap-3 px-4 py-3 text-sm">
+                      <span className="text-right text-slate-500">{index + 1}.</span>
+                      <Input
+                        value={term}
+                        onChange={(e) => setTerms((prev) => prev.map((item, i) => i === index ? e.target.value : item))}
+                        className="border-0 shadow-none focus-visible:ring-0"
+                      />
+                      <button type="button" className="text-slate-400 hover:text-red-600" onClick={() => setTerms((prev) => prev.filter((_, i) => i !== index))}>
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="overflow-hidden rounded-lg border bg-white shadow-sm">
+                <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-3">
                   <div className="space-y-2">
-                    <Label htmlFor="common-pkgGST">GST on Packaging</Label>
+                    <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Packaging / Forwarding Amount</Label>
+                    <Input type="number" step="0.01" value={commonPkgAmount} onChange={(e) => setCommonPkgAmount(e.target.value)} placeholder="0.00" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">GST on Packaging</Label>
                     <Select value={commonPkgGST} onValueChange={setCommonPkgGST}>
-                      <SelectTrigger id="common-pkgGST" className="bg-white">
-                        <SelectValue placeholder="Select GST" />
-                      </SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Select GST" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="0%">0%</SelectItem>
                         <SelectItem value="5%">5%</SelectItem>
@@ -953,192 +1230,31 @@ export default function Stage5() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Total Packaging / Forwarding</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={getPkgTotals(commonPkgAmount, commonPkgGST, selectedRecordIds.length).totalPkg.toFixed(2)}
-                      readOnly
-                      className="bg-gray-100 cursor-not-allowed font-semibold"
+                    <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Optional PO Attachment</Label>
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                      onChange={(e) => handleCommonFileChange(e.target.files?.[0] || null)}
+                      className="hidden"
+                      id="po-attachment-file"
                     />
+                    <label htmlFor="po-attachment-file" className="flex h-10 cursor-pointer items-center justify-center rounded-md border bg-white text-sm hover:bg-slate-50">
+                      <Upload className="mr-2 h-4 w-4" />
+                      {commonPOCopy ? commonPOCopy.name : "Upload PO copy"}
+                    </label>
                   </div>
                 </div>
-              </div>
-            </div>
-
-            {/* PER-ITEM SECTIONS */}
-            {selectedRecordIds.map((recordId) => {
-              const record = sheetRecords.find((r) => r.id === recordId);
-              if (!record) return null;
-              const v = getVendorData(record);
-              const data = bulkFormData[recordId] || {};
-
-              return (
-                <div key={recordId} className="border rounded-lg p-4 bg-gray-50">
-                  <div className="mb-4 pb-3 border-b">
-                    <div className="grid grid-cols-3 gap-2 text-sm">
-                      <div><strong>Indent-No:</strong> {record.data.indentNumber}</div>
-                      <div><strong>Item:</strong> {record.data.itemName}</div>
-                      <div><strong>Qty:</strong> {record.data.quantity}</div>
-                    </div>
-                    <div className="mt-1 text-xs text-gray-600">
-                      Vendor: <span className="font-medium">{v.name}</span> | Rate: ₹{v.rate}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor={`${recordId}-basicValue`}>
-                        Basic Value <span className="text-red-500">*</span>
-                      </Label>
-                      <Input
-                        id={`${recordId}-basicValue`}
-                        type="number"
-                        step="0.01"
-                        value={data.basicValue || ""}
-                        readOnly
-                        className="bg-gray-100 cursor-not-allowed"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor={`${recordId}-gst`}>
-                        GST <span className="text-red-500">*</span>
-                      </Label>
-                      <Select
-                        value={data.gst || ""}
-                        onValueChange={(val) => {
-                          const basic = parseFloat(data.basicValue) || 0;
-                          let taxRate = 0;
-                          if (val === "5%") taxRate = 0.05;
-                          if (val === "12%") taxRate = 0.12;
-                          if (val === "18%") taxRate = 0.18;
-                          if (val === "28%") taxRate = 0.28;
-
-                          const total = (basic + (basic * taxRate)).toFixed(2);
-
-                          setBulkFormData((prev) => ({
-                            ...prev,
-                            [recordId]: {
-                              ...prev[recordId],
-                              gst: val,
-                              totalWithTax: total
-                            },
-                          }))
-                        }}
-                      >
-                        <SelectTrigger id={`${recordId}-gst`}>
-                          <SelectValue placeholder="Select GST" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="5%">5%</SelectItem>
-                          <SelectItem value="12%">12%</SelectItem>
-                          <SelectItem value="18%">18%</SelectItem>
-                          <SelectItem value="28%">28%</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Pkg/Fwd Share</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={getPkgTotals(commonPkgAmount, commonPkgGST, selectedRecordIds.length).perItemPkgTotal.toFixed(2)}
-                        readOnly
-                        className="bg-gray-100 cursor-not-allowed text-amber-700"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor={`${recordId}-totalWithTax`}>
-                        Total With Tax <span className="text-red-500">*</span>
-                      </Label>
-                      <Input
-                        id={`${recordId}-totalWithTax`}
-                        type="number"
-                        step="0.01"
-                        value={(
-                          (parseFloat(data.totalWithTax) || 0) +
-                          getPkgTotals(commonPkgAmount, commonPkgGST, selectedRecordIds.length).perItemPkgTotal
-                        ).toFixed(2)}
-                        readOnly
-                        className="bg-gray-100 cursor-not-allowed font-semibold"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor={`${recordId}-hsn`}>
-                        HSN <span className="text-red-500">*</span>
-                      </Label>
-                      <Input
-                        id={`${recordId}-hsn`}
-                        value={data.hsn || ""}
-                        onChange={(e) =>
-                          setBulkFormData((prev) => ({
-                            ...prev,
-                            [recordId]: { ...prev[recordId], hsn: e.target.value },
-                          }))
-                        }
-                        required
-                        placeholder="HSN Code"
-                      />
-                    </div>
-
-
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* SHARED PO COPY - AT BOTTOM */}
-            <div className="border rounded-lg p-4 bg-blue-50">
-              <div className="space-y-2">
-                <Label className="text-base font-semibold text-slate-900">
-                  PO Copy <span className="text-red-500">*</span>
-                  <span className="text-xs font-normal text-slate-500 ml-2">(applies to all items)</span>
-                </Label>
-                <div>
-                  <input
-                    type="file"
-                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                    onChange={(e) => handleCommonFileChange(e.target.files?.[0] || null)}
-                    className="hidden"
-                    id="common-file"
-                  />
-                  <label
-                    htmlFor="common-file"
-                    className="flex items-center justify-center w-full p-3 border-2 border-dashed border-gray-300 bg-white rounded-lg cursor-pointer hover:border-gray-400 text-sm"
-                  >
-                    <Upload className="w-4 h-4 mr-2" />
-                    Upload PO copy
-                  </label>
-                  {commonPOCopy && (
-                    <div className="mt-2 p-2 bg-white border rounded flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2">
-                        <FileText className="w-4 h-4" />
-                        <span>{commonPOCopy?.name}</span>
-                        <span className="text-gray-500">
-                          ({commonPOCopy ? (commonPOCopy.size / 1024).toFixed(1) : 0} KB)
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleCommonFileRemove}
-                        className="text-red-600"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
+              </section>
             </div>
           </form>
 
-          <DialogFooter className="flex-shrink-0 border-t pt-4">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              Cancel
+          <DialogFooter className="grid grid-cols-3 gap-1 border-t bg-white p-4">
+            <Button type="button" variant="secondary" onClick={resetPOForm} disabled={isSubmitting}>
+              Reset
+            </Button>
+            <Button type="button" variant="secondary" disabled>
+              <Eye className="mr-2 h-4 w-4" />
+              Preview
             </Button>
             <Button
               onClick={handleBulkSubmit}
@@ -1146,23 +1262,322 @@ export default function Stage5() {
                 isSubmitting ||
                 selectedRecordIds.length === 0 ||
                 !commonPONumber.trim() ||
-                !commonPOCopy ||
                 !selectedRecordIds.every((id) => {
                   const d = bulkFormData[id];
                   return d?.basicValue && d?.totalWithTax && d?.hsn && d?.gst;
                 })
               }
+              className="bg-indigo-500 text-white hover:bg-indigo-600"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Creating POs...
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generating...
                 </>
               ) : (
-                `Create ${selectedRecordIds.length} PO${selectedRecordIds.length > 1 ? "s" : ""}`
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  Generate
+                </>
               )}
             </Button>
           </DialogFooter>
+
+          <div className="hidden">
+            <DialogHeader className="flex-shrink-0">
+              <DialogTitle>Bulk PO Creation ({selectedRecordIds.length} items)</DialogTitle>
+              <p className="text-sm text-gray-600">Fill PO details for all selected items</p>
+              {selectedRecordIds.length > 1 && (
+                <div className="mt-3 flex items-center gap-2 max-w-xs">
+                  <Label htmlFor="grand-total-display" className="text-xs font-bold uppercase tracking-wider text-slate-700 whitespace-nowrap">
+                    Grand Total (w/ Tax):
+                  </Label>
+                  <div className="relative flex-1">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-slate-500 font-medium">₹</span>
+                    <Input
+                      id="grand-total-display"
+                      type="text"
+                      readOnly
+                      value={(selectedRecordIds.reduce((sum, recordId) => {
+                        const data = bulkFormData[recordId] || {};
+                        return sum + (parseFloat(data.totalWithTax) || 0);
+                      }, 0) + getPkgTotals(commonPkgAmount, commonPkgGST, selectedRecordIds.length).totalPkg).toLocaleString('en-IN', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                      })}
+                      className="pl-7 bg-slate-100 cursor-not-allowed font-bold text-green-700 h-9"
+                    />
+                  </div>
+                </div>
+              )}
+            </DialogHeader>
+
+            <form onSubmit={handleBulkSubmit} className="flex-1 overflow-y-auto space-y-6 pr-2">
+              {/* SHARED PO NUMBER - AT TOP */}
+              <div className="border rounded-lg p-4 bg-blue-50">
+                <div className="space-y-2">
+                  <Label htmlFor="common-poNumber" className="text-base font-semibold">
+                    PO Number <span className="text-red-500">*</span>
+                    <span className="text-xs font-normal text-gray-500 ml-2">(applies to all items)</span>
+                  </Label>
+                  <Input
+                    id="common-poNumber"
+                    value={commonPONumber}
+                    onChange={(e) => setCommonPONumber(e.target.value)}
+                    required
+                    placeholder="PO-2025-001"
+                    className="bg-white"
+                  />
+                </div>
+              </div>
+
+              {/* SHARED PACKAGING/FORWARDING SECTION */}
+              <div className="border rounded-lg p-4 bg-amber-50">
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold">
+                    Packaging / Forwarding
+                    <span className="text-xs font-normal text-gray-500 ml-2">(applies to all items, divided equally)</span>
+                  </Label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="common-pkgAmount">Amount</Label>
+                      <Input
+                        id="common-pkgAmount"
+                        type="number"
+                        step="0.01"
+                        value={commonPkgAmount}
+                        onChange={(e) => setCommonPkgAmount(e.target.value)}
+                        placeholder="0.00"
+                        className="bg-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="common-pkgGST">GST on Packaging</Label>
+                      <Select value={commonPkgGST} onValueChange={setCommonPkgGST}>
+                        <SelectTrigger id="common-pkgGST" className="bg-white">
+                          <SelectValue placeholder="Select GST" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0%">0%</SelectItem>
+                          <SelectItem value="5%">5%</SelectItem>
+                          <SelectItem value="12%">12%</SelectItem>
+                          <SelectItem value="18%">18%</SelectItem>
+                          <SelectItem value="28%">28%</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Total Packaging / Forwarding</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={getPkgTotals(commonPkgAmount, commonPkgGST, selectedRecordIds.length).totalPkg.toFixed(2)}
+                        readOnly
+                        className="bg-gray-100 cursor-not-allowed font-semibold"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* PER-ITEM SECTIONS */}
+              {selectedRecordIds.map((recordId) => {
+                const record = sheetRecords.find((r) => r.id === recordId);
+                if (!record) return null;
+                const v = getVendorData(record);
+                const data = bulkFormData[recordId] || {};
+
+                return (
+                  <div key={recordId} className="border rounded-lg p-4 bg-gray-50">
+                    <div className="mb-4 pb-3 border-b">
+                      <div className="grid grid-cols-3 gap-2 text-sm">
+                        <div><strong>Indent-No:</strong> {record.data.indentNumber}</div>
+                        <div><strong>Item:</strong> {record.data.itemName}</div>
+                        <div><strong>Qty:</strong> {record.data.quantity}</div>
+                      </div>
+                      <div className="mt-1 text-xs text-gray-600">
+                        Vendor: <span className="font-medium">{v.name}</span> | Rate: ₹{v.rate}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor={`${recordId}-basicValue`}>
+                          Basic Value <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id={`${recordId}-basicValue`}
+                          type="number"
+                          step="0.01"
+                          value={data.basicValue || ""}
+                          readOnly
+                          className="bg-gray-100 cursor-not-allowed"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor={`${recordId}-gst`}>
+                          GST <span className="text-red-500">*</span>
+                        </Label>
+                        <Select
+                          value={data.gst || ""}
+                          onValueChange={(val) => {
+                            const basic = parseFloat(data.basicValue) || 0;
+                            let taxRate = 0;
+                            if (val === "5%") taxRate = 0.05;
+                            if (val === "12%") taxRate = 0.12;
+                            if (val === "18%") taxRate = 0.18;
+                            if (val === "28%") taxRate = 0.28;
+
+                            const total = (basic + (basic * taxRate)).toFixed(2);
+
+                            setBulkFormData((prev) => ({
+                              ...prev,
+                              [recordId]: {
+                                ...prev[recordId],
+                                gst: val,
+                                totalWithTax: total
+                              },
+                            }))
+                          }}
+                        >
+                          <SelectTrigger id={`${recordId}-gst`}>
+                            <SelectValue placeholder="Select GST" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="5%">5%</SelectItem>
+                            <SelectItem value="12%">12%</SelectItem>
+                            <SelectItem value="18%">18%</SelectItem>
+                            <SelectItem value="28%">28%</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Pkg/Fwd Share</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={getPkgTotals(commonPkgAmount, commonPkgGST, selectedRecordIds.length).perItemPkgTotal.toFixed(2)}
+                          readOnly
+                          className="bg-gray-100 cursor-not-allowed text-amber-700"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor={`${recordId}-totalWithTax`}>
+                          Total With Tax <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id={`${recordId}-totalWithTax`}
+                          type="number"
+                          step="0.01"
+                          value={(
+                            (parseFloat(data.totalWithTax) || 0) +
+                            getPkgTotals(commonPkgAmount, commonPkgGST, selectedRecordIds.length).perItemPkgTotal
+                          ).toFixed(2)}
+                          readOnly
+                          className="bg-gray-100 cursor-not-allowed font-semibold"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor={`${recordId}-hsn`}>
+                          HSN <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id={`${recordId}-hsn`}
+                          value={data.hsn || ""}
+                          onChange={(e) =>
+                            setBulkFormData((prev) => ({
+                              ...prev,
+                              [recordId]: { ...prev[recordId], hsn: e.target.value },
+                            }))
+                          }
+                          required
+                          placeholder="HSN Code"
+                        />
+                      </div>
+
+
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* SHARED PO COPY - AT BOTTOM */}
+              <div className="border rounded-lg p-4 bg-blue-50">
+                <div className="space-y-2">
+                  <Label className="text-base font-semibold text-slate-900">
+                    PO Copy <span className="text-red-500">*</span>
+                    <span className="text-xs font-normal text-slate-500 ml-2">(applies to all items)</span>
+                  </Label>
+                  <div>
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                      onChange={(e) => handleCommonFileChange(e.target.files?.[0] || null)}
+                      className="hidden"
+                      id="common-file"
+                    />
+                    <label
+                      htmlFor="common-file"
+                      className="flex items-center justify-center w-full p-3 border-2 border-dashed border-gray-300 bg-white rounded-lg cursor-pointer hover:border-gray-400 text-sm"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      Upload PO copy
+                    </label>
+                    {commonPOCopy && (
+                      <div className="mt-2 p-2 bg-white border rounded flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4" />
+                          <span>{commonPOCopy?.name}</span>
+                          <span className="text-gray-500">
+                            ({commonPOCopy ? (commonPOCopy.size / 1024).toFixed(1) : 0} KB)
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleCommonFileRemove}
+                          className="text-red-600"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </form>
+
+            <DialogFooter className="flex-shrink-0 border-t pt-4">
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleBulkSubmit}
+                disabled={
+                  isSubmitting ||
+                  selectedRecordIds.length === 0 ||
+                  !commonPONumber.trim() ||
+                  !commonPOCopy ||
+                  !selectedRecordIds.every((id) => {
+                    const d = bulkFormData[id];
+                    return d?.basicValue && d?.totalWithTax && d?.hsn && d?.gst;
+                  })
+                }
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Creating POs...
+                  </>
+                ) : (
+                  `Create ${selectedRecordIds.length} PO${selectedRecordIds.length > 1 ? "s" : ""}`
+                )}
+              </Button>
+            </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

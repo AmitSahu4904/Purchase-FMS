@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { FileText, Upload, X, Loader2, Search, Eye } from "lucide-react";
+import { FileText, Upload, X, Loader2, Search, Eye, Package } from "lucide-react";
 import QRCode from "qrcode";
 import { toast } from "sonner";
 import { parseSheetDate, formatDate, getFmsTimestamp } from "@/lib/utils";
@@ -124,12 +124,8 @@ const HISTORY_COLUMNS = [
     { key: "invoiceDate", label: "Invoice Date" },
     { key: "invoiceNumber", label: "Invoice No." },
     { key: "extraFreight", label: "Extra Freight" },
-    { key: "qcRequirement", label: "QC Required" },
     { key: "receivedItemImage", label: "Rec. Item Img" },
     { key: "billAttachment", label: "Bill Attach" },
-    { key: "paymentAmountHydra", label: "Hydra Amt" },
-    { key: "paymentAmountLabour", label: "Labour Amt" },
-    { key: "paymentAmountHamali", label: "Hamali Amt" },
     { key: "damagedQty", label: "Damaged Qty" },
     { key: "damageReason", label: "Damage Reason" },
     { key: "damageImage", label: "Damage Image" },
@@ -163,11 +159,6 @@ export default function Stage7() {
         liftNumber: string;
         itemName: string;
         receivedQty: string;
-        qcRequirement: string;
-        warrantyClaim: string;
-        duration: string;
-        warrantyExpiry: string;
-        productExpiry: string;
         receivedItemImage: File | null;
         damageReceived: string;
         damagedQty: string;
@@ -179,14 +170,7 @@ export default function Stage7() {
         invoiceNumber: "",
         invoiceDate: "",
         billAttachment: null as File | null,
-        paymentAmountHydra: "",
-        paymentAmountLabour: "",
-        paymentAmountHamali: "",
-        extraFreight: "",
         remarks: "",
-        pkgAmount: "",
-        pkgGST: "",
-        warrantyClaim: "",
     });
 
     // Stable helper: Packaging/Forwarding totals
@@ -402,14 +386,7 @@ export default function Stage7() {
             invoiceNumber: "",
             invoiceDate: "",
             billAttachment: null,
-            paymentAmountHydra: "",
-            paymentAmountLabour: "",
-            paymentAmountHamali: "",
-            extraFreight: "",
             remarks: "",
-            pkgAmount: "",
-            pkgGST: "",
-            warrantyClaim: "",
         });
         const items = selectedRecordIds.map(id => {
             const rec = recordMap.get(id);
@@ -419,11 +396,6 @@ export default function Stage7() {
                 liftNumber: rec?.data?.liftNo || "",
                 itemName: rec?.data?.itemName || "",
                 receivedQty: "",
-                qcRequirement: "no",
-                warrantyClaim: "no",
-                duration: "",
-                warrantyExpiry: "",
-                productExpiry: "",
                 receivedItemImage: null,
                 damageReceived: "no",
                 damagedQty: "",
@@ -450,14 +422,6 @@ export default function Stage7() {
 
             const timestamp = getFmsTimestamp();
 
-            // Pre-calculate packaging split once (same for every item)
-            const { perItemPkgBase } = getPkgTotals(
-                commonData.pkgAmount,
-                commonData.pkgGST,
-                bulkItems.length
-            );
-            const pkgBaseStr = perItemPkgBase > 0 ? perItemPkgBase.toFixed(2) : "";
-
             const billUrl = await billUrlPromise;
 
             // Parallelize processing of all bulk items
@@ -473,26 +437,26 @@ export default function Stage7() {
                     damageImageUrl = await uploadFileToDrive(item.damageImage, SHEET_API_URL, folderId);
                 }
 
-                const rowArray = new Array(120).fill("");
+                const rowArray = new Array(121).fill("");
                 rowArray[20] = timestamp;               // U: Actual6
                 rowArray[22] = "independent";         // W: Invoice Type
                 rowArray[23] = commonData.invoiceDate;  // X
                 rowArray[24] = commonData.invoiceNumber; // Y
                 rowArray[25] = item.receivedQty;        // Z
                 rowArray[26] = itemImgUrl;              // AA
-                rowArray[27] = commonData.extraFreight || ""; // AB: Extra Freight
-                rowArray[28] = item.qcRequirement;      // AC
+                rowArray[27] = "";                      // AB: Extra Freight (removed)
+                rowArray[28] = "";                      // AC: QC Required (removed)
                 rowArray[29] = billUrl;                 // AD
-                rowArray[30] = commonData.paymentAmountHydra; // AE
-                rowArray[31] = commonData.paymentAmountLabour; // AF
-                rowArray[32] = commonData.paymentAmountHamali; // AG
-                rowArray[33] = commonData.remarks;             // AH
-                rowArray[99] = pkgBaseStr;              // CV
-                rowArray[100] = commonData.pkgGST || ""; // CW
-                rowArray[104] = item.warrantyClaim || "";  // DA: Warranty Claim
-                rowArray[105] = item.duration || "";       // DB: Duration
-                rowArray[106] = item.warrantyExpiry || ""; // DC: Warranty Expiry
-                rowArray[107] = item.productExpiry || "";  // DD: Product Expiry
+                rowArray[30] = "";                      // AE: Hydra (removed)
+                rowArray[31] = "";                      // AF: Labour (removed)
+                rowArray[32] = "";                      // AG: Hamali (removed)
+                rowArray[33] = commonData.remarks;      // AH
+                rowArray[99] = "";                      // CV: Pkg Amount (removed)
+                rowArray[100] = "";                     // CW: Pkg GST (removed)
+                rowArray[104] = "";                     // DA: Warranty Claim (removed)
+                rowArray[105] = "";                     // DB: Duration (removed)
+                rowArray[106] = "";                     // DC: Warranty Expiry (removed)
+                rowArray[107] = "";                     // DD: Product Expiry (removed)
 
                 // Damage Columns
                 rowArray[116] = item.damagedQty || "";   // DM
@@ -504,7 +468,7 @@ export default function Stage7() {
                 params.append("sheetName", "RECEIVING-ACCOUNTS");
                 params.append("rowData", JSON.stringify(rowArray));
                 params.append("rowIndex", item.index.toString());
-                
+
                 return fetch(SHEET_API_URL, { method: "POST", body: params });
             }));
 
@@ -519,7 +483,7 @@ export default function Stage7() {
         } finally {
             setIsSubmitting(false);
         }
-    }, [commonData, bulkItems, getPkgTotals, fetchData, itemCodeMap]);
+    }, [commonData, bulkItems, fetchData, itemCodeMap]);
 
 
 
@@ -596,20 +560,20 @@ export default function Stage7() {
             rowArray[24] = form.invoiceNumber;    // Y
             rowArray[25] = form.receivedQty;      // Z
             rowArray[26] = imageUrl;              // AA
-            rowArray[27] = form.extraFreight || ""; // AB: Extra Freight
-            rowArray[28] = form.qcRequirement;   // AC
+            rowArray[27] = "";                      // AB: Extra Freight (removed)
+            rowArray[28] = "";                      // AC: QC Required (removed)
             rowArray[29] = billUrl;               // AD
-            rowArray[30] = form.paymentAmountHydra;  // AE
-            rowArray[31] = form.paymentAmountLabour; // AF
-            rowArray[32] = form.paymentAmountHamali; // AG
+            rowArray[30] = "";                      // AE: Hydra (removed)
+            rowArray[31] = "";                      // AF: Labour (removed)
+            rowArray[32] = "";                      // AG: Hamali (removed)
             rowArray[33] = form.remarks;          // AH
-            rowArray[99] = form.pkgAmount || "";  // CV
-            rowArray[100] = form.pkgGST || "";     // CW
-            rowArray[104] = form.warrantyClaim || ""; // DA: Warranty Claim
-            rowArray[105] = form.duration || "";       // DB: Duration
-            rowArray[106] = form.warrantyExpiry || ""; // DC: Warranty Expiry
-            rowArray[107] = form.productExpiry || "";  // DD: Product Expiry
-            rowArray[120] = form.productClaim || "";   // DQ: Product Claim
+            rowArray[99] = "";                     // CV: Pkg Amount (removed)
+            rowArray[100] = "";                    // CW: Pkg GST (removed)
+            rowArray[104] = "";                    // DA: Warranty Claim (removed)
+            rowArray[105] = "";                    // DB: Duration (removed)
+            rowArray[106] = "";                    // DC: Warranty Expiry (removed)
+            rowArray[107] = "";                    // DD: Product Expiry (removed)
+            rowArray[120] = "";                    // DQ: Product Claim (removed)
 
             // Damage Data
             let damageImageUrl = "";
@@ -651,20 +615,12 @@ export default function Stage7() {
         form.receivedQty &&
         form.invoiceNumber &&
         form.invoiceDate &&
-        form.qcRequirement &&
-        form.billAttachment &&
-        form.warrantyClaim &&
-        form.productClaim &&
-        (form.productClaim !== "yes" || form.productExpiry),
+        form.billAttachment,
         [
             form.receivedQty,
             form.invoiceNumber,
             form.invoiceDate,
-            form.qcRequirement,
             form.billAttachment,
-            form.warrantyClaim,
-            form.productClaim,
-            form.productExpiry
         ]);
 
     // Memoized filtered lists – only recompute when records or search change
@@ -706,125 +662,7 @@ export default function Stage7() {
         });
     }, [sheetRecords, searchTerm, warehouseFilter]);
 
-    const qcField = (
-        <div className="space-y-1.5">
-            <Label>
-                QC Required <span className="text-red-500">*</span>
-            </Label>
-            <Select
-                value={form.qcRequirement}
-                onValueChange={(v) => setForm({ ...form, qcRequirement: v })}
-            >
-                <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select..." />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="yes">Yes</SelectItem>
-                    <SelectItem value="no">No</SelectItem>
-                </SelectContent>
-            </Select>
-        </div>
-    );
 
-    const productClaimField = (
-        <div className="space-y-1.5">
-            <Label>Product Expiry <span className="text-red-500">*</span></Label>
-            <Select
-                value={form.productClaim}
-                onValueChange={(v) => {
-                    const newForm = { ...form, productClaim: v };
-                    if (v === "no") {
-                        newForm.productExpiry = "";
-                    }
-                    setForm(newForm);
-                }}
-            >
-                <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select..." />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="yes">Yes</SelectItem>
-                    <SelectItem value="no">No</SelectItem>
-                </SelectContent>
-            </Select>
-        </div>
-    );
-
-    const productExpiryField = (
-        <div className="space-y-1.5">
-            <Label>Expiry Date <span className="text-red-500">*</span></Label>
-            <div className="flex items-center gap-2">
-                <Input
-                    type="date"
-                    value={form.productExpiry}
-                    onChange={(e) => setForm({ ...form, productExpiry: e.target.value })}
-                    className="flex-1"
-                />
-            </div>
-        </div>
-    );
-
-    const warrantyClaimField = (
-        <div className="space-y-1.5">
-            <Label>Warranty Claim <span className="text-red-500">*</span></Label>
-            <Select
-                value={form.warrantyClaim}
-                onValueChange={(v) => {
-                    const newForm = { ...form, warrantyClaim: v };
-                    if (v === "no") {
-                        newForm.duration = "";
-                        newForm.warrantyExpiry = "";
-                    }
-                    setForm(newForm);
-                }}
-            >
-                <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select..." />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="yes">Yes</SelectItem>
-                    <SelectItem value="no">No</SelectItem>
-                </SelectContent>
-            </Select>
-        </div>
-    );
-
-    const warrantyExpiryAndDurationFields = (
-        <>
-            <div className="space-y-1.5">
-                <Label>Duration (Months)</Label>
-                <Input
-                    type="number"
-                    value={form.duration}
-                    onChange={(e) => {
-                        const duration = e.target.value;
-                        const newForm = { ...form, duration };
-                        if (form.invoiceDate && duration) {
-                            const d = new Date(form.invoiceDate);
-                            const months = parseInt(duration, 10);
-                            if (!isNaN(d.getTime()) && !isNaN(months)) {
-                                d.setMonth(d.getMonth() + months);
-                                newForm.warrantyExpiry = d.toISOString().split("T")[0];
-                            }
-                        } else {
-                            newForm.warrantyExpiry = "";
-                        }
-                        setForm(newForm);
-                    }}
-                    placeholder="Months"
-                />
-            </div>
-            <div className="space-y-1.5">
-                <Label>Warranty Expiry</Label>
-                <Input
-                    value={form.warrantyExpiry}
-                    readOnly
-                    className="bg-gray-100"
-                    placeholder="Auto-calc"
-                />
-            </div>
-        </>
-    );
 
     return (
         <div className="p-4 md:p-6 min-h-screen bg-[#f8fafc]">
@@ -838,14 +676,19 @@ export default function Stage7() {
                     {/* ==================== HEADER ==================== */}
                     <div className="p-4 md:p-6 bg-white border rounded-lg shadow-sm mb-4 md:mb-6">
                         <div className="flex items-center justify-between">
-                            <div>
-                                <h2 className="text-2xl font-bold text-slate-900">Stage 8: Material Receipt</h2>
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-slate-900 rounded-lg text-white shadow-xl">
+                                    <Package className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-bold text-slate-900">Stage 9: Material Received</h2>
+                                </div>
                             </div>
 
                             <div className="flex items-center gap-4">
                                 {/* Bulk Button */}
                                 {activeTab === "pending" && selectedRecordIds.length > 1 && (
-                                    <Button 
+                                    <Button
                                         onClick={handleBulkOpen}
                                         className="bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
                                     >
@@ -955,13 +798,13 @@ export default function Stage7() {
                     </div>
 
                     <TabsList className="grid w-full grid-cols-2 h-12 bg-slate-100/50 p-1 rounded-lg">
-                        <TabsTrigger 
+                        <TabsTrigger
                             value="pending"
                             className="rounded-md data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all"
                         >
                             Pending ({pending.length})
                         </TabsTrigger>
-                        <TabsTrigger 
+                        <TabsTrigger
                             value="history"
                             className="rounded-md data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all"
                         >
@@ -979,208 +822,76 @@ export default function Stage7() {
                     <>
                         {/* ---------- PENDING ---------- */}
                         <TabsContent value="pending" className="mt-0 outline-none">
-                        {pending.length === 0 ? (
-                            <div className="text-center py-12 text-gray-500">
-                                <p className="text-lg">No pending receipts</p>
-                            </div>
-                        ) : (
-                            <div className="border rounded-lg overflow-x-auto h-[70vh] relative">
-                                <table className="w-full caption-bottom text-sm border-separate border-spacing-0 min-w-max">
-                                    <TableHeader className="sticky top-0 z-30 bg-slate-200 shadow-sm border-none">
-                                        <TableRow className="hover:bg-transparent border-none">
-                                            {activeTab === "pending" && (
-                                                <TableHead className="sticky left-0 z-40 bg-slate-200 w-[50px] border-b text-center">
-                                                    <Checkbox
-                                                        checked={
-                                                            pending.length > 0 &&
-                                                            selectedRecordIds.length === pending.length
-                                                        }
-                                                        onCheckedChange={(checked) => {
-                                                            if (checked) {
-                                                                setSelectedRecordIds(pending.map((r) => r.id));
-                                                            } else {
-                                                                setSelectedRecordIds([]);
-                                                            }
-                                                        }}
-                                                    />
-                                                </TableHead>
-                                            )}
-                                            <TableHead className="sticky left-[50px] z-40 bg-slate-200 w-[150px] border-b text-center whitespace-nowrap px-4">Actions</TableHead>
-                                            {PENDING_COLUMNS.filter((c) =>
-                                                selectedPendingColumns.includes(c.key)
-                                            ).map((c) => (
-                                                <TableHead key={c.key} className="bg-slate-200 border-b text-center px-4 py-3 font-semibold text-slate-900 whitespace-nowrap">{c.label}</TableHead>
-                                            ))}
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {pending.map((rec) => (
-                                            <TableRow key={rec.id} className="hover:bg-gray-50 group">
+                            {pending.length === 0 ? (
+                                <div className="text-center py-12 text-gray-500">
+                                    <p className="text-lg">No pending receipts</p>
+                                </div>
+                            ) : (
+                                <div className="border rounded-lg overflow-x-auto h-[70vh] relative">
+                                    <table className="w-full caption-bottom text-sm border-separate border-spacing-0 min-w-max">
+                                        <TableHeader className="sticky top-0 z-30 bg-slate-200 shadow-sm border-none">
+                                            <TableRow className="hover:bg-transparent border-none">
                                                 {activeTab === "pending" && (
-                                                    <TableCell className="sticky left-0 z-20 bg-white group-hover:bg-gray-50 border-b text-center">
+                                                    <TableHead className="sticky left-0 z-40 bg-slate-200 w-[50px] border-b text-center">
                                                         <Checkbox
-                                                            checked={selectedRecordIds.includes(rec.id)}
+                                                            checked={
+                                                                pending.length > 0 &&
+                                                                selectedRecordIds.length === pending.length
+                                                            }
                                                             onCheckedChange={(checked) => {
-                                                                setSelectedRecordIds((prev) =>
-                                                                    checked
-                                                                        ? [...prev, rec.id]
-                                                                        : prev.filter((id) => id !== rec.id)
-                                                                );
+                                                                if (checked) {
+                                                                    setSelectedRecordIds(pending.map((r) => r.id));
+                                                                } else {
+                                                                    setSelectedRecordIds([]);
+                                                                }
                                                             }}
                                                         />
-                                                    </TableCell>
+                                                    </TableHead>
                                                 )}
-                                                <TableCell className="sticky left-[50px] z-20 bg-white group-hover:bg-gray-50 border-b text-center px-4 py-2">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => openModal(rec.id)}
-                                                        className="h-8 px-3 text-xs font-medium border-slate-200 hover:bg-slate-50 hover:text-slate-900 transition-colors"
-                                                    >
-                                                        Record Receipt
-                                                    </Button>
-                                                </TableCell>
-
+                                                <TableHead className="sticky left-[50px] z-40 bg-slate-200 w-[150px] border-b text-center whitespace-nowrap px-4">Actions</TableHead>
                                                 {PENDING_COLUMNS.filter((c) =>
                                                     selectedPendingColumns.includes(c.key)
-                                                ).map((col) => {
-                                                    const val = rec.data[col.key];
-
-                                                    // Handle Bilty Copy as a link
-                                                    if (col.key === "biltyCopy") {
-                                                        const biltyRaw = rec.data.biltyCopy;
-                                                        let biltyUrl = biltyRaw;
-                                                        if (biltyUrl && biltyUrl.includes("drive.google.com/uc")) {
-                                                            const m = biltyUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-                                                            if (m?.[1]) biltyUrl = `https://drive.google.com/file/d/${m[1]}/view`;
-                                                        }
-                                                        return (
-                                                            <TableCell key={col.key} className="border-b px-4 py-2 text-center">
-                                                                {biltyUrl ? (
-                                                                    <a
-                                                                        href={biltyUrl}
-                                                                        target="_blank"
-                                                                        rel="noopener noreferrer"
-                                                                        className="flex items-center justify-center gap-1 text-xs text-green-600 hover:underline"
-                                                                    >
-                                                                        <FileText className="w-3.5 h-3.5" />
-                                                                        <span>View Bilty</span>
-                                                                    </a>
-                                                                ) : "-"}
-                                                            </TableCell>
-                                                        );
-                                                    }
-
-                                                    // Handle PO Copy as a link
-                                                    if (col.key === "poCopy") {
-                                                        const poRaw = rec.data.poCopy;
-                                                        let poUrl = poRaw;
-                                                        if (poUrl && poUrl.includes("drive.google.com/uc")) {
-                                                            const m = poUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-                                                            if (m?.[1]) poUrl = `https://drive.google.com/file/d/${m[1]}/view`;
-                                                        }
-                                                        return (
-                                                            <TableCell key={col.key} className="border-b px-4 py-2 text-center">
-                                                                {poUrl ? (
-                                                                    <a
-                                                                        href={poUrl}
-                                                                        target="_blank"
-                                                                        rel="noopener noreferrer"
-                                                                        className="flex items-center justify-center gap-1 text-xs text-blue-600 hover:underline"
-                                                                    >
-                                                                        <FileText className="w-3.5 h-3.5" />
-                                                                        <span>View PO</span>
-                                                                    </a>
-                                                                ) : "-"}
-                                                            </TableCell>
-                                                        );
-                                                    }
-
-                                                    // Handle date columns - format as DD-MM-YYYY
-                                                    if (col.key === "nextFollowUpDate" || col.key === "dispatchDate" || col.key === "paymentDate" || col.key === "planned6") {
-                                                        return (
-                                                            <TableCell key={col.key} className="border-b px-4 py-2 text-center text-slate-700">
-                                                                {val ? formatDateDash(val) : "-"}
-                                                            </TableCell>
-                                                        );
-                                                    }
-
-                                                    // Handle currency columns
-                                                    if (col.key === "freightAmount" || col.key === "advanceAmount") {
-                                                        return (
-                                                            <TableCell key={col.key} className="border-b px-4 py-2 text-center text-slate-700">
-                                                                {val ? `₹${val}` : "-"}
-                                                            </TableCell>
-                                                        );
-                                                    }
-
-                                                    // Default rendering
-                                                    return (
-                                                        <TableCell key={col.key} className="border-b px-4 py-2 text-center text-slate-700">
-                                                            {val || "-"}
-                                                        </TableCell>
-                                                    );
-                                                })}
+                                                ).map((c) => (
+                                                    <TableHead key={c.key} className="bg-slate-200 border-b text-center px-4 py-3 font-semibold text-slate-900 whitespace-nowrap">{c.label}</TableHead>
+                                                ))}
                                             </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </table>
-                            </div>
-                        )}
-                    </TabsContent>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {pending.map((rec) => (
+                                                <TableRow key={rec.id} className="hover:bg-gray-50 group">
+                                                    {activeTab === "pending" && (
+                                                        <TableCell className="sticky left-0 z-20 bg-white group-hover:bg-gray-50 border-b text-center">
+                                                            <Checkbox
+                                                                checked={selectedRecordIds.includes(rec.id)}
+                                                                onCheckedChange={(checked) => {
+                                                                    setSelectedRecordIds((prev) =>
+                                                                        checked
+                                                                            ? [...prev, rec.id]
+                                                                            : prev.filter((id) => id !== rec.id)
+                                                                    );
+                                                                }}
+                                                            />
+                                                        </TableCell>
+                                                    )}
+                                                    <TableCell className="sticky left-[50px] z-20 bg-white group-hover:bg-gray-50 border-b text-center px-4 py-2">
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => openModal(rec.id)}
+                                                            className="h-8 px-3 text-xs font-medium border-slate-200 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+                                                        >
+                                                            Record Receipt
+                                                        </Button>
+                                                    </TableCell>
 
-                    {/* ---------- HISTORY ---------- */}
-                    <TabsContent value="history" className="mt-6">
-                        {completed.length === 0 ? (
-                            <div className="text-center py-12 text-gray-500">
-                                <p className="text-lg">No completed receipts</p>
-                            </div>
-                        ) : (
-                            <div className="border rounded-lg overflow-x-auto h-[70vh] relative">
-                                <table className="w-full caption-bottom text-sm border-separate border-spacing-0 min-w-max">
-                                    <TableHeader className="sticky top-0 z-30 bg-slate-200 shadow-sm border-none">
-                                        <TableRow className="hover:bg-transparent border-none">
-                                            {HISTORY_COLUMNS.filter((c) =>
-                                                selectedHistoryColumns.includes(c.key)
-                                            ).map((c) => (
-                                                <TableHead key={c.key} className="bg-slate-200 border-b text-center px-4 py-3 font-semibold text-slate-900 whitespace-nowrap">
-                                                    {c.label}
-                                                </TableHead>
-                                            ))}
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {completed.map((record) => {
-                                            const historyData = record.data;
-
-                                            return (
-                                                <TableRow key={record.id} className="bg-green-50 hover:bg-green-100 transition-colors">
-                                                    {HISTORY_COLUMNS.filter((c) =>
-                                                        selectedHistoryColumns.includes(c.key)
+                                                    {PENDING_COLUMNS.filter((c) =>
+                                                        selectedPendingColumns.includes(c.key)
                                                     ).map((col) => {
-                                                        const val = (historyData[col.key] !== undefined && historyData[col.key] !== "")
-                                                            ? historyData[col.key]
-                                                            : record.data[col.key];
+                                                        const val = rec.data[col.key];
 
-                                                        // Handle date fields (dispatchDate, paymentDate, etc.)
-                                                        if (
-                                                            col.key === "dispatchDate" ||
-                                                            col.key === "paymentDate" ||
-                                                            col.key === "nextFollowUpDate" ||
-                                                            col.key === "invoiceDate" ||
-                                                            col.key === "actual6" ||
-                                                            col.key === "planned6"
-                                                        ) {
-                                                            return (
-                                                                <TableCell key={col.key} className="border-b px-4 py-2 text-center text-slate-700">
-                                                                    {formatDateDash(val)}
-                                                                </TableCell>
-                                                            );
-                                                        }
-
-                                                        // Handle file fields
+                                                        // Handle Bilty Copy as a link
                                                         if (col.key === "biltyCopy") {
-                                                            const biltyRaw = historyData.biltyCopy;
+                                                            const biltyRaw = rec.data.biltyCopy;
                                                             let biltyUrl = biltyRaw;
                                                             if (biltyUrl && biltyUrl.includes("drive.google.com/uc")) {
                                                                 const m = biltyUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
@@ -1205,7 +916,7 @@ export default function Stage7() {
 
                                                         // Handle PO Copy as a link
                                                         if (col.key === "poCopy") {
-                                                            const poRaw = historyData.poCopy;
+                                                            const poRaw = rec.data.poCopy;
                                                             let poUrl = poRaw;
                                                             if (poUrl && poUrl.includes("drive.google.com/uc")) {
                                                                 const m = poUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
@@ -1228,47 +939,17 @@ export default function Stage7() {
                                                             );
                                                         }
 
-                                                        if (
-                                                            col.key === "receivedItemImage" ||
-                                                            col.key === "billAttachment" ||
-                                                            col.key === "damageImage"
-                                                        ) {
-                                                            const file = historyData[col.key];
-                                                            let fileUrl = typeof file === "string" ? file : undefined;
-                                                            if (fileUrl && fileUrl.includes("drive.google.com/uc")) {
-                                                                const m = fileUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-                                                                if (m?.[1]) fileUrl = `https://drive.google.com/file/d/${m[1]}/view`;
-                                                            }
+                                                        // Handle date columns - format as DD-MM-YYYY
+                                                        if (col.key === "nextFollowUpDate" || col.key === "dispatchDate" || col.key === "paymentDate" || col.key === "planned6") {
                                                             return (
-                                                                <TableCell key={col.key} className="border-b px-4 py-2 text-center">
-                                                                    {fileUrl ? (
-                                                                        <a
-                                                                            href={fileUrl}
-                                                                            target="_blank"
-                                                                            rel="noopener noreferrer"
-                                                                            className="flex items-center justify-center gap-1 text-xs text-blue-600 hover:underline"
-                                                                        >
-                                                                            <FileText className="w-3.5 h-3.5" />
-                                                                            <span className="truncate max-w-20">
-                                                                                View {col.label}
-                                                                            </span>
-                                                                        </a>
-                                                                    ) : (
-                                                                        "-"
-                                                                    )}
+                                                                <TableCell key={col.key} className="border-b px-4 py-2 text-center text-slate-700">
+                                                                    {val ? formatDateDash(val) : "-"}
                                                                 </TableCell>
                                                             );
                                                         }
 
                                                         // Handle currency columns
-                                                        if (
-                                                            col.key === "freightAmount" ||
-                                                            col.key === "advanceAmount" ||
-                                                            col.key === "paymentAmountHydra" ||
-                                                            col.key === "paymentAmountLabour" ||
-                                                            col.key === "paymentAmountHamali" ||
-                                                            col.key === "extraFreight"
-                                                        ) {
+                                                        if (col.key === "freightAmount" || col.key === "advanceAmount") {
                                                             return (
                                                                 <TableCell key={col.key} className="border-b px-4 py-2 text-center text-slate-700">
                                                                     {val ? `₹${val}` : "-"}
@@ -1276,24 +957,183 @@ export default function Stage7() {
                                                             );
                                                         }
 
-                                                        // Default: show from historyData
+                                                        // Default rendering
                                                         return (
                                                             <TableCell key={col.key} className="border-b px-4 py-2 text-center text-slate-700">
-                                                                {val ? String(val) : "-"}
+                                                                {val || "-"}
                                                             </TableCell>
                                                         );
                                                     })}
                                                 </TableRow>
-                                            );
-                                        })}
-                                    </TableBody>
-                                </table>
-                            </div>
-                        )}
-                    </TabsContent>
-                </>
-            )}
-        </Tabs>
+                                            ))}
+                                        </TableBody>
+                                    </table>
+                                </div>
+                            )}
+                        </TabsContent>
+
+                        {/* ---------- HISTORY ---------- */}
+                        <TabsContent value="history" className="mt-6">
+                            {completed.length === 0 ? (
+                                <div className="text-center py-12 text-gray-500">
+                                    <p className="text-lg">No completed receipts</p>
+                                </div>
+                            ) : (
+                                <div className="border rounded-lg overflow-x-auto h-[70vh] relative">
+                                    <table className="w-full caption-bottom text-sm border-separate border-spacing-0 min-w-max">
+                                        <TableHeader className="sticky top-0 z-30 bg-slate-200 shadow-sm border-none">
+                                            <TableRow className="hover:bg-transparent border-none">
+                                                {HISTORY_COLUMNS.filter((c) =>
+                                                    selectedHistoryColumns.includes(c.key)
+                                                ).map((c) => (
+                                                    <TableHead key={c.key} className="bg-slate-200 border-b text-center px-4 py-3 font-semibold text-slate-900 whitespace-nowrap">
+                                                        {c.label}
+                                                    </TableHead>
+                                                ))}
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {completed.map((record) => {
+                                                const historyData = record.data;
+
+                                                return (
+                                                    <TableRow key={record.id} className="bg-green-50 hover:bg-green-100 transition-colors">
+                                                        {HISTORY_COLUMNS.filter((c) =>
+                                                            selectedHistoryColumns.includes(c.key)
+                                                        ).map((col) => {
+                                                            const val = (historyData[col.key] !== undefined && historyData[col.key] !== "")
+                                                                ? historyData[col.key]
+                                                                : record.data[col.key];
+
+                                                            // Handle date fields (dispatchDate, paymentDate, etc.)
+                                                            if (
+                                                                col.key === "dispatchDate" ||
+                                                                col.key === "paymentDate" ||
+                                                                col.key === "nextFollowUpDate" ||
+                                                                col.key === "invoiceDate" ||
+                                                                col.key === "actual6" ||
+                                                                col.key === "planned6"
+                                                            ) {
+                                                                return (
+                                                                    <TableCell key={col.key} className="border-b px-4 py-2 text-center text-slate-700">
+                                                                        {formatDateDash(val)}
+                                                                    </TableCell>
+                                                                );
+                                                            }
+
+                                                            // Handle file fields
+                                                            if (col.key === "biltyCopy") {
+                                                                const biltyRaw = historyData.biltyCopy;
+                                                                let biltyUrl = biltyRaw;
+                                                                if (biltyUrl && biltyUrl.includes("drive.google.com/uc")) {
+                                                                    const m = biltyUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+                                                                    if (m?.[1]) biltyUrl = `https://drive.google.com/file/d/${m[1]}/view`;
+                                                                }
+                                                                return (
+                                                                    <TableCell key={col.key} className="border-b px-4 py-2 text-center">
+                                                                        {biltyUrl ? (
+                                                                            <a
+                                                                                href={biltyUrl}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                className="flex items-center justify-center gap-1 text-xs text-green-600 hover:underline"
+                                                                            >
+                                                                                <FileText className="w-3.5 h-3.5" />
+                                                                                <span>View Bilty</span>
+                                                                            </a>
+                                                                        ) : "-"}
+                                                                    </TableCell>
+                                                                );
+                                                            }
+
+                                                            // Handle PO Copy as a link
+                                                            if (col.key === "poCopy") {
+                                                                const poRaw = historyData.poCopy;
+                                                                let poUrl = poRaw;
+                                                                if (poUrl && poUrl.includes("drive.google.com/uc")) {
+                                                                    const m = poUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+                                                                    if (m?.[1]) poUrl = `https://drive.google.com/file/d/${m[1]}/view`;
+                                                                }
+                                                                return (
+                                                                    <TableCell key={col.key} className="border-b px-4 py-2 text-center">
+                                                                        {poUrl ? (
+                                                                            <a
+                                                                                href={poUrl}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                className="flex items-center justify-center gap-1 text-xs text-blue-600 hover:underline"
+                                                                            >
+                                                                                <FileText className="w-3.5 h-3.5" />
+                                                                                <span>View PO</span>
+                                                                            </a>
+                                                                        ) : "-"}
+                                                                    </TableCell>
+                                                                );
+                                                            }
+
+                                                            if (
+                                                                col.key === "receivedItemImage" ||
+                                                                col.key === "billAttachment" ||
+                                                                col.key === "damageImage"
+                                                            ) {
+                                                                const file = historyData[col.key];
+                                                                let fileUrl = typeof file === "string" ? file : undefined;
+                                                                if (fileUrl && fileUrl.includes("drive.google.com/uc")) {
+                                                                    const m = fileUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+                                                                    if (m?.[1]) fileUrl = `https://drive.google.com/file/d/${m[1]}/view`;
+                                                                }
+                                                                return (
+                                                                    <TableCell key={col.key} className="border-b px-4 py-2 text-center">
+                                                                        {fileUrl ? (
+                                                                            <a
+                                                                                href={fileUrl}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                className="flex items-center justify-center gap-1 text-xs text-blue-600 hover:underline"
+                                                                            >
+                                                                                <FileText className="w-3.5 h-3.5" />
+                                                                                <span className="truncate max-w-20">
+                                                                                    View {col.label}
+                                                                                </span>
+                                                                            </a>
+                                                                        ) : (
+                                                                            "-"
+                                                                        )}
+                                                                    </TableCell>
+                                                                );
+                                                            }
+
+                                                            // Handle currency columns
+                                                            if (
+                                                                col.key === "freightAmount" ||
+                                                                col.key === "advanceAmount" ||
+                                                                col.key === "extraFreight"
+                                                            ) {
+                                                                return (
+                                                                    <TableCell key={col.key} className="border-b px-4 py-2 text-center text-slate-700">
+                                                                        {val ? `₹${val}` : "-"}
+                                                                    </TableCell>
+                                                                );
+                                                            }
+
+                                                            // Default: show from historyData
+                                                            return (
+                                                                <TableCell key={col.key} className="border-b px-4 py-2 text-center text-slate-700">
+                                                                    {val ? String(val) : "-"}
+                                                                </TableCell>
+                                                            );
+                                                        })}
+                                                    </TableRow>
+                                                );
+                                            })}
+                                        </TableBody>
+                                    </table>
+                                </div>
+                            )}
+                        </TabsContent>
+                    </>
+                )}
+            </Tabs>
 
             {/* ==================== MODAL ==================== */}
             <Dialog open={open} onOpenChange={setOpen}>
@@ -1319,9 +1159,7 @@ export default function Stage7() {
                                             <TableRow>
                                                 <TableHead className="w-[200px]">Item Details</TableHead>
                                                 <TableHead className="w-[120px]">Received Qty <span className="text-red-500">*</span></TableHead>
-                                                <TableHead className="w-[120px]">QC Required <span className="text-red-500">*</span></TableHead>
                                                 <TableHead className="w-[150px]">Item Image</TableHead>
-                                                <TableHead className="w-[120px]">Warranty</TableHead>
                                                 <TableHead className="w-[120px]">Damage Received</TableHead>
                                                 {bulkItems.some(i => i.damageReceived === "yes") && (
                                                     <>
@@ -1329,16 +1167,6 @@ export default function Stage7() {
                                                         <TableHead className="w-[150px]">Reason</TableHead>
                                                         <TableHead className="w-[150px]">Damage Image</TableHead>
                                                     </>
-                                                )}
-                                                {bulkItems.some(i => i.warrantyClaim === "yes") && (
-                                                    <>
-                                                        <TableHead className="w-[100px]">Duration (M)</TableHead>
-                                                        <TableHead className="w-[120px]">Warranty Expiry</TableHead>
-                                                        <TableHead className="w-[180px]">Product Expiry</TableHead>
-                                                    </>
-                                                )}
-                                                {!bulkItems.some(i => i.warrantyClaim === "yes") && (
-                                                    <TableHead className="w-[180px]">Product Expiry</TableHead>
                                                 )}
                                             </TableRow>
                                         </TableHeader>
@@ -1362,22 +1190,6 @@ export default function Stage7() {
                                                             className="h-8"
                                                             required
                                                         />
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Select
-                                                            value={item.qcRequirement}
-                                                            onValueChange={(v) => {
-                                                                const newItems = [...bulkItems];
-                                                                newItems[idx].qcRequirement = v;
-                                                                setBulkItems(newItems);
-                                                            }}
-                                                        >
-                                                            <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value="yes">Yes</SelectItem>
-                                                                <SelectItem value="no">No</SelectItem>
-                                                            </SelectContent>
-                                                        </Select>
                                                     </TableCell>
                                                     <TableCell>
                                                         <div className="space-y-1">
@@ -1513,72 +1325,6 @@ export default function Stage7() {
                                                             </TableCell>
                                                         </>
                                                     )}
-                                                    {bulkItems.some(i => i.warrantyClaim === "yes") && (
-                                                        <>
-                                                            <TableCell>
-                                                                {item.warrantyClaim === "yes" ? (
-                                                                    <Input
-                                                                        type="number"
-                                                                        value={item.duration}
-                                                                        onChange={(e) => {
-                                                                            const newItems = [...bulkItems];
-                                                                            newItems[idx].duration = e.target.value;
-                                                                            // Auto-calculate warranty expiry
-                                                                            if (commonData.invoiceDate && e.target.value) {
-                                                                                const date = new Date(commonData.invoiceDate);
-                                                                                const months = parseInt(e.target.value, 10);
-                                                                                if (!isNaN(date.getTime()) && !isNaN(months)) {
-                                                                                    date.setMonth(date.getMonth() + months);
-                                                                                    newItems[idx].warrantyExpiry = date.toISOString().split("T")[0];
-                                                                                }
-                                                                            } else {
-                                                                                newItems[idx].warrantyExpiry = "";
-                                                                            }
-                                                                            setBulkItems(newItems);
-                                                                        }}
-                                                                        className="h-8"
-                                                                        placeholder="Months"
-                                                                    />
-                                                                ) : "-"}
-                                                            </TableCell>
-                                                            <TableCell>
-                                                                {item.warrantyClaim === "yes" ? (
-                                                                    <Input
-                                                                        value={item.warrantyExpiry}
-                                                                        readOnly
-                                                                        className="h-8 bg-gray-50 text-[10px]"
-                                                                        placeholder="Auto-calc"
-                                                                    />
-                                                                ) : "-"}
-                                                            </TableCell>
-                                                            <TableCell>
-                                                                    <Input
-                                                                        type="date"
-                                                                        value={item.productExpiry}
-                                                                        onChange={(e) => {
-                                                                            const newItems = [...bulkItems];
-                                                                            newItems[idx].productExpiry = e.target.value;
-                                                                            setBulkItems(newItems);
-                                                                        }}
-                                                                        className="h-8 text-[10px]"
-                                                                    />
-                                                            </TableCell>
-                                                        </>
-                                                    )}
-                                                    {!bulkItems.some(i => i.warrantyClaim === "yes") && (
-                                                        <TableCell>
-                                                            <Input
-                                                                type="date"
-                                                                value={item.productExpiry}
-                                                                onChange={(e) => {
-                                                                    const newItems = [...bulkItems];
-                                                                    newItems[idx].productExpiry = e.target.value;
-                                                                    setBulkItems(newItems);
-                                                                }}
-                                                                className="h-8 text-[10px]"
-                                                            />
-                                                        </TableCell>
-                                                    )}
                                                 </TableRow>
                                             ))}
                                         </TableBody>
@@ -1595,25 +1341,7 @@ export default function Stage7() {
                                         <Input
                                             type="date"
                                             value={commonData.invoiceDate}
-                                            onChange={(e) => {
-                                                const newDate = e.target.value;
-                                                setCommonData({ ...commonData, invoiceDate: newDate });
-                                                // Trigger recalculation for all bulk items
-                                                if (newDate) {
-                                                    const updatedItems = bulkItems.map(item => {
-                                                        if (item.warrantyClaim === "yes" && item.duration) {
-                                                            const d = new Date(newDate);
-                                                            const months = parseInt(item.duration, 10);
-                                                            if (!isNaN(d.getTime()) && !isNaN(months)) {
-                                                                d.setMonth(d.getMonth() + months);
-                                                                return { ...item, warrantyExpiry: d.toISOString().split("T")[0] };
-                                                            }
-                                                        }
-                                                        return item;
-                                                    });
-                                                    setBulkItems(updatedItems);
-                                                }
-                                            }}
+                                            onChange={(e) => setCommonData({ ...commonData, invoiceDate: e.target.value })}
                                             required
                                         />
                                     </div>
@@ -1662,88 +1390,6 @@ export default function Stage7() {
                                     </div>
                                 </div>
 
-                                {/* Packaging/Forwarding - Bulk */}
-                                <div className="border rounded-lg p-4 bg-amber-50 space-y-3">
-                                    <h4 className="font-semibold text-sm">Packaging / Forwarding
-                                        <span className="text-xs font-normal text-gray-500 ml-2">(shared, divided equally among selected indents)</span>
-                                    </h4>
-                                    <div className="grid grid-cols-3 gap-3">
-                                        <div className="space-y-1.5">
-                                            <Label>Amount</Label>
-                                            <Input
-                                                type="number"
-                                                step="0.01"
-                                                value={commonData.pkgAmount}
-                                                onChange={(e) => setCommonData({ ...commonData, pkgAmount: e.target.value })}
-                                                placeholder="0.00"
-                                                className="bg-white"
-                                            />
-                                        </div>
-                                        <div className="space-y-1.5">
-                                            <Label>GST on Packaging</Label>
-                                            <Select value={commonData.pkgGST} onValueChange={(v) => setCommonData({ ...commonData, pkgGST: v })}>
-                                                <SelectTrigger className="w-full bg-white"><SelectValue placeholder="Select GST" /></SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="0%">0%</SelectItem>
-                                                    <SelectItem value="5%">5%</SelectItem>
-                                                    <SelectItem value="12%">12%</SelectItem>
-                                                    <SelectItem value="18%">18%</SelectItem>
-                                                    <SelectItem value="28%">28%</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                        <div className="space-y-1.5">
-                                            <Label>Total Packaging</Label>
-                                            <Input
-                                                type="number"
-                                                step="0.01"
-                                                value={getPkgTotals(commonData.pkgAmount, commonData.pkgGST, bulkItems.length).totalPkg.toFixed(2)}
-                                                readOnly
-                                                className="bg-gray-100 cursor-not-allowed font-semibold"
-                                            />
-                                        </div>
-                                    </div>
-                                    <p className="text-xs text-amber-700">Per item share: ₹{getPkgTotals(commonData.pkgAmount, commonData.pkgGST, bulkItems.length).perItemPkgTotal.toFixed(2)}</p>
-                                </div>
-
-                                <div className="grid grid-cols-4 gap-3">
-                                    <div className="space-y-1.5">
-                                        <Label>Hydra Amt</Label>
-                                        <Input
-                                            type="number"
-                                            step="0.01"
-                                            value={commonData.paymentAmountHydra}
-                                            onChange={(e) => setCommonData({ ...commonData, paymentAmountHydra: e.target.value })}
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label>Labour Amt</Label>
-                                        <Input
-                                            type="number"
-                                            step="0.01"
-                                            value={commonData.paymentAmountLabour}
-                                            onChange={(e) => setCommonData({ ...commonData, paymentAmountLabour: e.target.value })}
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label>Hamali Amt</Label>
-                                        <Input
-                                            type="number"
-                                            step="0.01"
-                                            value={commonData.paymentAmountHamali}
-                                            onChange={(e) => setCommonData({ ...commonData, paymentAmountHamali: e.target.value })}
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label>Extra Freight</Label>
-                                        <Input
-                                            type="number"
-                                            step="0.01"
-                                            value={commonData.extraFreight}
-                                            onChange={(e) => setCommonData({ ...commonData, extraFreight: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
                                 <div className="space-y-1.5">
                                     <Label>Remarks</Label>
                                     <textarea
@@ -1824,14 +1470,7 @@ export default function Stage7() {
                                 </div>
                             </div>
 
-                            {/* Row 3 and Row 4: Single grid to make all conditional fields consecutive */}
-                            <div className="grid grid-cols-3 gap-3">
-                                {qcField}
-                                {productClaimField}
-                                {form.productClaim === "yes" && productExpiryField}
-                                {warrantyClaimField}
-                                {form.warrantyClaim === "yes" && warrantyExpiryAndDurationFields}
-                            </div>
+
 
                             <div className="space-y-3">
                                 <div className="grid grid-cols-3 gap-3">
@@ -1993,107 +1632,6 @@ export default function Stage7() {
                                 </div>
                             </div>
 
-                            {/* Payment Heads */}
-                            <div className="space-y-3">
-                                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 border-b pb-1 mb-2">Others Payment Head</h3>
-                                <div className="grid grid-cols-4 gap-3">
-                                    <div className="space-y-1.5">
-                                        <Label>Hydra Amount</Label>
-                                        <Input
-                                            type="number"
-                                            step="0.01"
-                                            value={form.paymentAmountHydra}
-                                            onChange={(e) =>
-                                                setForm({ ...form, paymentAmountHydra: e.target.value })
-                                            }
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label>Labour Amount</Label>
-                                        <Input
-                                            type="number"
-                                            step="0.01"
-                                            value={form.paymentAmountLabour}
-                                            onChange={(e) =>
-                                                setForm({
-                                                    ...form,
-                                                    paymentAmountLabour: e.target.value,
-                                                })
-                                            }
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label>Auto Charge</Label>
-                                        <Input
-                                            type="number"
-                                            step="0.01"
-                                            value={form.paymentAmountHamali}
-                                            onChange={(e) =>
-                                                setForm({
-                                                    ...form,
-                                                    paymentAmountHamali: e.target.value,
-                                                })
-                                            }
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label>Extra Freight</Label>
-                                        <Input
-                                            type="number"
-                                            step="0.01"
-                                            value={form.extraFreight}
-                                            onChange={(e) =>
-                                                setForm({
-                                                    ...form,
-                                                    extraFreight: e.target.value,
-                                                })
-                                            }
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Packaging/Forwarding - Single Form */}
-                            <div className="border border-amber-100 rounded-lg p-3 bg-amber-50/50 space-y-1.5">
-                                <h3 className="text-xs font-semibold uppercase tracking-wider text-amber-800">Packaging / Forwarding</h3>
-                                <div className="grid grid-cols-3 gap-3">
-                                    <div className="space-y-1.5">
-                                        <Label className="text-xs">Amount</Label>
-                                        <Input
-                                            type="number"
-                                            className="h-8 bg-white"
-                                            step="0.01"
-                                            value={form.pkgAmount}
-                                            onChange={(e) => setForm({ ...form, pkgAmount: e.target.value })}
-                                            placeholder="0.00"
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label className="text-xs">GST on Packaging</Label>
-                                        <Select value={form.pkgGST} onValueChange={(v) => setForm({ ...form, pkgGST: v })}>
-                                            <SelectTrigger className="w-full h-8 bg-white"><SelectValue placeholder="Select GST" /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="0%">0%</SelectItem>
-                                                <SelectItem value="5%">5%</SelectItem>
-                                                <SelectItem value="12%">12%</SelectItem>
-                                                <SelectItem value="18%">18%</SelectItem>
-                                                <SelectItem value="28%">28%</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label>Total Packaging</Label>
-                                        <Input
-                                            type="number"
-                                            step="0.01"
-                                            value={getPkgTotals(form.pkgAmount, form.pkgGST, 1).totalPkg.toFixed(2)}
-                                            readOnly
-                                            className="bg-gray-100 cursor-not-allowed font-semibold"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
                             {/* Remarks */}
                             <div className="space-y-1.5">
                                 <Label>Remarks</Label>
@@ -2125,7 +1663,7 @@ export default function Stage7() {
                                         commonData.invoiceDate &&
                                         commonData.invoiceNumber &&
                                         commonData.billAttachment &&
-                                        bulkItems.every((item) => item.receivedQty && item.qcRequirement)
+                                        bulkItems.every((item) => item.receivedQty)
                                     )
                                     : !formValid)
                             }

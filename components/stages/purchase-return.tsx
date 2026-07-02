@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { toast } from "sonner";
-import { Loader2, FileText, RefreshCw, Search, Eye } from "lucide-react";
+import { Loader2, FileText, RefreshCw, Search, Eye, CornerUpLeft } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -121,12 +121,12 @@ export default function Stage12() {
       if (key.includes("Image") || key.includes("Attachment") || key.includes("Copy") || key === "returnItemImage" || key === "creditNoteImage") {
         return (
           <a href={String(val)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors text-xs font-medium">
-            <FileText className="w-3.5 h-3.5" /> 
+            <FileText className="w-3.5 h-3.5" />
             View
           </a>
         );
       }
-      
+
       const lowKey = key.toLowerCase();
       if (lowKey.includes("plan") || lowKey.includes("actual") || lowKey.includes("date")) {
         return formatDateDash(val);
@@ -435,15 +435,17 @@ export default function Stage12() {
           <div className="max-w-[1600px] mx-auto">
             <div className="p-4 md:p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
-                <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                  <span className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center shadow-blue-200 shadow-lg">
-                    <RefreshCw className="w-6 h-6 text-white" />
-                  </span>
-                  Stage 12: Purchase Return
+                <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-4">
+                  <div className="p-3 bg-slate-900 rounded-lg text-white shadow-xl">
+                    <CornerUpLeft className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <span>Stage 11: Purchase Return</span>
+                    <p className="text-slate-500 text-sm font-normal mt-0.5">Process and track returns for rejected QC items</p>
+                  </div>
                 </h1>
-                <p className="text-slate-500 text-sm mt-1 ml-12">Process and track returns for rejected QC items</p>
               </div>
-              
+
               <div className="flex items-center gap-3 w-full md:w-auto">
                 <div className="relative flex-1 md:w-80 group">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
@@ -454,10 +456,10 @@ export default function Stage12() {
                     className="pl-10 bg-slate-50 border-slate-200 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all h-10 rounded-xl"
                   />
                 </div>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="icon"
-                  onClick={fetchData} 
+                  onClick={fetchData}
                   disabled={isLoading}
                   className="h-10 w-10 rounded-xl bg-white hover:bg-slate-50 text-slate-600 border-slate-200"
                 >
@@ -468,13 +470,13 @@ export default function Stage12() {
 
             <div className="px-6 pb-2">
               <TabsList className="bg-slate-200/50 p-1 rounded-xl h-11 inline-flex w-auto mb-2">
-                <TabsTrigger 
-                  value="pending" 
+                <TabsTrigger
+                  value="pending"
                   className="rounded-lg px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-blue-600 transition-all font-medium"
                 >
                   Pending Returns ({pending.length})
                 </TabsTrigger>
-                <TabsTrigger 
+                <TabsTrigger
                   value="history"
                   className="rounded-lg px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-blue-600 transition-all font-medium"
                 >

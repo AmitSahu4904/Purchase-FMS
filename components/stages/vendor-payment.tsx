@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { toast } from "sonner";
-import { Loader2, FileText, RefreshCw, Upload, CheckCircle, CalendarIcon, Banknote, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Loader2, FileText, RefreshCw, Upload, CheckCircle, CalendarIcon, Banknote, Search, ArrowUpDown, ArrowUp, ArrowDown, CreditCard } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,7 +81,7 @@ const parseDateString = (dateStr: any): Date | null => {
     if (!dateStr || dateStr === "-" || dateStr === "—") return null;
     if (dateStr instanceof Date) return dateStr;
     const str = String(dateStr).trim();
-    
+
     // Check for DD-Mon-YYYY format
     const parts = str.split('-');
     if (parts.length === 3) {
@@ -99,7 +99,7 @@ const parseDateString = (dateStr: any): Date | null => {
             return new Date(year, month, day);
         }
     }
-    
+
     const parsed = new Date(str);
     if (!isNaN(parsed.getTime())) return parsed;
     return null;
@@ -108,23 +108,23 @@ const parseDateString = (dateStr: any): Date | null => {
 const isDueDateOverdueOrToday = (dueDateStr: any): boolean => {
     const dueDate = parseDateString(dueDateStr);
     if (!dueDate) return false;
-    
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     dueDate.setHours(0, 0, 0, 0);
-    
+
     return dueDate.getTime() <= today.getTime();
 };
 
 const formatToDdMonYyyy = (dateVal: any): string => {
     const d = parseDateString(dateVal);
     if (!d || isNaN(d.getTime())) return "-";
-    
+
     const day = String(d.getDate()).padStart(2, "0");
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const mon = months[d.getMonth()];
     const year = d.getFullYear();
-    
+
     return `${day}-${mon}-${year}`;
 };
 
@@ -518,13 +518,15 @@ export default function Stage13() {
                 <div className="max-w-[1600px] mx-auto">
                     <div className="p-4 md:p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div>
-                            <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
-                                <span className="w-10 h-10 bg-emerald-600 rounded-lg flex items-center justify-center shadow-emerald-200 shadow-lg">
-                                    <Banknote className="w-6 h-6 text-white" />
-                                </span>
-                                Stage 13: Vendor Payments
+                            <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-4">
+                                <div className="p-3 bg-slate-900 rounded-lg text-white shadow-xl">
+                                    <CreditCard className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <span>Stage 12: Vendor Payment</span>
+                                    <p className="text-slate-500 text-sm font-normal mt-0.5">Process and track vendor invoice payments</p>
+                                </div>
                             </h1>
-                            <p className="text-slate-500 text-sm mt-1 ml-13">Process and track vendor invoice payments</p>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
@@ -545,21 +547,21 @@ export default function Stage13() {
                                 />
                             </div>
 
-                             <div className="flex items-center gap-2">
-                                 <Button
-                                     variant="outline"
-                                     size="sm"
-                                     onClick={() => setShowOverdueOnly(prev => !prev)}
-                                     className={cn(
-                                         "h-10 rounded-xl border-slate-200 bg-white hover:bg-slate-50 gap-2 whitespace-nowrap px-4 transition-all duration-200",
-                                         showOverdueOnly && "border-red-200 bg-red-50 text-red-700 hover:bg-red-100/50 shadow-sm"
-                                     )}
-                                     title={showOverdueOnly ? "Show All Invoices" : "Show Overdue Invoices"}
-                                 >
-                                     <span className="text-sm font-medium">Due Records</span>
-                                 </Button>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setShowOverdueOnly(prev => !prev)}
+                                    className={cn(
+                                        "h-10 rounded-xl border-slate-200 bg-white hover:bg-slate-50 gap-2 whitespace-nowrap px-4 transition-all duration-200",
+                                        showOverdueOnly && "border-red-200 bg-red-50 text-red-700 hover:bg-red-100/50 shadow-sm"
+                                    )}
+                                    title={showOverdueOnly ? "Show All Invoices" : "Show Overdue Invoices"}
+                                >
+                                    <span className="text-sm font-medium">Due Records</span>
+                                </Button>
 
-                                 <Select value="" onValueChange={() => { }}>
+                                <Select value="" onValueChange={() => { }}>
                                     <SelectTrigger className="h-10 w-32 rounded-xl border-slate-200 bg-white hover:bg-slate-50">
                                         <SelectValue placeholder="Columns" />
                                     </SelectTrigger>
@@ -578,10 +580,10 @@ export default function Stage13() {
                                     </SelectContent>
                                 </Select>
 
-                                <Button 
-                                    variant="outline" 
+                                <Button
+                                    variant="outline"
                                     size="icon"
-                                    onClick={fetchData} 
+                                    onClick={fetchData}
                                     disabled={isLoading}
                                     className="h-10 w-10 rounded-xl bg-white hover:bg-slate-50 border-slate-200 flex-shrink-0"
                                 >
@@ -594,13 +596,13 @@ export default function Stage13() {
                     <div className="px-6 pb-2">
                         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
                             <TabsList className="bg-slate-200/50 p-1 rounded-xl h-11 inline-flex w-auto mb-2">
-                                <TabsTrigger 
-                                    value="pending" 
+                                <TabsTrigger
+                                    value="pending"
                                     className="rounded-lg px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-600 transition-all font-medium"
                                 >
                                     Pending Invoices ({filteredRecords.length})
                                 </TabsTrigger>
-                                <TabsTrigger 
+                                <TabsTrigger
                                     value="history"
                                     className="rounded-lg px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-emerald-600 transition-all font-medium"
                                 >
@@ -654,8 +656,8 @@ export default function Stage13() {
                                                 {filteredRecords.map(rec => {
                                                     const isOverdue = isDueDateOverdueOrToday(rec.data.dueDate);
                                                     return (
-                                                        <tr 
-                                                            key={rec.id} 
+                                                        <tr
+                                                            key={rec.id}
                                                             className={cn(
                                                                 "hover:bg-slate-50/80 transition-all group duration-150",
                                                                 isOverdue && "bg-red-50/30 hover:bg-red-100/40"
@@ -728,8 +730,8 @@ export default function Stage13() {
                                                                 ) : c.key === "status" ? (
                                                                     <Badge variant="outline" className={cn(
                                                                         "px-2.5 py-0.5 rounded-lg font-bold border-2 transition-colors",
-                                                                        rec[c.key] === "Paid" 
-                                                                            ? "bg-emerald-50 text-emerald-700 border-emerald-100" 
+                                                                        rec[c.key] === "Paid"
+                                                                            ? "bg-emerald-50 text-emerald-700 border-emerald-100"
                                                                             : "bg-amber-50 text-amber-700 border-amber-100"
                                                                     )}>
                                                                         {rec[c.key]}

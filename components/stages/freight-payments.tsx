@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { toast } from "sonner";
-import { Loader2, FileText, RefreshCw, Upload, CalendarIcon, Search } from "lucide-react";
+import { Loader2, FileText, RefreshCw, Upload, CalendarIcon, Search, Truck } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -107,12 +107,12 @@ export default function Stage14() {
                 // FREIGHT-PAYMENTS mapping
                 const rows = frtJson.data
                     .slice(6)
-                        .map((row: any, i: number) => ({ row, originalIndex: i + 7 }))
-                        .filter(({ row }: any) => row[1] && String(row[1]).trim() !== "")
-                        .map(({ row, originalIndex }: any) => {
-                            const plan1 = row[9];
-                            const actual1 = row[10];
-                            const freightAmt = parseNum(row[3]);
+                    .map((row: any, i: number) => ({ row, originalIndex: i + 7 }))
+                    .filter(({ row }: any) => row[1] && String(row[1]).trim() !== "")
+                    .map(({ row, originalIndex }: any) => {
+                        const plan1 = row[9];
+                        const actual1 = row[10];
+                        const freightAmt = parseNum(row[3]);
                         const pendingRaw = row[13];
                         const currentPending = (pendingRaw !== undefined && pendingRaw !== "" && pendingRaw !== "-")
                             ? parseNum(pendingRaw)
@@ -375,9 +375,9 @@ export default function Stage14() {
 
     const visiblePendingColumns = useMemo(() => {
         const pendingKeys = ["lrNo", "biltyImage", "freightAmount", "transporter", "vehicleNo", "contact", "advanceAmount", "totalPaid", "pendingAmount", "plan1", "actual1", "invoiceNo", "invoiceCopy"];
-        return COLUMNS.filter(c => pendingKeys.includes(c.key as string) && selectedColumns.includes(c.key)).map(c => 
-            c.key === "plan1" ? { ...c, label: "Planned" } : 
-            c.key === "actual1" ? { ...c, label: "Actual" } : c
+        return COLUMNS.filter(c => pendingKeys.includes(c.key as string) && selectedColumns.includes(c.key)).map(c =>
+            c.key === "plan1" ? { ...c, label: "Planned" } :
+                c.key === "actual1" ? { ...c, label: "Actual" } : c
         );
     }, [selectedColumns]);
 
@@ -389,13 +389,15 @@ export default function Stage14() {
                 <div className="max-w-[1600px] mx-auto">
                     <div className="p-4 md:p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div>
-                            <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
-                                <span className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center shadow-blue-200 shadow-lg">
-                                    <RefreshCw className="w-6 h-6 text-white" />
-                                </span>
-                                Stage 14: Freight Payments
+                            <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-4">
+                                <div className="p-3 bg-slate-900 rounded-lg text-white shadow-xl">
+                                    <Truck className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <span>Stage 13: Freight Payments</span>
+                                    <p className="text-slate-500 text-sm font-normal mt-0.5">Track and process transporter freight payments</p>
+                                </div>
                             </h1>
-                            <p className="text-slate-500 text-sm mt-1 ml-13">Track and process transporter freight payments</p>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
@@ -428,10 +430,10 @@ export default function Stage14() {
                                 </SelectContent>
                             </Select>
 
-                            <Button 
-                                variant="outline" 
+                            <Button
+                                variant="outline"
                                 size="icon"
-                                onClick={fetchData} 
+                                onClick={fetchData}
                                 disabled={isLoading}
                                 className="h-10 w-10 rounded-xl bg-white hover:bg-slate-50 border-slate-200 flex-shrink-0"
                             >
@@ -443,13 +445,13 @@ export default function Stage14() {
                     <div className="px-6 pb-2">
                         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
                             <TabsList className="bg-slate-200/50 p-1 rounded-xl h-11 inline-flex w-auto mb-2">
-                                <TabsTrigger 
-                                    value="pending" 
+                                <TabsTrigger
+                                    value="pending"
                                     className="rounded-lg px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-blue-600 transition-all font-medium"
                                 >
                                     Pending ({filteredPending.length})
                                 </TabsTrigger>
-                                <TabsTrigger 
+                                <TabsTrigger
                                     value="history"
                                     className="rounded-lg px-6 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-blue-600 transition-all font-medium"
                                 >
@@ -512,8 +514,8 @@ export default function Stage14() {
                                                                 c.key === "lrNo" ? "text-slate-900 font-bold" : "text-slate-600",
                                                                 c.key === "pendingAmount" && rec.data[c.key] > 0 ? "text-red-600 font-bold bg-red-50/30" : ""
                                                             )}>
-                                                                {c.key === "pendingAmount" || c.key === "freightAmount" || c.key === "advanceAmount" 
-                                                                    ? `₹ ${parseNum(rec.data[c.key]).toLocaleString()}` 
+                                                                {c.key === "pendingAmount" || c.key === "freightAmount" || c.key === "advanceAmount"
+                                                                    ? `₹ ${parseNum(rec.data[c.key]).toLocaleString()}`
                                                                     : safeValue(rec.data[c.key])}
                                                             </td>
                                                         ))}
@@ -558,10 +560,10 @@ export default function Stage14() {
                                                                 "px-5 py-4 whitespace-nowrap font-medium transition-colors border-b border-slate-100",
                                                                 c.key === "lrNo" ? "text-slate-900 font-bold sticky left-0 z-20 bg-white border-r shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" : "text-slate-600 group-hover:bg-slate-50 transition-colors"
                                                             )}>
-                                                                {c.key === "planned" || c.key === "actual" 
+                                                                {c.key === "planned" || c.key === "actual"
                                                                     ? safeValue((rec as any)[c.key])
                                                                     : c.key === "amountPaid"
-                                                                        ? `₹ ${parseNum((rec as any)[c.key]).toLocaleString()}` 
+                                                                        ? `₹ ${parseNum((rec as any)[c.key]).toLocaleString()}`
                                                                         : safeValue((rec as any)[c.key])}
                                                             </td>
                                                         ))}
