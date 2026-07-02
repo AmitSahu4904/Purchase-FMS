@@ -26,7 +26,7 @@ export default function Sidebar() {
   // Helper to check if a page is allowed
   const isPageAllowed = useCallback((pageName: string) => {
     if (!pageAccess || pageAccess.length === 0) return true; // Show all if no restrictions
-    if (pageName === "Order Cancel") return true; // Always show Order Cancel
+    if (pageName === "Order Cancel" || pageName === "Master") return true; // Always show Order Cancel and Master
     return pageAccess.includes(pageName);
   }, [pageAccess]);
 

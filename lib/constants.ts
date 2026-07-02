@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 
 export const STAGES = [
+    { num: 0, name: "Master", slug: "master", icon: LayoutGrid },
     { num: 1, name: "Create Indent", slug: "create-indent", icon: PlusCircle },
     { num: 2, name: "Indent Approval", slug: "indent-approval", icon: CheckCircle2 },
     { num: 3, name: "Quotation", slug: "quotation", icon: MessagesSquare },

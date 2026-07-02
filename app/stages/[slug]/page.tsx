@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import MasterPage from "@/components/stages/master";
 import CreateIndent from "@/components/stages/create-indent";
 import IndentApproval from "@/components/stages/indent-approval";
 import Quotation from "@/components/stages/quotation";
@@ -15,6 +16,7 @@ import PurchaseReturn from "@/components/stages/purchase-return";
 import OrderCancelPage from "@/components/stages/order-cancel";
 
 const stageComponents: Record<string, React.ComponentType> = {
+    "master": MasterPage,
     "create-indent": CreateIndent,
     "indent-approval": IndentApproval,
     "quotation": Quotation,
@@ -34,7 +36,7 @@ const stageComponents: Record<string, React.ComponentType> = {
 
 export default function StagePage() {
     const params = useParams();
-    const slug = params.slug as string;
+    const slug = (params?.slug || "") as string;
 
     const StageComponent = stageComponents[slug];
 

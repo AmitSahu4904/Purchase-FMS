@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { FileText, Upload, X, Loader2, Search, Eye, Package } from "lucide-react";
+import { FileText, Upload, X, Loader2, Search, Eye, Package, CheckCircle2, AlertCircle, Info, ClipboardList } from "lucide-react";
 import QRCode from "qrcode";
 import { toast } from "sonner";
 import { parseSheetDate, formatDate, getFmsTimestamp } from "@/lib/utils";
@@ -167,9 +167,6 @@ export default function Stage7() {
         index: number;
     }[]>([]);
     const [commonData, setCommonData] = useState({
-        invoiceNumber: "",
-        invoiceDate: "",
-        billAttachment: null as File | null,
         remarks: "",
     });
 
@@ -328,9 +325,6 @@ export default function Stage7() {
         itemName: "",
         liftNumber: "",
         receivedQty: "",
-        invoiceNumber: "",
-        invoiceDate: "",
-        billAttachment: null as File | null,
         receivedItemImage: null as File | null,
         paymentAmountHydra: "",
         paymentAmountLabour: "",
@@ -383,9 +377,6 @@ export default function Stage7() {
         }
         setIsBulkMode(true);
         setCommonData({
-            invoiceNumber: "",
-            invoiceDate: "",
-            billAttachment: null,
             remarks: "",
         });
         const items = selectedRecordIds.map(id => {
@@ -415,14 +406,7 @@ export default function Stage7() {
         const folderId = process.env.NEXT_PUBLIC_IMAGE_FOLDER_ID || "1SihRrPrgbuPGm-09fuB180QJhdxq5Nxy";
         setIsSubmitting(true);
         try {
-            // Upload bill attachment once (shared across all items)
-            const billUrlPromise = commonData.billAttachment
-                ? uploadFileToDrive(commonData.billAttachment, SHEET_API_URL, folderId)
-                : Promise.resolve("");
-
             const timestamp = getFmsTimestamp();
-
-            const billUrl = await billUrlPromise;
 
             // Parallelize processing of all bulk items
             await Promise.all(bulkItems.map(async (item) => {
@@ -440,13 +424,13 @@ export default function Stage7() {
                 const rowArray = new Array(121).fill("");
                 rowArray[20] = timestamp;               // U: Actual6
                 rowArray[22] = "independent";         // W: Invoice Type
-                rowArray[23] = commonData.invoiceDate;  // X
-                rowArray[24] = commonData.invoiceNumber; // Y
+                rowArray[23] = "";                      // X: Invoice Date (removed)
+                rowArray[24] = "";                      // Y: Invoice Number (removed)
                 rowArray[25] = item.receivedQty;        // Z
                 rowArray[26] = itemImgUrl;              // AA
                 rowArray[27] = "";                      // AB: Extra Freight (removed)
                 rowArray[28] = "";                      // AC: QC Required (removed)
-                rowArray[29] = billUrl;                 // AD
+                rowArray[29] = "";                      // AD: Bill Attachment (removed)
                 rowArray[30] = "";                      // AE: Hydra (removed)
                 rowArray[31] = "";                      // AF: Labour (removed)
                 rowArray[32] = "";                      // AG: Hamali (removed)
@@ -483,7 +467,7 @@ export default function Stage7() {
         } finally {
             setIsSubmitting(false);
         }
-    }, [commonData, bulkItems, fetchData, itemCodeMap]);
+    }, [commonData, bulkItems, fetchData]);
 
 
 
@@ -503,9 +487,6 @@ export default function Stage7() {
             itemName: rec.data.itemName || "",
             liftNumber: rec.data.liftNo || "",
             receivedQty: rec.data.liftingQty || "",
-            invoiceNumber: rec.data.invoiceNumber || "",
-            invoiceDate: "",
-            billAttachment: null,
             receivedItemImage: null,
             paymentAmountHydra: "",
             paymentAmountLabour: "",
@@ -541,39 +522,33 @@ export default function Stage7() {
         setIsSubmitting(true);
         try {
             // Parallelize file uploads and QR generation/upload
-            const billPromise = form.billAttachment instanceof File
-                ? uploadFileToDrive(form.billAttachment, SHEET_API_URL, folderId)
-                : Promise.resolve(typeof form.billAttachment === "string" ? form.billAttachment : "");
-
-            const imagePromise = form.receivedItemImage instanceof File
-                ? uploadFileToDrive(form.receivedItemImage, SHEET_API_URL, folderId)
-                : Promise.resolve(typeof form.receivedItemImage === "string" ? form.receivedItemImage : "");
-
-            const [billUrl, imageUrl] = await Promise.all([billPromise, imagePromise]);
+            const imageUrl = form.receivedItemImage instanceof File
+                ? await uploadFileToDrive(form.receivedItemImage, SHEET_API_URL, folderId)
+                : (typeof form.receivedItemImage === "string" ? form.receivedItemImage : "");
 
             const timestamp = getFmsTimestamp();
             const rowArray = new Array(121).fill("");
 
             rowArray[20] = timestamp;               // U: Actual6
             rowArray[22] = "independent";         // W: Invoice Type
-            rowArray[23] = form.invoiceDate;      // X
-            rowArray[24] = form.invoiceNumber;    // Y
+            rowArray[23] = "";                    // X: Invoice Date (removed)
+            rowArray[24] = "";                    // Y: Invoice No (removed)
             rowArray[25] = form.receivedQty;      // Z
             rowArray[26] = imageUrl;              // AA
-            rowArray[27] = "";                      // AB: Extra Freight (removed)
-            rowArray[28] = "";                      // AC: QC Required (removed)
-            rowArray[29] = billUrl;               // AD
-            rowArray[30] = "";                      // AE: Hydra (removed)
-            rowArray[31] = "";                      // AF: Labour (removed)
-            rowArray[32] = "";                      // AG: Hamali (removed)
+            rowArray[27] = "";                    // AB: Extra Freight (removed)
+            rowArray[28] = "";                    // AC: QC Required (removed)
+            rowArray[29] = "";                    // AD: Bill Attachment (removed)
+            rowArray[30] = "";                    // AE: Hydra (removed)
+            rowArray[31] = "";                    // AF: Labour (removed)
+            rowArray[32] = "";                    // AG: Hamali (removed)
             rowArray[33] = form.remarks;          // AH
-            rowArray[99] = "";                     // CV: Pkg Amount (removed)
-            rowArray[100] = "";                    // CW: Pkg GST (removed)
-            rowArray[104] = "";                    // DA: Warranty Claim (removed)
-            rowArray[105] = "";                    // DB: Duration (removed)
-            rowArray[106] = "";                    // DC: Warranty Expiry (removed)
-            rowArray[107] = "";                    // DD: Product Expiry (removed)
-            rowArray[120] = "";                    // DQ: Product Claim (removed)
+            rowArray[99] = "";                    // CV: Pkg Amount (removed)
+            rowArray[100] = "";                   // CW: Pkg GST (removed)
+            rowArray[104] = "";                   // DA: Warranty Claim (removed)
+            rowArray[105] = "";                   // DB: Duration (removed)
+            rowArray[106] = "";                   // DC: Warranty Expiry (removed)
+            rowArray[107] = "";                   // DD: Product Expiry (removed)
+            rowArray[120] = "";                   // DQ: Product Claim (removed)
 
             // Damage Data
             let damageImageUrl = "";
@@ -607,21 +582,13 @@ export default function Stage7() {
         }
     }, [selectedRecordId, recordMap, form, fetchData]);
 
-    const removeFile = useCallback((key: "billAttachment" | "receivedItemImage") => {
+    const removeFile = useCallback((key: "receivedItemImage") => {
         setForm((f) => ({ ...f, [key]: null }));
     }, []);
 
     const formValid = useMemo(() =>
-        form.receivedQty &&
-        form.invoiceNumber &&
-        form.invoiceDate &&
-        form.billAttachment,
-        [
-            form.receivedQty,
-            form.invoiceNumber,
-            form.invoiceDate,
-            form.billAttachment,
-        ]);
+        !!form.receivedQty,
+        [form.receivedQty]);
 
     // Memoized filtered lists – only recompute when records or search change
     const pending = useMemo(() => {
@@ -656,13 +623,15 @@ export default function Stage7() {
                 String(r.data.indentNumber || "").toLowerCase().includes(lower) ||
                 String(r.data.itemName || "").toLowerCase().includes(lower) ||
                 String(r.data.vendorName || "").toLowerCase().includes(lower) ||
-                String(r.data.poNumber || "").toLowerCase().includes(lower) ||
-                String(r.data.invoiceNumber || "").toLowerCase().includes(lower)
+                String(r.data.poNumber || "").toLowerCase().includes(lower)
             );
         });
     }, [sheetRecords, searchTerm, warehouseFilter]);
 
-
+    const activeRec = selectedRecordId ? recordMap.get(selectedRecordId) : null;
+    const singleLiftingQtyVal = parseFloat(String(activeRec?.data?.liftingQty || 0)) || 0;
+    const singleReceivedQtyVal = parseFloat(String(form.receivedQty || 0)) || 0;
+    const singleDifferentQtyVal = singleLiftingQtyVal - singleReceivedQtyVal;
 
     return (
         <div className="p-4 md:p-6 min-h-screen bg-[#f8fafc]">
@@ -1137,345 +1106,356 @@ export default function Stage7() {
 
             {/* ==================== MODAL ==================== */}
             <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent className="max-w-4xl max-h-[95vh] sm:max-h-[90vh] flex flex-col p-6">
-                    <DialogHeader className="flex-shrink-0">
-                        <DialogTitle>
-                            {isBulkMode
-                                ? "Bulk Material Receipt"
-                                : "Record Material Receipt"}
-                        </DialogTitle>
-                        <p></p>
+                <DialogContent className="max-w-4xl max-h-[95vh] sm:max-h-[90vh] flex flex-col p-0 overflow-hidden rounded-2xl border-none shadow-2xl">
+                    <DialogHeader className="flex-shrink-0 bg-slate-900 text-white p-5 flex flex-row items-center gap-3">
+                        <div className="p-2 bg-white/10 rounded-lg">
+                            <Package className="w-5 h-5 text-blue-400" />
+                        </div>
+                        <div className="text-left">
+                            <DialogTitle className="text-lg font-bold text-white leading-none">
+                                {isBulkMode
+                                    ? "Bulk Material Receipt"
+                                    : "Record Material Receipt"}
+                            </DialogTitle>
+                            <p className="text-xs text-slate-300 mt-1.5">
+                                {isBulkMode 
+                                    ? "Reconcile quantities and verify received items in bulk."
+                                    : "Reconcile quantity, record image, and report damage if any."}
+                            </p>
+                        </div>
                     </DialogHeader>
 
                     {isBulkMode ? (
                         /* BULK FORM */
-                        <form onSubmit={handleBulkSubmit} className="flex-1 overflow-y-auto space-y-4 p-4 pb-8 pr-2">
-                            {/* Individual Items Table */}
+                        <form onSubmit={handleBulkSubmit} className="flex-1 overflow-y-auto space-y-6 p-6">
                             <div className="space-y-4">
-                                <h3 className="font-semibold text-lg border-b pb-2">Items ({bulkItems.length})</h3>
-                                <div className="border rounded-lg overflow-x-auto">
+                                <div className="flex items-center gap-2 border-b pb-2">
+                                    <ClipboardList className="w-5 h-5 text-slate-800" />
+                                    <h3 className="font-bold text-sm text-slate-800 uppercase tracking-wider">Items List ({bulkItems.length})</h3>
+                                </div>
+                                <div className="border border-slate-200/80 rounded-xl overflow-hidden shadow-sm bg-white">
                                     <Table>
-                                        <TableHeader className="bg-gray-50">
+                                        <TableHeader className="bg-slate-50">
                                             <TableRow>
-                                                <TableHead className="w-[200px]">Item Details</TableHead>
-                                                <TableHead className="w-[120px]">Received Qty <span className="text-red-500">*</span></TableHead>
-                                                <TableHead className="w-[150px]">Item Image</TableHead>
-                                                <TableHead className="w-[120px]">Damage Received</TableHead>
+                                                <TableHead className="w-[180px] text-xs font-bold text-slate-600">Item Details</TableHead>
+                                                <TableHead className="w-[100px] text-xs font-bold text-slate-600 text-center">Lifting Qty</TableHead>
+                                                <TableHead className="w-[120px] text-xs font-bold text-slate-600 text-center">Received Qty <span className="text-red-500">*</span></TableHead>
+                                                <TableHead className="w-[100px] text-xs font-bold text-slate-600 text-center">Different Qty</TableHead>
+                                                <TableHead className="w-[130px] text-xs font-bold text-slate-600 text-center">Item Image</TableHead>
+                                                <TableHead className="w-[110px] text-xs font-bold text-slate-600 text-center">Damage Received</TableHead>
                                                 {bulkItems.some(i => i.damageReceived === "yes") && (
                                                     <>
-                                                        <TableHead className="w-[100px]">Damaged Qty</TableHead>
-                                                        <TableHead className="w-[150px]">Reason</TableHead>
-                                                        <TableHead className="w-[150px]">Damage Image</TableHead>
+                                                        <TableHead className="w-[90px] text-xs font-bold text-red-700 text-center">Damaged Qty</TableHead>
+                                                        <TableHead className="w-[130px] text-xs font-bold text-red-700 text-center">Reason</TableHead>
+                                                        <TableHead className="w-[130px] text-xs font-bold text-red-700 text-center">Damage Image</TableHead>
                                                     </>
                                                 )}
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {bulkItems.map((item, idx) => (
-                                                <TableRow key={item.recordId}>
-                                                    <TableCell className="text-xs">
-                                                        <div className="font-bold">Ind: {item.indentNumber}</div>
-                                                        <div>Lift: {item.liftNumber}</div>
-                                                        <div className="text-gray-500 truncate max-w-[150px]" title={item.itemName}>{item.itemName}</div>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Input
-                                                            type="number"
-                                                            value={item.receivedQty}
-                                                            onChange={(e) => {
-                                                                const newItems = [...bulkItems];
-                                                                newItems[idx].receivedQty = e.target.value;
-                                                                setBulkItems(newItems);
-                                                            }}
-                                                            className="h-8"
-                                                            required
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <div className="space-y-1">
-                                                            <input
-                                                                id={`bulkItemImage-${idx}`}
-                                                                type="file"
-                                                                accept="image/*"
+                                            {bulkItems.map((item, idx) => {
+                                                const rec = recordMap.get(item.recordId);
+                                                const liftingQtyVal = parseFloat(String(rec?.data?.liftingQty || 0)) || 0;
+                                                const receivedQtyVal = parseFloat(String(item.receivedQty || 0)) || 0;
+                                                const differentQtyVal = liftingQtyVal - receivedQtyVal;
+
+                                                return (
+                                                    <TableRow key={item.recordId} className="hover:bg-slate-50/50 transition-colors">
+                                                        <TableCell className="text-xs">
+                                                            <div className="font-bold text-slate-800">Ind: {item.indentNumber}</div>
+                                                            <div className="text-slate-500 font-medium">Lift: {item.liftNumber}</div>
+                                                            <div className="text-slate-400 truncate max-w-[150px] font-medium" title={item.itemName}>{item.itemName}</div>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Input
+                                                                value={rec?.data?.liftingQty || "0"}
+                                                                readOnly
+                                                                className="bg-slate-50 border-slate-100 h-8 text-xs font-semibold text-slate-600 rounded-md text-center"
+                                                            />
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Input
+                                                                type="number"
+                                                                value={item.receivedQty}
                                                                 onChange={(e) => {
                                                                     const newItems = [...bulkItems];
-                                                                    newItems[idx].receivedItemImage = e.target.files?.[0] || null;
+                                                                    newItems[idx].receivedQty = e.target.value;
                                                                     setBulkItems(newItems);
                                                                 }}
-                                                                className="hidden"
+                                                                className="h-8 text-xs font-semibold border-slate-200 focus:border-blue-500 rounded-md text-center bg-white"
+                                                                required
                                                             />
-                                                            {!item.receivedItemImage ? (
-                                                                <label
-                                                                    htmlFor={`bulkItemImage-${idx}`}
-                                                                    className="flex items-center justify-center h-8 border border-dashed rounded cursor-pointer hover:bg-gray-50 px-2"
-                                                                >
-                                                                    <Upload className="w-3 h-3 mr-1" />
-                                                                    <span className="text-[10px]">Upload</span>
-                                                                </label>
-                                                            ) : (
-                                                                <div className="flex items-center justify-between gap-1 p-1 bg-gray-50 border rounded">
-                                                                    <span className="text-[10px] truncate max-w-[60px]">{item.receivedItemImage.name}</span>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                            const newItems = [...bulkItems];
-                                                                            newItems[idx].receivedItemImage = null;
-                                                                            setBulkItems(newItems);
-                                                                        }}
-                                                                        className="text-red-600"
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Input
+                                                                value={differentQtyVal.toFixed(2)}
+                                                                readOnly
+                                                                className={`h-8 text-xs font-bold rounded-md text-center border transition-colors ${
+                                                                    differentQtyVal === 0
+                                                                        ? "bg-emerald-50/50 text-emerald-700 border-emerald-100"
+                                                                        : differentQtyVal > 0
+                                                                        ? "bg-amber-50/50 text-amber-700 border-amber-100"
+                                                                        : "bg-rose-50/50 text-rose-700 border-rose-100"
+                                                                }`}
+                                                            />
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <div className="space-y-1">
+                                                                <input
+                                                                    id={`bulkItemImage-${idx}`}
+                                                                    type="file"
+                                                                    accept="image/*"
+                                                                    onChange={(e) => {
+                                                                        const newItems = [...bulkItems];
+                                                                        newItems[idx].receivedItemImage = e.target.files?.[0] || null;
+                                                                        setBulkItems(newItems);
+                                                                    }}
+                                                                    className="hidden"
+                                                                />
+                                                                {!item.receivedItemImage ? (
+                                                                    <label
+                                                                        htmlFor={`bulkItemImage-${idx}`}
+                                                                        className="flex items-center justify-center h-8 border border-dashed border-slate-200 rounded-md cursor-pointer hover:border-slate-350 hover:bg-slate-50 transition-colors px-2 text-slate-500 bg-white"
                                                                     >
-                                                                        <X className="w-3 h-3" />
-                                                                    </button>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Select
-                                                            value={item.damageReceived}
-                                                            onValueChange={(v) => {
-                                                                const newItems = [...bulkItems];
-                                                                newItems[idx].damageReceived = v;
-                                                                if (v === "no") {
-                                                                    newItems[idx].damagedQty = "";
-                                                                    newItems[idx].damageReason = "";
-                                                                    newItems[idx].damageImage = null;
-                                                                }
-                                                                setBulkItems(newItems);
-                                                            }}
-                                                        >
-                                                            <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value="yes">Yes</SelectItem>
-                                                                <SelectItem value="no">No</SelectItem>
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </TableCell>
-                                                    {bulkItems.some(i => i.damageReceived === "yes") && (
-                                                        <>
-                                                            <TableCell>
-                                                                {item.damageReceived === "yes" ? (
-                                                                    <Input
-                                                                        type="number"
-                                                                        value={item.damagedQty}
-                                                                        onChange={(e) => {
-                                                                            const newItems = [...bulkItems];
-                                                                            newItems[idx].damagedQty = e.target.value;
-                                                                            setBulkItems(newItems);
-                                                                        }}
-                                                                        className="h-8"
-                                                                        placeholder="Qty"
-                                                                    />
-                                                                ) : "-"}
-                                                            </TableCell>
-                                                            <TableCell>
-                                                                {item.damageReceived === "yes" ? (
-                                                                    <Input
-                                                                        value={item.damageReason}
-                                                                        onChange={(e) => {
-                                                                            const newItems = [...bulkItems];
-                                                                            newItems[idx].damageReason = e.target.value;
-                                                                            setBulkItems(newItems);
-                                                                        }}
-                                                                        className="h-8"
-                                                                        placeholder="Reason"
-                                                                    />
-                                                                ) : "-"}
-                                                            </TableCell>
-                                                            <TableCell>
-                                                                {item.damageReceived === "yes" ? (
-                                                                    <div className="space-y-1">
-                                                                        <input
-                                                                            id={`bulkDamageImage-${idx}`}
-                                                                            type="file"
-                                                                            accept="image/*"
-                                                                            onChange={(e) => {
+                                                                        <Upload className="w-3.5 h-3.5 mr-1 text-slate-400" />
+                                                                        <span className="text-[10px] font-semibold">Upload</span>
+                                                                    </label>
+                                                                ) : (
+                                                                    <div className="flex items-center justify-between gap-1.5 p-1 bg-slate-50 border border-slate-100 rounded-md">
+                                                                        <span className="text-[9px] font-medium text-slate-600 truncate max-w-[60px]">{item.receivedItemImage.name}</span>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
                                                                                 const newItems = [...bulkItems];
-                                                                                newItems[idx].damageImage = e.target.files?.[0] || null;
+                                                                                newItems[idx].receivedItemImage = null;
                                                                                 setBulkItems(newItems);
                                                                             }}
-                                                                            className="hidden"
-                                                                        />
-                                                                        {!item.damageImage ? (
-                                                                            <label
-                                                                                htmlFor={`bulkDamageImage-${idx}`}
-                                                                                className="flex items-center justify-center h-8 border border-dashed rounded cursor-pointer hover:bg-gray-50 px-2"
-                                                                            >
-                                                                                <Upload className="w-3 h-3 mr-1" />
-                                                                                <span className="text-[10px]">Upload</span>
-                                                                            </label>
-                                                                        ) : (
-                                                                            <div className="flex items-center justify-between gap-1 p-1 bg-gray-50 border rounded">
-                                                                                <span className="text-[10px] truncate max-w-[60px]">{item.damageImage.name}</span>
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => {
-                                                                                        const newItems = [...bulkItems];
-                                                                                        newItems[idx].damageImage = null;
-                                                                                        setBulkItems(newItems);
-                                                                                    }}
-                                                                                    className="text-red-600"
-                                                                                >
-                                                                                    <X className="w-3 h-3" />
-                                                                                </button>
-                                                                            </div>
-                                                                        )}
+                                                                            className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-0.5 rounded transition-colors"
+                                                                        >
+                                                                            <X className="w-3 h-3" />
+                                                                        </button>
                                                                     </div>
-                                                                ) : "-"}
-                                                            </TableCell>
-                                                        </>
-                                                    )}
-                                                </TableRow>
-                                            ))}
+                                                                )}
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Select
+                                                                value={item.damageReceived}
+                                                                onValueChange={(v) => {
+                                                                    const newItems = [...bulkItems];
+                                                                    newItems[idx].damageReceived = v;
+                                                                    if (v === "no") {
+                                                                        newItems[idx].damagedQty = "";
+                                                                        newItems[idx].damageReason = "";
+                                                                        newItems[idx].damageImage = null;
+                                                                    }
+                                                                    setBulkItems(newItems);
+                                                                }}
+                                                            >
+                                                                <SelectTrigger className="h-8 text-xs rounded-md bg-white border-slate-200 shadow-sm"><SelectValue /></SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="yes" className="text-red-650 font-semibold">Yes</SelectItem>
+                                                                    <SelectItem value="no">No</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </TableCell>
+                                                        {bulkItems.some(i => i.damageReceived === "yes") && (
+                                                            <>
+                                                                <TableCell>
+                                                                    {item.damageReceived === "yes" ? (
+                                                                        <Input
+                                                                            type="number"
+                                                                            value={item.damagedQty}
+                                                                            onChange={(e) => {
+                                                                                const newItems = [...bulkItems];
+                                                                                newItems[idx].damagedQty = e.target.value;
+                                                                                setBulkItems(newItems);
+                                                                            }}
+                                                                            className="h-8 text-xs font-semibold border-red-200 focus:border-red-500 rounded-md text-center text-red-900 bg-red-50/10"
+                                                                            placeholder="Qty"
+                                                                            required
+                                                                        />
+                                                                    ) : (
+                                                                        <div className="text-center text-slate-300">—</div>
+                                                                    )}
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    {item.damageReceived === "yes" ? (
+                                                                        <Input
+                                                                            value={item.damageReason}
+                                                                            onChange={(e) => {
+                                                                                const newItems = [...bulkItems];
+                                                                                newItems[idx].damageReason = e.target.value;
+                                                                                setBulkItems(newItems);
+                                                                            }}
+                                                                            className="h-8 text-xs border-red-200 focus:border-red-500 rounded-md text-red-900 bg-red-50/10"
+                                                                            placeholder="Reason"
+                                                                            required
+                                                                        />
+                                                                    ) : (
+                                                                        <div className="text-center text-slate-300">—</div>
+                                                                    )}
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    {item.damageReceived === "yes" ? (
+                                                                        <div className="space-y-1">
+                                                                            <input
+                                                                                id={`bulkDamageImage-${idx}`}
+                                                                                type="file"
+                                                                                accept="image/*"
+                                                                                onChange={(e) => {
+                                                                                    const newItems = [...bulkItems];
+                                                                                    newItems[idx].damageImage = e.target.files?.[0] || null;
+                                                                                    setBulkItems(newItems);
+                                                                                }}
+                                                                                className="hidden"
+                                                                            />
+                                                                            {!item.damageImage ? (
+                                                                                <label
+                                                                                    htmlFor={`bulkDamageImage-${idx}`}
+                                                                                    className="flex items-center justify-center h-8 border border-dashed border-red-200 rounded-md cursor-pointer hover:border-red-350 hover:bg-red-50/30 transition-colors px-2 text-red-700 bg-white"
+                                                                                >
+                                                                                    <Upload className="w-3.5 h-3.5 mr-1 text-red-500" />
+                                                                                    <span className="text-[10px] font-semibold">Upload</span>
+                                                                                </label>
+                                                                            ) : (
+                                                                                <div className="flex items-center justify-between gap-1.5 p-1 bg-red-50/50 border border-red-100 rounded-md">
+                                                                                    <span className="text-[9px] font-medium text-red-800 truncate max-w-[60px]">{item.damageImage.name}</span>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => {
+                                                                                            const newItems = [...bulkItems];
+                                                                                            newItems[idx].damageImage = null;
+                                                                                            setBulkItems(newItems);
+                                                                                        }}
+                                                                                        className="text-red-500 hover:bg-red-100 p-0.5 rounded transition-colors"
+                                                                                    >
+                                                                                        <X className="w-3 h-3" />
+                                                                                    </button>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="text-center text-slate-300">—</div>
+                                                                    )}
+                                                                </TableCell>
+                                                            </>
+                                                        )}
+                                                    </TableRow>
+                                                );
+                                            })}
                                         </TableBody>
                                     </Table>
                                 </div>
                             </div>
 
-                            {/* Common Details */}
-                            <div className="bg-gray-50 p-4 rounded-lg space-y-4">
-                                <h3 className="font-semibold text-lg border-b pb-2">Common Details</h3>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-1.5">
-                                        <Label>Invoice Date <span className="text-red-500">*</span></Label>
-                                        <Input
-                                            type="date"
-                                            value={commonData.invoiceDate}
-                                            onChange={(e) => setCommonData({ ...commonData, invoiceDate: e.target.value })}
-                                            required
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label>Invoice No. <span className="text-red-500">*</span></Label>
-                                        <Input
-                                            value={commonData.invoiceNumber}
-                                            onChange={(e) => setCommonData({ ...commonData, invoiceNumber: e.target.value })}
-                                            required
-                                        />
-                                    </div>
-
-                                    <div className="space-y-1.5 col-span-2">
-                                        <Label>Bill Attachment <span className="text-red-500">*</span></Label>
-                                        <input
-                                            id="bulkBillAttachment"
-                                            type="file"
-                                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                                            onChange={(e) => setCommonData({ ...commonData, billAttachment: e.target.files?.[0] || null })}
-                                            className="hidden"
-                                        />
-                                        <label
-                                            htmlFor="bulkBillAttachment"
-                                            className="flex items-center justify-center w-full p-2 border-2 border-dashed border-gray-200 hover:border-gray-300 hover:bg-slate-50 rounded-lg cursor-pointer transition-all h-[80px]"
-                                        >
-                                            <Upload className="w-4 h-4 text-gray-400 mr-2" />
-                                            <span className="text-xs text-gray-500 font-medium">Upload Bill</span>
-                                        </label>
-                                        {commonData.billAttachment && (
-                                            <div className="mt-2 p-2 bg-gray-50 border rounded flex items-center justify-between">
-                                                <div className="flex items-center">
-                                                    <FileText className="w-4 h-4 text-gray-500 mr-2" />
-                                                    <span className="text-sm text-gray-700">
-                                                        {commonData.billAttachment.name}
-                                                    </span>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setCommonData(prev => ({ ...prev, billAttachment: null }))}
-                                                    className="text-red-600 hover:text-red-800"
-                                                >
-                                                    <X className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="space-y-1.5">
-                                    <Label>Remarks</Label>
-                                    <textarea
-                                        value={commonData.remarks}
-                                        onChange={(e) => setCommonData({ ...commonData, remarks: e.target.value })}
-                                        className="w-full min-h-24 px-3 py-2 border border-gray-300 rounded resize-none"
-                                        rows={3}
-                                    />
-                                </div>
+                            {/* Remarks */}
+                            <div className="space-y-2 p-5 bg-slate-50 border border-slate-200/60 rounded-xl shadow-sm">
+                                <Label className="text-xs text-slate-650 font-bold uppercase tracking-wider">Internal Remarks</Label>
+                                <textarea
+                                    value={commonData.remarks}
+                                    onChange={(e) => setCommonData({ ...commonData, remarks: e.target.value })}
+                                    className="w-full min-h-24 px-3 py-2 border border-slate-250 rounded-xl focus:border-blue-500 focus:ring-blue-500 resize-none text-sm placeholder:text-slate-400 bg-white shadow-sm"
+                                    placeholder="Add any internal remarks or special instructions common to this bulk receipt..."
+                                    rows={3}
+                                />
                             </div>
                         </form>
-                    ) : (
+                       ) : (
                         /* SINGLE FORM (Existing) */
                         <form
                             onSubmit={handleSubmit}
-                            className="flex-1 overflow-y-auto space-y-4 p-4 pb-8 pr-2"
+                            className="flex-1 overflow-y-auto space-y-6 p-6 pb-8"
                         >
-                            <div className="grid grid-cols-4 gap-3">
-                                <div className="space-y-1.5 col-span-2">
-                                    <Label>Item Name</Label>
-                                    <Input
-                                        value={form.itemName}
-                                        readOnly
-                                        className="bg-gray-50 border-blue-200"
-                                    />
+                            {/* Card 1: Item Information */}
+                            <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 shadow-sm flex items-start gap-3 border-l-4 border-l-blue-600">
+                                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                                    <ClipboardList className="w-5 h-5" />
                                 </div>
-                                <div className="space-y-1.5">
-                                    <Label>Unit Tracking No.</Label>
-                                    <Input
-                                        value={form.liftNumber}
-                                        readOnly
-                                        className="bg-gray-50"
-                                    />
-                                </div>
-                                <div className="space-y-1.5">
-                                    <Label>
-                                        Received Qty <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Input
-                                        type="number"
-                                        value={form.receivedQty}
-                                        onChange={(e) =>
-                                            setForm({ ...form, receivedQty: e.target.value })
-                                        }
-                                        required
-                                        placeholder="0"
-                                    />
+                                <div className="flex-1 grid grid-cols-4 gap-4">
+                                    <div className="col-span-2 space-y-1">
+                                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Item Name</span>
+                                        <p className="text-sm font-semibold text-slate-800 truncate" title={form.itemName}>
+                                            {form.itemName || "—"}
+                                        </p>
+                                    </div>
+                                    <div className="col-span-2 space-y-1">
+                                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Unit Tracking No.</span>
+                                        <p className="text-sm font-mono font-medium text-slate-700 bg-white border border-slate-100 rounded px-2 py-0.5 w-fit">
+                                            {form.liftNumber || "—"}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="space-y-1.5">
-                                    <Label>
-                                        Invoice Date <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Input
-                                        type="date"
-                                        value={form.invoiceDate}
-                                        onChange={(e) =>
-                                            setForm({ ...form, invoiceDate: e.target.value })
-                                        }
-                                        required
-                                    />
+                            {/* Card 2: Quantity Reconciliation */}
+                            <div className="bg-white border border-slate-200/80 rounded-xl p-5 shadow-sm space-y-4">
+                                <div className="flex items-center gap-2 border-b pb-2">
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                    <h4 className="text-xs font-bold text-slate-805 uppercase tracking-wider">Quantity Reconciliation</h4>
                                 </div>
-
-                                <div className="space-y-1.5">
-                                    <Label>
-                                        Invoice No. <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Input
-                                        value={form.invoiceNumber}
-                                        onChange={(e) =>
-                                            setForm({ ...form, invoiceNumber: e.target.value })
-                                        }
-                                        required
-                                        placeholder="Invoice #"
-                                    />
-                                </div>
-                            </div>
-
-
-
-                            <div className="space-y-3">
-                                <div className="grid grid-cols-3 gap-3">
+                                
+                                <div className="grid grid-cols-3 gap-4">
                                     <div className="space-y-1.5">
-                                        <Label>Damage Received</Label>
+                                        <Label className="text-xs text-slate-500 font-medium">Lifting Qty (Dispatched)</Label>
+                                        <Input
+                                            value={activeRec?.data?.liftingQty || "0"}
+                                            readOnly
+                                            className="bg-slate-50 border-slate-200 font-semibold text-slate-655 h-10"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs text-slate-600 font-semibold flex items-center gap-1">
+                                            Received Qty <span className="text-red-500">*</span>
+                                        </Label>
+                                        <Input
+                                            type="number"
+                                            value={form.receivedQty}
+                                            onChange={(e) =>
+                                                setForm({ ...form, receivedQty: e.target.value })
+                                            }
+                                            required
+                                            placeholder="0"
+                                            className="border-slate-300 focus:border-blue-500 focus:ring-blue-500 font-semibold text-slate-900 h-10 shadow-sm rounded-lg"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs text-slate-500 font-medium">Difference Qty</Label>
+                                        <div className="relative">
+                                            <Input
+                                                value={singleDifferentQtyVal.toFixed(2)}
+                                                readOnly
+                                                className={`font-bold h-10 transition-colors rounded-lg ${
+                                                    singleDifferentQtyVal === 0
+                                                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                                        : singleDifferentQtyVal > 0
+                                                        ? "bg-amber-50 text-amber-700 border-amber-200"
+                                                        : "bg-rose-50 text-rose-700 border-rose-200"
+                                                }`}
+                                            />
+                                            {singleDifferentQtyVal !== 0 && (
+                                                <span className="absolute right-2.5 top-3 flex h-2 w-2">
+                                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Card 3: Damage Assessment */}
+                            <div className={`border rounded-xl p-5 shadow-sm transition-all duration-300 space-y-4 ${
+                                form.damageReceived === "yes" 
+                                    ? "bg-red-55/10 border-red-200" 
+                                    : "bg-white border-slate-200/80"
+                            }`}>
+                                <div className="flex items-center justify-between border-b pb-2">
+                                    <div className="flex items-center gap-2">
+                                        <AlertCircle className={`w-4 h-4 ${form.damageReceived === "yes" ? "text-red-650" : "text-slate-500"}`} />
+                                        <h4 className="text-xs font-bold text-slate-805 uppercase tracking-wider">Damage Assessment</h4>
+                                    </div>
+                                    <div className="w-[140px]">
                                         <Select
                                             value={form.damageReceived}
                                             onValueChange={(v) => {
@@ -1488,70 +1468,73 @@ export default function Stage7() {
                                                 setForm(newForm);
                                             }}
                                         >
-                                            <SelectTrigger className="w-full">
-                                                <SelectValue placeholder="Select..." />
+                                            <SelectTrigger className="w-full h-9 bg-white border-slate-200 shadow-sm text-xs rounded-lg">
+                                                <SelectValue placeholder="Damage?" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="yes">Yes</SelectItem>
-                                                <SelectItem value="no">No</SelectItem>
+                                                <SelectItem value="yes" className="text-red-600 font-medium">Yes, Damaged</SelectItem>
+                                                <SelectItem value="no">No Damage</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
                                 </div>
+
+                                {form.damageReceived === "yes" && (
+                                    <div className="grid grid-cols-3 gap-4 pt-2">
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs text-red-900 font-semibold">Damaged Qty <span className="text-red-500">*</span></Label>
+                                            <Input
+                                                type="number"
+                                                value={form.damagedQty}
+                                                onChange={(e) => setForm({ ...form, damagedQty: e.target.value })}
+                                                placeholder="0"
+                                                className="bg-white border-red-200 focus:border-red-500 focus:ring-red-500 h-10 shadow-sm text-red-900 font-semibold rounded-lg"
+                                                required
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs text-red-900 font-semibold">Reason <span className="text-red-500">*</span></Label>
+                                            <Input
+                                                value={form.damageReason}
+                                                onChange={(e) => setForm({ ...form, damageReason: e.target.value })}
+                                                placeholder="Describe damage..."
+                                                className="bg-white border-red-200 focus:border-red-500 focus:ring-red-500 h-10 shadow-sm text-red-900 text-sm rounded-lg"
+                                                required
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs text-red-900 font-semibold font-medium">Damage Image</Label>
+                                            <input
+                                                id="damageImage"
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={(e) => setForm({ ...form, damageImage: e.target.files?.[0] || null })}
+                                                className="hidden"
+                                            />
+                                            <label
+                                                htmlFor="damageImage"
+                                                className="flex items-center justify-center w-full h-10 border border-dashed border-red-300 rounded-lg cursor-pointer bg-white hover:bg-red-50/50 text-red-700 transition-colors shadow-sm"
+                                            >
+                                                <Upload className="w-4 h-4 mr-2 text-red-500" />
+                                                <span className="text-xs font-semibold">Upload Image</span>
+                                            </label>
+                                            {form.damageImage && (
+                                                <div className="mt-1.5 flex items-center justify-between text-[11px] text-red-800 bg-white/95 px-2 py-1 rounded border border-red-100 shadow-sm">
+                                                    <span className="truncate max-w-[120px] font-medium">{form.damageImage.name}</span>
+                                                    <button type="button" onClick={() => setForm({ ...form, damageImage: null })} className="hover:bg-red-100 p-0.5 rounded text-red-600 transition-colors">
+                                                        <X className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
-                            {form.damageReceived === "yes" && (
-                                <div className="grid grid-cols-3 gap-3 bg-red-50/50 p-3 rounded-lg border border-red-100">
-                                    <div className="space-y-1.5">
-                                        <Label className="text-red-900 font-medium">Damaged Qty</Label>
-                                        <Input
-                                            type="number"
-                                            value={form.damagedQty}
-                                            onChange={(e) => setForm({ ...form, damagedQty: e.target.value })}
-                                            placeholder="0"
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label className="text-red-900 font-medium">Reason</Label>
-                                        <Input
-                                            value={form.damageReason}
-                                            onChange={(e) => setForm({ ...form, damageReason: e.target.value })}
-                                            placeholder="Why is it damaged?"
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label className="text-red-900 font-medium">Damage Image</Label>
-                                        <input
-                                            id="damageImage"
-                                            type="file"
-                                            accept="image/*"
-                                            onChange={(e) => setForm({ ...form, damageImage: e.target.files?.[0] || null })}
-                                            className="hidden"
-                                        />
-                                        <label
-                                            htmlFor="damageImage"
-                                            className="flex items-center justify-center w-full h-10 border border-dashed border-red-300 rounded cursor-pointer hover:bg-red-100"
-                                        >
-                                            <Upload className="w-4 h-4 mr-2 text-red-500" />
-                                            <span className="text-sm">Upload</span>
-                                        </label>
-                                        {form.damageImage && (
-                                            <div className="mt-1 flex items-center justify-between text-xs text-red-700">
-                                                <span className="truncate">{form.damageImage.name}</span>
-                                                <button type="button" onClick={() => setForm({ ...form, damageImage: null })}>
-                                                    <X className="w-3 h-3" />
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Media Row */}
-                            <div className="grid grid-cols-2 gap-3">
-                                {/* Received Item Image */}
-                                <div className="space-y-1.5">
-                                    <Label>Received Item Image</Label>
+                            {/* Card 4: Documentation & Remarks */}
+                            <div className="bg-white border border-slate-200/80 rounded-xl p-5 shadow-sm grid grid-cols-2 gap-4">
+                                <div className="space-y-2 col-span-1">
+                                    <Label className="text-xs text-slate-600 font-semibold">Received Item Image</Label>
                                     <input
                                         id="receivedItemImage"
                                         type="file"
@@ -1566,23 +1549,24 @@ export default function Stage7() {
                                     />
                                     <label
                                         htmlFor="receivedItemImage"
-                                        className="flex items-center justify-center w-full p-2 border-2 border-dashed border-gray-200 hover:border-gray-300 hover:bg-slate-50 rounded-lg cursor-pointer transition-all h-[80px]"
+                                        className="flex flex-col items-center justify-center w-full p-4 border-2 border-dashed border-slate-200 hover:border-slate-300 hover:bg-slate-50/50 rounded-xl cursor-pointer transition-all h-[96px] text-center"
                                     >
-                                        <Upload className="w-4 h-4 text-gray-400 mr-2" />
-                                        <span className="text-xs text-gray-500 font-medium">Upload Image</span>
+                                        <Upload className="w-5 h-5 text-slate-400 mb-1" />
+                                        <span className="text-[11px] text-slate-600 font-bold">Drop item image here or click</span>
+                                        <span className="text-[9px] text-slate-400">JPG, PNG (max. 5MB)</span>
                                     </label>
                                     {form.receivedItemImage && (
-                                        <div className="mt-2 p-2 bg-gray-50 border rounded flex items-center justify-between">
-                                            <div className="flex items-center">
-                                                <FileText className="w-4 h-4 text-gray-500 mr-2" />
-                                                <span className="text-sm text-gray-700">
+                                        <div className="mt-2 px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-lg flex items-center justify-between shadow-sm">
+                                            <div className="flex items-center min-w-0 mr-2">
+                                                <FileText className="w-4 h-4 text-slate-500 mr-2 flex-shrink-0" />
+                                                <span className="text-xs text-slate-700 font-medium truncate">
                                                     {form.receivedItemImage.name}
                                                 </span>
                                             </div>
                                             <button
                                                 type="button"
                                                 onClick={() => removeFile("receivedItemImage")}
-                                                className="text-red-600 hover:text-red-800"
+                                                className="text-slate-400 hover:text-red-650 hover:bg-red-50 p-1 rounded-md transition-colors"
                                             >
                                                 <X className="w-4 h-4" />
                                             </button>
@@ -1590,67 +1574,27 @@ export default function Stage7() {
                                     )}
                                 </div>
 
-                                {/* Bill Attachment */}
-                                <div className="space-y-1.5">
-                                    <Label>Bill Attachment <span className="text-red-500">*</span></Label>
-                                    <input
-                                        id="billAttachment"
-                                        type="file"
-                                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                                        onChange={(e) =>
-                                            setForm({
-                                                ...form,
-                                                billAttachment: e.target.files?.[0] ?? null,
-                                            })
-                                        }
-                                        className="hidden"
+                                <div className="space-y-2 col-span-1">
+                                    <Label className="text-xs text-slate-600 font-semibold">Remarks</Label>
+                                    <textarea
+                                        value={form.remarks}
+                                        onChange={(e) => setForm({ ...form, remarks: e.target.value })}
+                                        className="w-full h-[96px] px-3 py-2 text-sm border border-slate-250 rounded-xl focus:border-blue-500 focus:ring-blue-500 resize-none placeholder:text-slate-400 shadow-sm"
+                                        placeholder="Add any internal receiving notes or comments..."
+                                        rows={3}
                                     />
-                                    <label
-                                        htmlFor="billAttachment"
-                                        className="flex items-center justify-center w-full p-2 border-2 border-dashed border-gray-200 hover:border-gray-300 hover:bg-slate-50 rounded-lg cursor-pointer transition-all h-[80px]"
-                                    >
-                                        <Upload className="w-4 h-4 text-gray-400 mr-2" />
-                                        <span className="text-xs text-gray-500 font-medium">Upload Bill</span>
-                                    </label>
-                                    {form.billAttachment && (
-                                        <div className="mt-2 p-2 bg-gray-50 border rounded flex items-center justify-between">
-                                            <div className="flex items-center">
-                                                <FileText className="w-4 h-4 text-gray-500 mr-2" />
-                                                <span className="text-sm text-gray-700">
-                                                    {form.billAttachment.name}
-                                                </span>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => removeFile("billAttachment")}
-                                                className="text-red-600 hover:text-red-800"
-                                            >
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    )}
                                 </div>
-                            </div>
-
-                            {/* Remarks */}
-                            <div className="space-y-1.5">
-                                <Label>Remarks</Label>
-                                <textarea
-                                    value={form.remarks}
-                                    onChange={(e) => setForm({ ...form, remarks: e.target.value })}
-                                    className="w-full min-h-24 px-3 py-2 border border-gray-300 rounded resize-none"
-                                    rows={3}
-                                />
                             </div>
                         </form>
                     )}
 
-                    <DialogFooter className="flex-shrink-0 border-t pt-4 flex sm:justify-end items-center gap-2">
+                    <DialogFooter className="flex-shrink-0 border-t p-4 bg-slate-50 flex sm:justify-end items-center gap-2">
                         <Button
                             type="button"
                             variant="outline"
                             onClick={() => setOpen(false)}
                             disabled={isSubmitting}
+                            className="h-10 px-5 rounded-xl border-slate-200 hover:bg-slate-100 text-slate-700 transition-all font-semibold"
                         >
                             Cancel
                         </Button>
@@ -1659,14 +1603,10 @@ export default function Stage7() {
                             disabled={
                                 isSubmitting ||
                                 (isBulkMode
-                                    ? !(
-                                        commonData.invoiceDate &&
-                                        commonData.invoiceNumber &&
-                                        commonData.billAttachment &&
-                                        bulkItems.every((item) => item.receivedQty)
-                                    )
+                                    ? !bulkItems.every((item) => item.receivedQty)
                                     : !formValid)
                             }
+                            className="h-10 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/20 transition-all font-semibold"
                         >
                             {isSubmitting ? (
                                 <>
