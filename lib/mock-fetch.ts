@@ -336,11 +336,12 @@ if (typeof window !== "undefined") {
   window.fetch = async function (input, init) {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
 
-    // Intercept Google Sheets API script calls or fall back if env variable is missing
+    // Intercept Google Sheets API script calls, local sheets API routes, or fall back if env variable is missing
     const isGoogleScript = url && (url.includes("script.google.com") || url.includes("script.googleusercontent.com"));
+    const isLocalMock = url && (url.includes("/api/sheets") || url.startsWith("api/sheets") || url.includes("undefined?sheet="));
     const isEnvMissing = !process.env.NEXT_PUBLIC_API_URI;
 
-    if (url && (isGoogleScript || isEnvMissing)) {
+    if (url && (isGoogleScript || isLocalMock || isEnvMissing)) {
       try {
         const urlObj = new URL(url, window.location.origin);
         const method = (init?.method || "GET").toUpperCase();
