@@ -64,7 +64,7 @@ export default function Sidebar() {
         fetchPromises["RECEIVING-ACCOUNTS"] = fetch(`${SHEET_API_URL}?sheet=RECEIVING-ACCOUNTS&action=getAll`).then(r => r.json());
       }
       if (needsPartialQc) {
-        fetchPromises["Partial QC"] = fetch(`${SHEET_API_URL}?sheet=${encodeURIComponent("Partial QC")}&action=getAll`).then(r => r.json());
+        fetchPromises["Material-Testing"] = fetch(`${SHEET_API_URL}?sheet=${encodeURIComponent("Material-Testing")}&action=getAll`).then(r => r.json());
       }
       if (needsVendorPayments) {
         fetchPromises["VENDOR-PAYMENTS"] = fetch(`${SHEET_API_URL}?sheet=VENDOR-PAYMENTS&action=getAll`).then(r => r.json());
@@ -106,7 +106,6 @@ export default function Sidebar() {
       const indentLiftRows = sheetData["INDENT-LIFT"];
       if (indentLiftRows && Array.isArray(indentLiftRows)) {
         const dataRows = indentLiftRows.slice(6);
-        let createIndentCount = 0;
         let indentApprovalCount = 0;
         let quotationCount = 0;
         let approvedVendorCount = 0;
@@ -117,15 +116,7 @@ export default function Sidebar() {
         dataRows.forEach((row) => {
           if (!row || !row[1] || String(row[1]).trim() === "") return;
 
-          const isApproved = !!row[13] &&
-            String(row[13]).trim() !== "" &&
-            String(row[13]).trim() !== "-" &&
-            String(row[13]).trim().toLowerCase() !== "pending";
-          if (!isApproved) {
-            createIndentCount++;
-          }
-
-          if (has(row, 9) && missing(row, 10)) {
+          if (missing(row, 10)) {
             indentApprovalCount++;
           }
 
@@ -150,7 +141,6 @@ export default function Sidebar() {
           }
         });
 
-        newCounts["Create Indent"] = createIndentCount;
         newCounts["Indent Approval"] = indentApprovalCount;
         newCounts["Quotation"] = quotationCount;
         newCounts["Approved Vendor"] = approvedVendorCount;
@@ -188,18 +178,26 @@ export default function Sidebar() {
         newCounts["Billing"] = tallyEntryCount;
       }
 
-      // 3. Partial QC dependent counts
-      const partialQcRows = sheetData["Partial QC"];
-      if (partialQcRows && Array.isArray(partialQcRows)) {
-        const dataRows = partialQcRows.slice(7);
+      // 3. Material-Testing dependent counts
+      const materialTestingRows = sheetData["Material-Testing"];
+      if (materialTestingRows && Array.isArray(materialTestingRows)) {
+        const dataRows = materialTestingRows.slice(6);
         let purchaseReturnCount = 0;
 
         dataRows.forEach((row) => {
-          if (!row || !row[1] || String(row[1]).trim() === "") return;
+          const timestamp = String(row[0] || "").trim();
+          const indentNo = String(row[1] || "").trim();
+          const liftNo = String(row[2] || "").trim();
 
-          const isRejected = String(row[5] || "").toLowerCase() === "rejected";
-          const isReturn = String(row[12] || "").toLowerCase().includes("return");
-          if (isRejected && isReturn && has(row, 13) && missing(row, 14)) {
+          if (!timestamp || !indentNo || !liftNo) return;
+
+          const plan7 = String(row[14] || "").trim(); // O: Planned7
+          const actual7 = String(row[15] || "").trim(); // P: Actual7
+
+          const hasPlan = plan7 && plan7 !== "-" && plan7 !== "#VALUE#";
+          const hasActual = actual7 && actual7 !== "-" && actual7 !== "#VALUE#";
+
+          if (hasPlan && !hasActual) {
             purchaseReturnCount++;
           }
         });
@@ -261,8 +259,6 @@ export default function Sidebar() {
 
         newCounts["Freight Payments"] = freightPaymentsCount;
       }
-
-
 
       setCounts(newCounts);
     } catch (e) {
@@ -329,7 +325,7 @@ export default function Sidebar() {
             {filteredStages.map((stage) => {
               const stagePath = `/stages/${stage.slug}`;
               const Icon = stage.icon;
-              const count = counts[stage.name] || 0;
+              const count = stage.name === "Create Indent" ? 0 : (counts[stage.name] || 0);
               return (
                 <Button
                   key={stage.num}
