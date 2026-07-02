@@ -77,7 +77,7 @@ const purchaseStages = [
   { id: 4, name: "Approved Vendor", color: "bg-cyan-500" },
   { id: 5, name: "Make PO", color: "bg-teal-500" },
   { id: 6, name: "Payment", color: "bg-blue-500" },
-  { id: 7, name: "Lifting", color: "bg-emerald-500" },
+  { id: 7, name: "Follow UP / Lifting", color: "bg-emerald-500" },
   { id: 8, name: "Transporter Follow-Up", color: "bg-green-500" },
   { id: 9, name: "Material Received", color: "bg-lime-500" },
   { id: 10, name: "Billing", color: "bg-orange-500" },
@@ -315,7 +315,7 @@ export default function PurchaseDashboard() {
           setOverviewItems(parsedOverviewItems);
 
           // Calculate Pending Items by Stage (Only PO Stages)
-          const poStages = ["Indent Approval", "Quotation", "Approved Vendor", "Make PO", "Payment", "Lifting"];
+          const poStages = ["Indent Approval", "Quotation", "Approved Vendor", "Make PO", "Payment", "Follow UP / Lifting"];
           const counts: Record<string, number> = {};
           const overdueCounts: Record<string, number> = {};
           poStages.forEach(name => {
@@ -350,7 +350,7 @@ export default function PurchaseDashboard() {
               check("Approved Vendor", 46, 51, 46);
               check("Make PO", 51, 52, 53);
               check("Payment", 72, 73, 72);
-              check("Lifting", 60, 61, 62);
+              check("Follow UP / Lifting", 60, 61, 62);
             }
           }
 
@@ -906,7 +906,7 @@ export default function PurchaseDashboard() {
                 party = r[3] || "-";
               }
 
-              const qty = (name === "Make PO" || name === "Payment" || name === "Lifting" || name === "Approved Vendor" || name === "Quotation") ? (r[14] || r[5] || "-") : (r[5] || "-");
+              const qty = (name === "Make PO" || name === "Payment" || name === "Follow UP / Lifting" || name === "Approved Vendor" || name === "Quotation") ? (r[14] || r[5] || "-") : (r[5] || "-");
 
               detailed.push({
                 indent: r[1] || "-",
@@ -932,8 +932,8 @@ export default function PurchaseDashboard() {
         const fuvRawPo = String(r[54] || "").trim();
         if (fuvIsOverdue && fuvRawPo && fuvRawPo !== "-") {
           const poNumKey = fuvRawPo.toUpperCase().replace(/\s+/g, '');
-          totalCounts["Lifting"]++;
-          overdueCounts["Lifting"]++;
+          totalCounts["Follow UP / Lifting"]++;
+          overdueCounts["Follow UP / Lifting"]++;
           if (!liftingPOs.has(poNumKey)) {
             liftingPOs.add(poNumKey);
             let fuvParty = "-";
@@ -953,7 +953,7 @@ export default function PurchaseDashboard() {
               party: fuvParty,
               item: r[4] || "-",
               qty: r[14] || r[5] || "-",
-              stage: "Lifting",
+              stage: "Follow UP / Lifting",
               delay: r[62] || "0",
               poNumber: fuvRawPo,
               plannedDate: r[60] || "-" // Column BI
@@ -1004,14 +1004,14 @@ export default function PurchaseDashboard() {
       }
 
       // Filter summary to only stages with overdueCount > 0 and only the 4 requested stages
-      const allowedStages = ["Indent Approval", "Quotation", "Approved Vendor", "Make PO", "Payment", "Lifting", "Transporter Follow-Up", "Material Received", "Billing", "Purchase Return"];
+      const allowedStages = ["Indent Approval", "Quotation", "Approved Vendor", "Make PO", "Payment", "Follow UP / Lifting", "Transporter Follow-Up", "Material Received", "Billing", "Purchase Return"];
       const summaryData = purchaseStages
         .filter(s => allowedStages.includes(s.name) && overdueCounts[s.name] > 0)
         .map(s => ({
           stage: s.name,
           pending: overdueCounts[s.name],
           responsible: respMap[s.name] || "-",
-          uniquePoCount: s.name === "Lifting" ? liftingPOs.size : undefined
+          uniquePoCount: s.name === "Follow UP / Lifting" ? liftingPOs.size : undefined
         }));
 
       // Sort detailed data by stage sequence to match summary
@@ -1236,7 +1236,7 @@ export default function PurchaseDashboard() {
 
 
 
-
+                    
           {/* BEST PRICE PER MATERIAL – NEW MODERN SECTION */}
           {/* TOP RECEIVED ORDERS - REPLACED BEST PRICE SECTION */}
           <Card className="border-0 shadow-sm bg-white">
@@ -1436,7 +1436,7 @@ export default function PurchaseDashboard() {
                     <TableHead className="text-xs">
                       Warehouse Location
                     </TableHead>
-                    <TableHead className="text-xs">Lead Time</TableHead>
+                    <TableHead className="text-xs">Expected Requirement Date</TableHead>
                     <TableHead className="text-xs">Category</TableHead>
                     <TableHead className="text-xs">Item</TableHead>
                     <TableHead className="text-xs text-right">Qty</TableHead>
@@ -1822,7 +1822,7 @@ export default function PurchaseDashboard() {
                     <TableHead className="text-xs">Party Name</TableHead>
                     <TableHead className="text-xs text-right">Quantity</TableHead>
                     <TableHead className="text-xs">Warehouse</TableHead>
-                    <TableHead className="text-xs">Lead Time</TableHead>
+                    <TableHead className="text-xs">Expected Requirement Date</TableHead>
                     <TableHead className="text-xs">Exp. Delivery</TableHead>
                   </TableRow>
                 </TableHeader>

@@ -101,7 +101,8 @@ export default function Stage1() {
                 uom: row[69] || "",
                 status: row[13] || "pending",
                 remarks: row[16],
-                attachment: row[17] || ""
+                attachment: row[17] || "",
+                itemPriority: row[18] || ""
               }
             };
           });
@@ -264,6 +265,7 @@ export default function Stage1() {
     quantity: "",
     uom: "",
     itemCode: "",
+    itemPriority: "",
     attachment: null as File | null,
     existingAttachmentUrl: "",
   });
@@ -279,6 +281,7 @@ export default function Stage1() {
       quantity: string;
       uom: string;
       itemCode: string;
+      itemPriority: string;
     }>,
   });
 
@@ -288,6 +291,7 @@ export default function Stage1() {
     quantity: "",
     uom: "",
     itemCode: "",
+    itemPriority: "",
   });
 
 
@@ -478,7 +482,8 @@ export default function Stage1() {
       row[5] = item.quantity;              // F: Qty
       row[6] = data.warehouseLocation;     // G: Warehouse
       row[7] = item.itemCode || "";        // H: Item Code
-      row[8] = data.leadTime;              // I: Lead Time
+      row[8] = data.leadTime;              // I: Lead Time (Expected Requirement Date)
+      row[18] = item.itemPriority || "";   // S: Item Priority
       row[17] = attachmentUrl || "";       // R: Attachment
       row[69] = item.uom || "";            // BR: UOM
       return row;
@@ -629,7 +634,8 @@ export default function Stage1() {
       !itemInput.itemName ||
       !itemInput.quantity ||
       !itemInput.uom ||
-      !itemInput.itemCode
+      !itemInput.itemCode ||
+      !itemInput.itemPriority
     ) {
       toast.error("Please fill in all item fields before adding.");
       return;
@@ -647,6 +653,7 @@ export default function Stage1() {
       quantity: "",
       uom: "",
       itemCode: "",
+      itemPriority: "",
     });
 
     toast.success("Item added to the indent list!");
@@ -664,6 +671,7 @@ export default function Stage1() {
       quantity: record.data.quantity || "",
       uom: record.data.uom || "",
       itemCode: record.data.itemCode || "",
+      itemPriority: record.data.itemPriority || "",
       attachment: null,
       existingAttachmentUrl: record.data.attachment || "",
     });
@@ -721,14 +729,15 @@ export default function Stage1() {
       // Build the row data array - only update specific columns
       const rowArray = new Array(70).fill(""); // Increase size to accommodate UOM at index 69
 
-      // Update columns: C (index 2), D (index 3), E (index 4), F (index 5), G (index 6), H (index 7), I (index 8), R (index 17), BR (index 69)
+      // Update columns: C (index 2), D (index 3), E (index 4), F (index 5), G (index 6), H (index 7), I (index 8), S (index 18), R (index 17), BR (index 69)
       rowArray[2] = editFormData.createdBy;      // Col C: Created By
       rowArray[3] = editFormData.category;        // Col D: Category
       rowArray[4] = editFormData.itemName;        // Col E: Item Name
       rowArray[5] = editFormData.quantity;        // Col F: Quantity
       rowArray[6] = editFormData.warehouseLocation; // Col G: Warehouse Location
       rowArray[7] = editFormData.itemCode;        // Col H: Item Code
-      rowArray[8] = editFormData.leadTime;        // Col I: Lead Time
+      rowArray[8] = editFormData.leadTime;        // Col I: Lead Time (Expected Requirement Date)
+      rowArray[18] = editFormData.itemPriority;   // Col S: Item Priority
       rowArray[17] = finalAttachmentUrl;          // Col R: Attachment URL
       rowArray[69] = editFormData.uom;            // Col BR: UOM
 
@@ -841,12 +850,10 @@ export default function Stage1() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="leadTime">Lead Time (Days) <span className="text-red-500">*</span></Label>
+                <Label htmlFor="leadTime">Expected Requirement Date <span className="text-red-500">*</span></Label>
                 <Input
                   id="leadTime"
-                  type="number"
-                  min="1"
-                  placeholder="e.g. 7"
+                  type="date"
                   value={formData.leadTime}
                   onChange={(e) =>
                     setFormData({ ...formData, leadTime: e.target.value })
@@ -932,7 +939,7 @@ export default function Stage1() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-1.5">
                 <Label>Quantity <span className="text-red-500">*</span></Label>
                 <Input
@@ -960,6 +967,23 @@ export default function Stage1() {
                         {opt}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Item Priority <span className="text-red-500">*</span></Label>
+                <Select
+                  value={itemInput.itemPriority}
+                  onValueChange={(val) => handleItemFieldChange("itemPriority", val)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select Priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -997,6 +1021,7 @@ export default function Stage1() {
                     <tr className="bg-slate-50 border-b border-slate-150">
                       <th className="p-3 font-semibold text-slate-700">Category</th>
                       <th className="p-3 font-semibold text-slate-700">Item Name</th>
+                      <th className="p-3 font-semibold text-slate-700">Priority</th>
                       <th className="p-3 font-semibold text-slate-700">Quantity</th>
                       <th className="p-3 font-semibold text-slate-700">UOM</th>
                       <th className="p-3 font-semibold text-slate-700">Item Code</th>
@@ -1008,6 +1033,15 @@ export default function Stage1() {
                       <tr key={index} className="border-b last:border-0 hover:bg-slate-50/50">
                         <td className="p-3"><Badge variant="outline" className="bg-slate-100 text-slate-700 border-slate-200">{item.category}</Badge></td>
                         <td className="p-3 font-semibold text-slate-800">{item.itemName}</td>
+                        <td className="p-3">
+                          <Badge className={cn(
+                            item.itemPriority === "high" && "bg-red-100 text-red-800 hover:bg-red-150 border-red-200",
+                            item.itemPriority === "medium" && "bg-amber-100 text-amber-800 hover:bg-amber-150 border-amber-200",
+                            item.itemPriority === "low" && "bg-green-100 text-green-800 hover:bg-green-150 border-green-200"
+                          )} variant="outline">
+                            {item.itemPriority ? item.itemPriority.toUpperCase() : "-"}
+                          </Badge>
+                        </td>
                         <td className="p-3">{item.quantity}</td>
                         <td className="p-3">{item.uom}</td>
                         <td className="p-3 font-mono text-xs">{item.itemCode}</td>
@@ -1205,11 +1239,9 @@ export default function Stage1() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Lead Time (Days)</Label>
+                  <Label>Expected Requirement Date</Label>
                   <Input
-                    type="number"
-                    min="0"
-                    placeholder="Enter lead time"
+                    type="date"
                     value={editFormData.leadTime}
                     onChange={(e) =>
                       setEditFormData({ ...editFormData, leadTime: e.target.value })
@@ -1218,15 +1250,36 @@ export default function Stage1() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Item Code</Label>
-                <Input
-                  type="text"
-                  placeholder="Auto-filled"
-                  value={editFormData.itemCode}
-                  readOnly
-                  className="bg-slate-50 font-mono"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Item Priority</Label>
+                  <Select
+                    value={editFormData.itemPriority}
+                    onValueChange={(val) =>
+                      setEditFormData({ ...editFormData, itemPriority: val })
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select Priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Item Code</Label>
+                  <Input
+                    type="text"
+                    placeholder="Auto-filled"
+                    value={editFormData.itemCode}
+                    readOnly
+                    className="bg-slate-50 font-mono"
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">

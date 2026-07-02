@@ -59,7 +59,9 @@ const paymentTermsOptions = [
 export default function Quotation() {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"pending" | "history">("pending");
-  const [currentRecord, setCurrentRecord] = useState<any>(null);
+  const [currentRecords, setCurrentRecords] = useState<any[]>([]);
+  const currentRecord = currentRecords[0] || null;
+  const [selectedRecordIds, setSelectedRecordIds] = useState<string[]>([]);
   const [sheetRecords, setSheetRecords] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -195,7 +197,7 @@ export default function Quotation() {
 
   // Poll for changes in real time when the quotation dialog is open
   useEffect(() => {
-    if (!open || !currentRecord) return;
+    if (!open || currentRecords.length === 0) return;
 
     const interval = setInterval(async () => {
       const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI;
@@ -209,65 +211,63 @@ export default function Quotation() {
             .map((row: any, i: number) => ({ row, originalIndex: i + 7 }))
             .filter(({ row }: any) => row[1] && String(row[1]).trim() !== "");
 
-          const freshRow = rows.find((r: any) => r.originalIndex === currentRecord.rowIndex);
-          if (freshRow) {
-            const mappedRecord = {
-              id: `${freshRow.row[1]}_${freshRow.originalIndex}`,
-              rowIndex: freshRow.originalIndex,
-              stage: 3,
-              status: currentRecord.status,
-              createdAt: parseSheetDate(freshRow.row[0]),
-              data: {
-                indentNumber: freshRow.row[1],
-                timestamp: freshRow.row[0],
-                createdBy: freshRow.row[2],
-                category: freshRow.row[3],
-                itemName: freshRow.row[4],
-                quantity: freshRow.row[14],
-                planned3: freshRow.row[45],
-                actual3: freshRow.row[46],
-                selectedVendor: freshRecordOffset(freshRow.row, 47),
-                selectedVendorName: freshRecordOffset(freshRow.row, 48),
-                uom: freshRow.row[69] || "PCS",
+          const updatedRecords = currentRecords.map((curRec) => {
+            const freshRow = rows.find((r: any) => r.originalIndex === curRec.rowIndex);
+            if (freshRow) {
+              return {
+                id: `${freshRow.row[1]}_${freshRow.originalIndex}`,
+                rowIndex: freshRow.originalIndex,
+                stage: 3,
+                status: curRec.status,
+                createdAt: parseSheetDate(freshRow.row[0]),
+                data: {
+                  indentNumber: freshRow.row[1],
+                  timestamp: freshRow.row[0],
+                  createdBy: freshRow.row[2],
+                  category: freshRow.row[3],
+                  itemName: freshRow.row[4],
+                  quantity: freshRow.row[14],
+                  planned3: freshRow.row[45],
+                  actual3: freshRow.row[46],
+                  selectedVendor: freshRecordOffset(freshRow.row, 47),
+                  selectedVendorName: freshRecordOffset(freshRow.row, 48),
+                  uom: freshRow.row[69] || "PCS",
 
-                vendor1Name: freshRow.row[21],
-                vendor1Rate: freshRow.row[22],
-                vendor1Terms: freshRow.row[23],
-                vendor1DeliveryDate: freshRow.row[24],
-                vendor1Remarks: freshRow.row[28],
+                  vendor1Name: freshRow.row[21],
+                  vendor1Rate: freshRow.row[22],
+                  vendor1Terms: freshRow.row[23],
+                  vendor1DeliveryDate: freshRow.row[24],
+                  vendor1Remarks: freshRow.row[28],
 
-                vendor2Name: freshRow.row[29],
-                vendor2Rate: freshRow.row[30],
-                vendor2Terms: freshRow.row[31],
-                vendor2DeliveryDate: freshRow.row[32],
-                vendor2Remarks: freshRow.row[36],
+                  vendor2Name: freshRow.row[29],
+                  vendor2Rate: freshRow.row[30],
+                  vendor2Terms: freshRow.row[31],
+                  vendor2DeliveryDate: freshRow.row[32],
+                  vendor2Remarks: freshRow.row[36],
 
-                vendor3Name: freshRow.row[37],
-                vendor3Rate: freshRow.row[38],
-                vendor3Terms: freshRow.row[39],
-                vendor3DeliveryDate: freshRow.row[40],
-                vendor3Remarks: freshRow.row[44],
-              }
-            };
-
-            const oldQuotes = [
-              currentRecord.data.vendor1Rate,
-              currentRecord.data.vendor2Rate,
-              currentRecord.data.vendor3Rate
-            ].join(",");
-
-            const newQuotes = [
-              mappedRecord.data.vendor1Rate,
-              mappedRecord.data.vendor2Rate,
-              mappedRecord.data.vendor3Rate
-            ].join(",");
-
-            if (oldQuotes !== newQuotes) {
-              setCurrentRecord(mappedRecord);
-              setSheetRecords((prev) =>
-                prev.map((rec) => (rec.rowIndex === currentRecord.rowIndex ? mappedRecord : rec))
-              );
+                  vendor3Name: freshRow.row[37],
+                  vendor3Rate: freshRow.row[38],
+                  vendor3Terms: freshRow.row[39],
+                  vendor3DeliveryDate: freshRow.row[40],
+                  vendor3Remarks: freshRow.row[44],
+                }
+              };
             }
+            return curRec;
+          });
+
+          // Check if any of them updated
+          const oldQuotesStr = currentRecords.map(r => [r.data.vendor1Rate, r.data.vendor2Rate, r.data.vendor3Rate].join(",")).join("|");
+          const newQuotesStr = updatedRecords.map(r => [r.data.vendor1Rate, r.data.vendor2Rate, r.data.vendor3Rate].join(",")).join("|");
+
+          if (oldQuotesStr !== newQuotesStr) {
+            setCurrentRecords(updatedRecords);
+            setSheetRecords((prev) =>
+              prev.map((rec) => {
+                const matched = updatedRecords.find((u) => u.rowIndex === rec.rowIndex);
+                return matched || rec;
+              })
+            );
           }
         }
       } catch (err) {
@@ -276,7 +276,7 @@ export default function Quotation() {
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [open, currentRecord]);
+  }, [open, currentRecords]);
 
   // Helper helper function
   function freshRecordOffset(row: any[], index: number) {
@@ -364,7 +364,8 @@ export default function Quotation() {
     const record = sheetRecords.find((r) => r.id === recordId);
     if (!record) return;
 
-    setCurrentRecord(record);
+    setCurrentRecords([record]);
+    setSelectedRecordIds([record.id]);
 
     // Reconstruct input values if emails were already sent previously
     const tempInputs: any[] = [];
@@ -397,9 +398,67 @@ export default function Quotation() {
     if (record.data.vendor1Name && record.data.vendor1Name !== "-") {
       setEmailSent(true);
       const links = tempInputs.map((v, i) => ({
-        name: v.name,
+        name: `${v.name} (${record.data.indentNumber})`,
         link: `${window.location.origin}/quotation-form?id=${record.id}&v=${i + 1}`,
       }));
+      setGeneratedLinks(links);
+    } else {
+      setEmailSent(false);
+      setGeneratedLinks([]);
+    }
+
+    setItemSelected(true);
+    setDescriptionNote(record.data.remarks || "");
+
+    setOpen(true);
+  };
+
+  const handleOpenBulkForm = () => {
+    const records = sheetRecords.filter((r) => selectedRecordIds.includes(r.id));
+    if (records.length === 0) return;
+
+    setCurrentRecords(records);
+
+    // Reconstruct input values based on first record to pre-fill
+    const record = records[0];
+    const tempInputs: any[] = [];
+    const tempSelectedVendors: string[] = [];
+    if (record.data.vendor1Name && record.data.vendor1Name !== "-") {
+      const email = VENDOR_EMAILS[record.data.vendor1Name] || `${record.data.vendor1Name.toLowerCase().replace(/\s+/g, "")}@example.com`;
+      tempInputs.push({ name: record.data.vendor1Name, email });
+      tempSelectedVendors.push(record.data.vendor1Name);
+    }
+    if (record.data.vendor2Name && record.data.vendor2Name !== "-") {
+      const email = VENDOR_EMAILS[record.data.vendor2Name] || `${record.data.vendor2Name.toLowerCase().replace(/\s+/g, "")}@example.com`;
+      tempInputs.push({ name: record.data.vendor2Name, email });
+      tempSelectedVendors.push(record.data.vendor2Name);
+    }
+    if (record.data.vendor3Name && record.data.vendor3Name !== "-") {
+      const email = VENDOR_EMAILS[record.data.vendor3Name] || `${record.data.vendor3Name.toLowerCase().replace(/\s+/g, "")}@example.com`;
+      tempInputs.push({ name: record.data.vendor3Name, email });
+      tempSelectedVendors.push(record.data.vendor3Name);
+    }
+
+    if (tempInputs.length === 0) {
+      tempInputs.push({ name: "", email: "" });
+    }
+
+    setVendorsInput(tempInputs);
+    setSelectedVendors(tempSelectedVendors);
+    setSelectedVendorCount(tempInputs.length.toString());
+
+    // Check if links need to be pre-generated (meaning email was already sent in this session or before)
+    if (record.data.vendor1Name && record.data.vendor1Name !== "-") {
+      setEmailSent(true);
+      const links: any[] = [];
+      records.forEach((rec) => {
+        tempInputs.forEach((v, i) => {
+          links.push({
+            name: `${v.name} (${rec.data.indentNumber})`,
+            link: `${window.location.origin}/quotation-form?id=${rec.id}&v=${i + 1}`,
+          });
+        });
+      });
       setGeneratedLinks(links);
     } else {
       setEmailSent(false);
@@ -443,7 +502,7 @@ export default function Quotation() {
   // Simulates sending product details via email and generates public links
   const handleSendEmails = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!currentRecord) return;
+    if (currentRecords.length === 0) return;
 
     if (selectedVendors.length === 0) {
       toast.error("Please select at least one supplier from the Master list.");
@@ -461,59 +520,63 @@ export default function Quotation() {
       if (!SHEET_API_URL) return;
 
       const timestamp = getFmsTimestamp();
-      const rowArray = new Array(60).fill("");
-      rowArray[46] = timestamp; // AU: Actual completion of Stage 3 (Quotation)
 
-      // Save vendor names to columns so links fetch correctly
-      if (mappedInputs[0]) {
-        rowArray[21] = mappedInputs[0].name;
-        // clear old quotes since we are sending a new enquiry
-        rowArray[22] = "-";
-        rowArray[23] = "-";
-        rowArray[24] = "-";
-        rowArray[25] = "No";
-      }
+      const updatePromises = currentRecords.map(async (record) => {
+        const rowArray = new Array(60).fill("");
+        rowArray[46] = timestamp; // AU: Actual completion of Stage 3 (Quotation)
 
-      if (mappedInputs[1]) {
-        rowArray[29] = mappedInputs[1].name;
-        rowArray[30] = "-";
-        rowArray[31] = "-";
-        rowArray[32] = "-";
-        rowArray[33] = "No";
-      } else {
-        rowArray[29] = "-";
-        rowArray[30] = "-";
-        rowArray[31] = "-";
-        rowArray[32] = "-";
-        rowArray[33] = "-";
-      }
+        // Save vendor names to columns so links fetch correctly
+        if (mappedInputs[0]) {
+          rowArray[21] = mappedInputs[0].name;
+          rowArray[22] = "-";
+          rowArray[23] = "-";
+          rowArray[24] = "-";
+          rowArray[25] = "No";
+        }
 
-      if (mappedInputs[2]) {
-        rowArray[37] = mappedInputs[2].name;
-        rowArray[38] = "-";
-        rowArray[39] = "-";
-        rowArray[40] = "-";
-        rowArray[41] = "No";
-      } else {
-        rowArray[37] = "-";
-        rowArray[38] = "-";
-        rowArray[39] = "-";
-        rowArray[40] = "-";
-        rowArray[41] = "-";
-      }
+        if (mappedInputs[1]) {
+          rowArray[29] = mappedInputs[1].name;
+          rowArray[30] = "-";
+          rowArray[31] = "-";
+          rowArray[32] = "-";
+          rowArray[33] = "No";
+        } else {
+          rowArray[29] = "-";
+          rowArray[30] = "-";
+          rowArray[31] = "-";
+          rowArray[32] = "-";
+          rowArray[33] = "-";
+        }
 
-      const params = new URLSearchParams();
-      params.append("action", "update");
-      params.append("sheetName", "INDENT-LIFT");
-      params.append("rowIndex", currentRecord.rowIndex.toString());
-      params.append("rowData", JSON.stringify(rowArray));
+        if (mappedInputs[2]) {
+          rowArray[37] = mappedInputs[2].name;
+          rowArray[38] = "-";
+          rowArray[39] = "-";
+          rowArray[40] = "-";
+          rowArray[41] = "No";
+        } else {
+          rowArray[37] = "-";
+          rowArray[38] = "-";
+          rowArray[39] = "-";
+          rowArray[40] = "-";
+          rowArray[41] = "-";
+        }
 
-      const res = await fetch(SHEET_API_URL, {
-        method: "POST",
-        body: params,
+        const params = new URLSearchParams();
+        params.append("action", "update");
+        params.append("sheetName", "INDENT-LIFT");
+        params.append("rowIndex", record.rowIndex.toString());
+        params.append("rowData", JSON.stringify(rowArray));
+
+        const res = await fetch(SHEET_API_URL, {
+          method: "POST",
+          body: params,
+        });
+        return res.json();
       });
-      const json = await res.json();
-      toast.success("Enquiry generated and sent! Indent moved to Approved Vendor stage.");
+
+      await Promise.all(updatePromises);
+      toast.success("Enquiry generated and sent! Selected indents moved to Approved Vendor stage.");
       await fetchData();
       resetForm();
     } catch (e: any) {
@@ -526,16 +589,18 @@ export default function Quotation() {
 
   // Completes the Quotation stage and routes to Approved Vendor Stage
   const handleProceedToApproval = async () => {
-    if (!currentRecord) return;
+    if (currentRecords.length === 0) return;
 
     // Check if at least one quotation has been received
-    const hasQuote1 = currentRecord.data.vendor1Rate && currentRecord.data.vendor1Rate !== "-";
-    const hasQuote2 = currentRecord.data.vendor2Rate && currentRecord.data.vendor2Rate !== "-";
-    const hasQuote3 = currentRecord.data.vendor3Rate && currentRecord.data.vendor3Rate !== "-";
+    for (const record of currentRecords) {
+      const hasQuote1 = record.data.vendor1Rate && record.data.vendor1Rate !== "-";
+      const hasQuote2 = record.data.vendor2Rate && record.data.vendor2Rate !== "-";
+      const hasQuote3 = record.data.vendor3Rate && record.data.vendor3Rate !== "-";
 
-    if (!hasQuote1 && !hasQuote2 && !hasQuote3) {
-      toast.error("Cannot proceed: At least one vendor must submit a quotation first.");
-      return;
+      if (!hasQuote1 && !hasQuote2 && !hasQuote3) {
+        toast.error(`Cannot proceed: At least one vendor must submit a quotation for Indent ${record.data.indentNumber} first.`);
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -544,28 +609,26 @@ export default function Quotation() {
       if (!SHEET_API_URL) return;
 
       const timestamp = getFmsTimestamp();
-      const rowArray = new Array(60).fill("");
-      rowArray[46] = timestamp; // AU: Actual completion of Stage 3 (Quotation)
+      const updatePromises = currentRecords.map((record) => {
+        const rowArray = new Array(60).fill("");
+        rowArray[46] = timestamp; // AU: Actual completion of Stage 3 (Quotation)
 
-      const params = new URLSearchParams();
-      params.append("action", "update");
-      params.append("sheetName", "INDENT-LIFT");
-      params.append("rowIndex", currentRecord.rowIndex.toString());
-      params.append("rowData", JSON.stringify(rowArray));
+        const params = new URLSearchParams();
+        params.append("action", "update");
+        params.append("sheetName", "INDENT-LIFT");
+        params.append("rowIndex", record.rowIndex.toString());
+        params.append("rowData", JSON.stringify(rowArray));
 
-      const res = await fetch(SHEET_API_URL, {
-        method: "POST",
-        body: params,
+        return fetch(SHEET_API_URL, {
+          method: "POST",
+          body: params,
+        });
       });
 
-      const result = await res.json();
-      if (result.success) {
-        toast.success("Quotation stage completed! Indent moved to Approved Vendor stage.");
-        await fetchData();
-        resetForm();
-      } else {
-        throw new Error(result.error || "Transition failed");
-      }
+      await Promise.all(updatePromises);
+      toast.success("Quotation stage completed! Selected indents moved to Approved Vendor stage.");
+      await fetchData();
+      resetForm();
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || "Failed to proceed to Approval stage.");
@@ -579,9 +642,24 @@ export default function Quotation() {
     toast.success("Link copied to clipboard!");
   };
 
+  const handleToggleRecord = (id: string) => {
+    setSelectedRecordIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleToggleAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedRecordIds(pending.map((r) => r.id));
+    } else {
+      setSelectedRecordIds([]);
+    }
+  };
+
   const resetForm = () => {
     setOpen(false);
-    setCurrentRecord(null);
+    setCurrentRecords([]);
+    setSelectedRecordIds([]);
     setSelectedVendorCount("1");
     setVendorsInput([{ name: "", email: "" }]);
     setSelectedVendors([]);
@@ -639,14 +717,25 @@ export default function Quotation() {
       </div>
 
       <Tabs value={activeTab} onValueChange={(val: any) => setActiveTab(val)} className="flex-1 flex flex-col overflow-hidden">
-        <TabsList className="bg-slate-100/80 p-1 w-fit rounded-lg mb-4">
-          <TabsTrigger value="pending" className="px-4 py-2 text-sm font-medium rounded-md transition-all">
-            Pending Quotations ({pending.length})
-          </TabsTrigger>
-          <TabsTrigger value="history" className="px-4 py-2 text-sm font-medium rounded-md transition-all">
-            History ({completed.length})
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between mb-4">
+          <TabsList className="bg-slate-100/80 p-1 w-fit rounded-lg">
+            <TabsTrigger value="pending" className="px-4 py-2 text-sm font-medium rounded-md transition-all">
+              Pending Quotations ({pending.length})
+            </TabsTrigger>
+            <TabsTrigger value="history" className="px-4 py-2 text-sm font-medium rounded-md transition-all">
+              History ({completed.length})
+            </TabsTrigger>
+          </TabsList>
+
+          {selectedRecordIds.length > 0 && (
+            <Button
+              onClick={handleOpenBulkForm}
+              className="bg-indigo-600 text-white hover:bg-indigo-700 h-10 px-4 rounded-xl shadow-md font-semibold text-sm transition-all"
+            >
+              Process Quotation ({selectedRecordIds.length})
+            </Button>
+          )}
+        </div>
 
         <TabsContent value="pending" className="mt-0 flex-1 flex flex-col overflow-hidden">
           {isLoading ? (
@@ -664,6 +753,12 @@ export default function Quotation() {
               <table className="w-full caption-bottom text-sm border-collapse">
                 <TableHeader className="sticky top-0 z-30 bg-slate-200 shadow-sm border-none">
                   <TableRow className="bg-slate-200 hover:bg-slate-200 border-none">
+                    <TableHead className="sticky top-0 z-30 bg-slate-200 border-none px-4 py-3 text-slate-700 font-bold uppercase text-[13px] tracking-wider w-[50px]">
+                      <Checkbox
+                        checked={selectedRecordIds.length === pending.length && pending.length > 0}
+                        onCheckedChange={handleToggleAll}
+                      />
+                    </TableHead>
                     <TableHead className="sticky top-0 z-30 bg-slate-200 border-none px-4 py-3 text-slate-700 font-bold uppercase text-[13px] tracking-wider">
                       Actions
                     </TableHead>
@@ -685,6 +780,12 @@ export default function Quotation() {
 
                     return (
                       <TableRow key={record.id} className="hover:bg-muted/50 odd:bg-white even:bg-slate-50/80 group">
+                        <TableCell className="px-4 py-3 w-[50px]">
+                          <Checkbox
+                            checked={selectedRecordIds.includes(record.id)}
+                            onCheckedChange={() => handleToggleRecord(record.id)}
+                          />
+                        </TableCell>
                         <TableCell className="px-4 py-3">
                           <Button
                             variant="outline"
@@ -997,28 +1098,30 @@ export default function Quotation() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        <TableRow className="hover:bg-white border-0">
-                          <TableCell className="text-center p-3">
-                            <Checkbox
-                              checked={itemSelected}
-                              onCheckedChange={(checked) => setItemSelected(!!checked)}
-                            />
-                          </TableCell>
-                          <TableCell className="p-3 text-slate-700">1</TableCell>
-                          <TableCell className="p-3 font-semibold text-slate-900 font-mono">
-                            {currentRecord?.data?.indentNumber || "—"}
-                          </TableCell>
-                          <TableCell className="p-3 text-slate-700">Divine Empire</TableCell>
-                          <TableCell className="p-3 text-slate-800 font-medium">
-                            {currentRecord?.data?.itemName || "—"}
-                          </TableCell>
-                          <TableCell className="p-3 text-right font-bold text-slate-900">
-                            {currentRecord?.data?.quantity || "—"}
-                          </TableCell>
-                          <TableCell className="p-3 text-slate-600">
-                            {currentRecord?.data?.uom || "PCS"}
-                          </TableCell>
-                        </TableRow>
+                        {currentRecords.map((record, index) => (
+                          <TableRow key={record.id} className="hover:bg-white border-0 border-b last:border-0">
+                            <TableCell className="text-center p-3">
+                              <Checkbox
+                                checked={itemSelected}
+                                onCheckedChange={(checked) => setItemSelected(!!checked)}
+                              />
+                            </TableCell>
+                            <TableCell className="p-3 text-slate-700">{index + 1}</TableCell>
+                            <TableCell className="p-3 font-semibold text-slate-900 font-mono">
+                              {record?.data?.indentNumber || "—"}
+                            </TableCell>
+                            <TableCell className="p-3 text-slate-700">Divine Empire</TableCell>
+                            <TableCell className="p-3 text-slate-800 font-medium">
+                              {record?.data?.itemName || "—"}
+                            </TableCell>
+                            <TableCell className="p-3 text-right font-bold text-slate-900">
+                              {record?.data?.quantity || "—"}
+                            </TableCell>
+                            <TableCell className="p-3 text-slate-600">
+                              {record?.data?.uom || "PCS"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
                       </TableBody>
                     </Table>
                   </div>
@@ -1083,7 +1186,7 @@ export default function Quotation() {
                 {/* Bottom Bar Controls */}
                 <div className="flex items-center justify-between border-t pt-5 mt-4">
                   <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">
-                    {itemSelected ? 1 : 0} Items Selected for RFQ
+                    {itemSelected ? currentRecords.length : 0} Items Selected for RFQ
                   </div>
                   <div className="flex gap-3">
                     <Button
@@ -1155,59 +1258,66 @@ export default function Quotation() {
                 </div>
 
                 {/* Live Comparison Tracker */}
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <Label className="text-xs uppercase font-extrabold text-slate-500 tracking-wider">Live Quotations Comparison</Label>
-                  <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
-                    <table className="w-full text-xs text-left">
-                      <thead>
-                        <tr className="bg-slate-100 border-b border-slate-200">
-                          <th className="p-3 font-semibold text-slate-700">Vendor</th>
-                          <th className="p-3 font-semibold text-slate-700">Rate Per Qty</th>
-                          <th className="p-3 font-semibold text-slate-700">Payment Terms</th>
-                          <th className="p-3 font-semibold text-slate-700">Expected Delivery</th>
-                          <th className="p-3 font-semibold text-slate-700">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {[1, 2, 3].map((num) => {
-                          const name = currentRecord.data[`vendor${num}Name`];
-                          const rate = currentRecord.data[`vendor${num}Rate`];
-                          const terms = currentRecord.data[`vendor${num}Terms`];
-                          const delivery = currentRecord.data[`vendor${num}DeliveryDate`];
-
-                          if (!name || name === "-") return null;
-
-                          const hasSubmitted = rate && rate !== "-";
-
-                          return (
-                            <tr key={num} className="border-b last:border-0 hover:bg-slate-50/50">
-                              <td className="p-3 font-semibold text-slate-800">{name}</td>
-                              <td className="p-3 font-bold text-slate-900">
-                                {hasSubmitted ? `₹${rate}` : "—"}
-                              </td>
-                              <td className="p-3 text-slate-600">
-                                {hasSubmitted ? (paymentTermsOptions.find(o => o.value === terms)?.label || terms) : "—"}
-                              </td>
-                              <td className="p-3 text-slate-600">
-                                {hasSubmitted ? formatDateDash(delivery) : "—"}
-                              </td>
-                              <td className="p-3">
-                                {hasSubmitted ? (
-                                  <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50" variant="outline">
-                                    Submitted
-                                  </Badge>
-                                ) : (
-                                  <Badge className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50" variant="outline">
-                                    Awaiting Response
-                                  </Badge>
-                                )}
-                              </td>
+                  {currentRecords.map((record) => (
+                    <div key={record.id} className="space-y-2 border-b pb-4 last:border-0 last:pb-0">
+                      <div className="font-bold text-xs text-slate-750 bg-slate-100 p-2 rounded flex justify-between items-center">
+                        <span>Indent: {record.data.indentNumber} - {record.data.itemName} (Qty: {record.data.quantity})</span>
+                      </div>
+                      <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                        <table className="w-full text-xs text-left">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-200">
+                              <th className="p-3 font-semibold text-slate-700">Vendor</th>
+                              <th className="p-3 font-semibold text-slate-700">Rate Per Qty</th>
+                              <th className="p-3 font-semibold text-slate-700">Payment Terms</th>
+                              <th className="p-3 font-semibold text-slate-700">Expected Delivery</th>
+                              <th className="p-3 font-semibold text-slate-700">Status</th>
                             </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                          </thead>
+                          <tbody>
+                            {[1, 2, 3].map((num) => {
+                              const name = record.data[`vendor${num}Name`];
+                              const rate = record.data[`vendor${num}Rate`];
+                              const terms = record.data[`vendor${num}Terms`];
+                              const delivery = record.data[`vendor${num}DeliveryDate`];
+
+                              if (!name || name === "-") return null;
+
+                              const hasSubmitted = rate && rate !== "-";
+
+                              return (
+                                <tr key={num} className="border-b last:border-0 hover:bg-slate-50/50">
+                                  <td className="p-3 font-semibold text-slate-800">{name}</td>
+                                  <td className="p-3 font-bold text-slate-900">
+                                    {hasSubmitted ? `₹${rate}` : "—"}
+                                  </td>
+                                  <td className="p-3 text-slate-600">
+                                    {hasSubmitted ? (paymentTermsOptions.find(o => o.value === terms)?.label || terms) : "—"}
+                                  </td>
+                                  <td className="p-3 text-slate-600">
+                                    {hasSubmitted ? formatDateDash(delivery) : "—"}
+                                  </td>
+                                  <td className="p-3">
+                                    {hasSubmitted ? (
+                                      <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50" variant="outline">
+                                        Submitted
+                                      </Badge>
+                                    ) : (
+                                      <Badge className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50" variant="outline">
+                                        Awaiting Response
+                                      </Badge>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
                 <div className="flex gap-2">
@@ -1215,9 +1325,24 @@ export default function Quotation() {
                     type="button"
                     variant="outline"
                     onClick={() => setEmailSent(false)}
-                    className="w-full"
+                    className="w-full bg-white border-slate-200"
                   >
                     Resend / Change Vendors
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => handleProceedToApproval()}
+                    disabled={isSubmitting}
+                    className="w-full bg-slate-900 text-white hover:bg-slate-800"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      "Proceed to Approved Vendor"
+                    )}
                   </Button>
                 </div>
               </div>

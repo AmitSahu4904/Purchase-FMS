@@ -357,7 +357,7 @@ if (typeof window !== "undefined") {
           if (bodyParams.sheet) sheet = bodyParams.sheet;
         }
 
-        if (sheet || action === "insertIndent" || action === "uploadFile") {
+        if (sheet || action === "insertIndent" || action === "insertLift" || action === "uploadFile") {
           console.log(`[Mock Fetch] Intercepted: method=${method}, sheet="${sheet}", action="${action}"`);
           
           if (method === "GET" || action === "getAll") {
@@ -578,6 +578,26 @@ if (typeof window !== "undefined") {
               }
             }
             
+            if (action === "insertLift") {
+              let rowsData = bodyParams.rowsData;
+              if (typeof rowsData === "string") {
+                try { rowsData = JSON.parse(rowsData); } catch {}
+              }
+              
+              if (Array.isArray(rowsData)) {
+                if (!mockSheets["RECEIVING-ACCOUNTS"]) mockSheets["RECEIVING-ACCOUNTS"] = [];
+                rowsData.forEach((row: any) => {
+                  mockSheets["RECEIVING-ACCOUNTS"].push(row);
+                });
+                saveMockSheets();
+                console.log(`[Mock Fetch] Successfully executed insertLift for ${rowsData.length} rows`);
+                return new Response(
+                  JSON.stringify({ success: true, message: "Lifts inserted successfully" }),
+                  { status: 200, headers: { "Content-Type": "application/json" } }
+                );
+              }
+            }
+
             if (action === "uploadFile") {
               const fileName = bodyParams.fileName || "mock_file.png";
               const fileUrl = `https://mock-drive.google.com/file/d/mock-file-${Date.now()}/view?usp=drivesdk`;

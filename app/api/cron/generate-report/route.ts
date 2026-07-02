@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
         }
 
         // 3. Transformation Logic (Mirroring dashboard.tsx)
-        const allowedStages = ["Indent Approval", "Make PO", "Lifting", "Transporter Follow-Up"];
+        const allowedStages = ["Indent Approval", "Make PO", "Follow UP / Lifting", "Transporter Follow-Up"];
         const totalCounts: Record<string, number> = {};
         const overdueCounts: Record<string, number> = {};
         allowedStages.forEach(name => {
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
 
             const checkStage = (name: string, start: number, actual: number, plan: number, delayIdx: number, mode: 'category' | 'vendor' | 'default' = 'default') => {
                 // "Lifting" has unique logic: Planned (60) NOT NULL, Actual (61) NULL, Delay (62) NOT NULL, PO (54) NOT NULL + UNIQUE
-                if (name === "Lifting") {
+                if (name === "Follow UP / Lifting") {
                     const isOverdue = has(r, 60) && missing(r, 61) && has(r, 62);
                     const rawPo = String(r[54] || "").trim();
 
@@ -162,7 +162,7 @@ export async function GET(request: NextRequest) {
 
             checkStage("Indent Approval", 9, 10, 11, 11, 'category');
             checkStage("Make PO", 51, 52, 51, 53, 'vendor');
-            checkStage("Lifting", 60, 61, 60, 62, 'vendor');
+            checkStage("Follow UP / Lifting", 60, 61, 60, 62, 'vendor');
         }
 
         // RA Loop
@@ -201,7 +201,7 @@ export async function GET(request: NextRequest) {
                 stage: name,
                 pending: overdueCounts[name],
                 responsible: respMap[name] || "-",
-                uniquePoCount: name === "Lifting" ? followUpVendorPOs.size : undefined
+                uniquePoCount: name === "Follow UP / Lifting" ? followUpVendorPOs.size : undefined
             }));
 
         // Sort detailed data by stage sequence to match summary

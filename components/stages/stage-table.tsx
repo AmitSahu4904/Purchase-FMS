@@ -109,7 +109,9 @@ export function StageTable({
               </span>
               <span className="text-right break-words ml-2">
                 {col.key === "leadTime"
-                  ? `${record.data[col.key] || "-"} days`
+                  ? (record.data[col.key] && isNaN(Number(record.data[col.key]))
+                      ? String(record.data[col.key])
+                      : `${record.data[col.key] || "-"} days`)
                   : String(record.data[col.key] || "-")}
               </span>
             </div>
@@ -215,7 +217,9 @@ export function StageTable({
                             {columns.slice(1).map((col) => (
                               <TableCell key={col.key} className="text-sm text-slate-600 border-b border-slate-100 px-4">
                                 {col.key === "leadTime"
-                                  ? `${record.data[col.key] || "-"} days`
+                                  ? (record.data[col.key] && isNaN(Number(record.data[col.key]))
+                                      ? String(record.data[col.key])
+                                      : `${record.data[col.key] || "-"} days`)
                                   : col.key === "attachment" && record.data[col.key]
                                     ? <a href={record.data[col.key]} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 font-medium underline-offset-4 hover:underline">View</a>
                                     : String(record.data[col.key] || "-")}
@@ -293,7 +297,9 @@ export function StageTable({
                             {columns.map((col) => (
                               <TableCell key={col.key} className="text-sm text-slate-600 border-b border-slate-100 px-4">
                                 {col.key === "leadTime"
-                                  ? `${record.data[col.key] || "-"} days`
+                                  ? (record.data[col.key] && isNaN(Number(record.data[col.key]))
+                                      ? String(record.data[col.key])
+                                      : `${record.data[col.key] || "-"} days`)
                                   : col.key === "attachment" && record.data[col.key]
                                     ? <a href={record.data[col.key]} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 font-medium underline-offset-4 hover:underline">View</a>
                                     : String(record.data[col.key] || "-")}

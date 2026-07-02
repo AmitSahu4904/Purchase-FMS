@@ -214,7 +214,7 @@ export default function Stage2() {
     { key: "approvedQty", label: "Approved Qty", icon: Package },
     { key: "warehouseLocation", label: "Warehouse", icon: Warehouse },
     { key: "itemCode", label: "Item Code", icon: Hash },
-    { key: "leadTime", label: "Lead Time", icon: Clock },
+    { key: "leadTime", label: "Expected Requirement Date", icon: Calendar },
     { key: "plannedDate", label: "Planned", icon: Calendar },
     { key: "actualDate", label: "Actual", icon: Calendar },
     { key: "delay", label: "Delay", icon: Clock },

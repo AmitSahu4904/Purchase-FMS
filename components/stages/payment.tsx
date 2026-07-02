@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useParams } from "next/navigation";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -17,6 +19,13 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableHeader,
   TableRow,
@@ -24,52 +33,234 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import { Loader2, Search, CreditCard, CheckCircle } from "lucide-react";
+import {
+  Loader2,
+  Search,
+  CreditCard,
+  CheckCircle,
+  FileText,
+  RefreshCw,
+  Upload,
+  CalendarIcon,
+  Truck,
+  Banknote,
+  Trash2,
+} from "lucide-react";
 import { formatDate, parseSheetDate, getFmsTimestamp } from "@/lib/utils";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 
-const formatDateDash = (dateStr: string) => {
-  if (!dateStr || dateStr === "-" || dateStr === "—") return "-";
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    const d = date.getDate().toString().padStart(2, '0');
-    const m = (date.getMonth() + 1).toString().padStart(2, '0');
-    const y = date.getFullYear();
-    return `${d}-${m}-${y}`;
-  } catch {
-    return dateStr;
-  }
+// ─── Module-level constants ──────────────────────────────────────────────────
+const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI;
+const IMAGE_FOLDER_ID = process.env.NEXT_PUBLIC_IMAGE_FOLDER_ID;
+
+// Column definitions for Vendor Invoices
+const VENDOR_PENDING_COLUMNS = [
+  { key: "invoiceNo", label: "Invoice No." },
+  { key: "totalPaid", label: "Paid" },
+  { key: "pendingAmount", label: "Pending" },
+  { key: "plan1", label: "Planned" },
+  { key: "invoiceDate", label: "Inv. Date" },
+  { key: "dueDate", label: "Due Date" },
+  { key: "vendor", label: "Vendor" },
+  { key: "poNumber", label: "PO Number" },
+  { key: "invoiceCopy", label: "Invoice Copy" },
+  { key: "totalRcvd", label: "Total Rcvd." },
+  { key: "qty", label: "Rec. Qty" },
+  { key: "receivedItems", label: "Rec. Items" },
+] as const;
+const ALL_VENDOR_PENDING_KEYS = VENDOR_PENDING_COLUMNS.map(c => c.key);
+
+const VENDOR_HISTORY_COLUMNS = [
+  { key: "date", label: "Payment Date" },
+  { key: "invoiceNo", label: "Invoice" },
+  { key: "vendor", label: "Vendor" },
+  { key: "planned", label: "Planned" },
+  { key: "actual", label: "Actual" },
+  { key: "amountPaid", label: "Amount Paid" },
+  { key: "mode", label: "Payment Mode" },
+  { key: "status", label: "Status" },
+  { key: "proof", label: "Proof" },
+] as const;
+
+// Column definitions for Freight Payments
+const FREIGHT_COLUMNS = [
+  { key: "lrNo", label: "LR No." },
+  { key: "biltyImage", label: "Bilty" },
+  { key: "freightAmount", label: "Freight Amt" },
+  { key: "transporter", label: "Transporter" },
+  { key: "vehicleNo", label: "Vehicle No." },
+  { key: "contact", label: "Contact" },
+  { key: "advanceAmount", label: "Advance" },
+  { key: "totalPaid", label: "Paid" },
+  { key: "pendingAmount", label: "Pending" },
+  { key: "plan1", label: "Planned" },
+  { key: "actual1", label: "Actual" },
+] as const;
+const ALL_FREIGHT_COLUMN_KEYS = FREIGHT_COLUMNS.map(c => c.key);
+
+const FREIGHT_HISTORY_COLUMNS = [
+  { key: "date", label: "Payment Date" },
+  { key: "lrNo", label: "LR No." },
+  { key: "transporter", label: "Transporter" },
+  { key: "planned", label: "Planned" },
+  { key: "actual", label: "Actual" },
+  { key: "amountPaid", label: "Amount Paid" },
+  { key: "mode", label: "Mode" },
+  { key: "status", label: "Status" },
+  { key: "proof", label: "Proof" },
+] as const;
+
+// Helper functions
+const toDate = (val: any): string => formatDate(val);
+
+const parseNum = (val: any): number =>
+  parseFloat(String(val || 0).replace(/,/g, "")) || 0;
+
+const formatAmount = (val: any): string => {
+  const num = parseNum(val);
+  return `₹ ${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
-export default function Payment() {
-  const [open, setOpen] = useState(false);
+const parseDateString = (dateStr: any): Date | null => {
+  if (!dateStr || dateStr === "-" || dateStr === "—") return null;
+  if (dateStr instanceof Date) return dateStr;
+  const str = String(dateStr).trim();
+
+  // Check for DD-Mon-YYYY format
+  const parts = str.split('-');
+  if (parts.length === 3) {
+    const day = parseInt(parts[0], 10);
+    const monStr = parts[1].toLowerCase();
+    let year = parseInt(parts[2], 10);
+    if (year < 100) year += 2000;
+
+    const months: Record<string, number> = {
+      jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+      jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+    };
+    const month = months[monStr.substring(0, 3)];
+    if (month !== undefined && !isNaN(day) && !isNaN(year)) {
+      return new Date(year, month, day);
+    }
+  }
+
+  const parsed = new Date(str);
+  if (!isNaN(parsed.getTime())) return parsed;
+  return null;
+};
+
+const isDueDateOverdueOrToday = (dueDateStr: any): boolean => {
+  const dueDate = parseDateString(dueDateStr);
+  if (!dueDate) return false;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  dueDate.setHours(0, 0, 0, 0);
+
+  return dueDate.getTime() <= today.getTime();
+};
+
+const defaultBulkForm = () => ({
+  paymentMode: "",
+  paymentDate: new Date() as Date | undefined,
+  proof: null as File | null,
+});
+
+const defaultFreightForm = () => ({
+  amount: "",
+  paymentDetails: "",
+  paymentDate: new Date(),
+  paymentStatus: "pending",
+  totalPaid: "",
+  pendingAmount: "",
+  paymentProof: null as File | null,
+});
+
+const defaultTerms = [
+  "Payment within 30 days of Invoice date.",
+  "Subject to receipt of all relevant document copies.",
+];
+
+export default function UnifiedPaymentHub() {
+  const params = useParams();
+  const slug = params?.slug as string;
+
+  // Active sub-workflow state
+  const [workflow, setWorkflow] = useState<"advance" | "vendor" | "freight">("advance");
   const [activeTab, setActiveTab] = useState<"pending" | "history">("pending");
-  const [currentRecord, setCurrentRecord] = useState<any>(null);
-  const [sheetRecords, setSheetRecords] = useState<any[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Form State
-  const [formData, setFormData] = useState({
+  // --- Workflow 1: Advance Payments state ---
+  const [advRecords, setAdvRecords] = useState<any[]>([]);
+  const [advOpen, setAdvOpen] = useState(false);
+  const [currentAdvRecord, setCurrentAdvRecord] = useState<any>(null);
+  const [advForm, setAdvForm] = useState({
     paymentRef: "",
     paymentDate: new Date().toISOString().split("T")[0],
-    remarks: "",
   });
 
-  const [searchTerm, setSearchTerm] = useState("");
+  // --- Workflow 2: Vendor Payments state ---
+  const [vendorRecords, setVendorRecords] = useState<any[]>([]);
+  const [vendorHistory, setVendorHistory] = useState<any[]>([]);
+  const [vendorSelectedColumns, setVendorSelectedColumns] = useState<string[]>(ALL_VENDOR_PENDING_KEYS);
+  const [showOverdueOnly, setShowOverdueOnly] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkStep, setBulkStep] = useState<"vendor" | "invoices">("vendor");
+  const [selectedBulkVendor, setSelectedBulkVendor] = useState("");
+  const [vendorSearch, setVendorSearch] = useState("");
+  const [bulkInvoices, setBulkInvoices] = useState<Record<string, { selected: boolean; payAmount: string; originalPending: number }>>({});
+  const [bulkFormData, setBulkFormData] = useState(defaultBulkForm);
+  const [terms, setTerms] = useState<string[]>(defaultTerms);
 
-  const fetchData = async () => {
-    const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI;
+  // --- Workflow 3: Freight Payments state ---
+  const [freightRecords, setFreightRecords] = useState<any[]>([]);
+  const [freightHistory, setFreightHistory] = useState<any[]>([]);
+  const [freightSelectedColumns, setFreightSelectedColumns] = useState<string[]>(ALL_FREIGHT_COLUMN_KEYS);
+  const [freightOpen, setFreightOpen] = useState(false);
+  const [selectedFreightId, setSelectedFreightId] = useState<string | null>(null);
+  const [freightForm, setFreightForm] = useState(defaultFreightForm);
+  const [freightCalcData, setFreightCalcData] = useState({ freightAmount: 0, advanceAmount: 0 });
+
+  // Sync sub-workflow with route slug
+  useEffect(() => {
+    if (slug === "vendor-payment") {
+      setWorkflow("vendor");
+      setActiveTab("pending");
+    } else if (slug === "freight-payments") {
+      setWorkflow("freight");
+      setActiveTab("pending");
+    } else if (slug === "payment") {
+      setWorkflow("advance");
+      setActiveTab("pending");
+    }
+  }, [slug]);
+
+  // Fetch all payment datasets
+  const fetchData = useCallback(async () => {
     if (!SHEET_API_URL) return;
     setIsLoading(true);
     try {
-      const res = await fetch(`${SHEET_API_URL}?sheet=INDENT-LIFT&action=getAll`);
-      const json = await res.json();
-      if (json.success && Array.isArray(json.data)) {
-        // Data starts at index 6 (Row 8)
-        const rows = json.data.slice(6)
+      const [liftRes, payRes, histRes, frtRes] = await Promise.all([
+        fetch(`${SHEET_API_URL}?sheet=INDENT-LIFT&action=getAll`),
+        fetch(`${SHEET_API_URL}?sheet=VENDOR-PAYMENTS&action=getAll`),
+        fetch(`${SHEET_API_URL}?sheet=PAID-DATA&action=getAll`),
+        fetch(`${SHEET_API_URL}?sheet=FREIGHT-PAYMENTS&action=getAll`),
+      ]);
+      const [liftJson, payJson, histJson, frtJson] = await Promise.all([
+        liftRes.json(),
+        payRes.json(),
+        histRes.json(),
+        frtRes.json(),
+      ]);
+
+      // 1. PO Advance Payments mapping (INDENT-LIFT)
+      if (liftJson.success && Array.isArray(liftJson.data)) {
+        const rows = liftJson.data.slice(6)
           .map((row: any, i: number) => ({ row, originalIndex: i + 7 }))
           .filter(({ row }: any) => row[1] && String(row[1]).trim() !== "")
           .map(({ row, originalIndex }: any) => {
@@ -81,7 +272,6 @@ export default function Payment() {
               status = hasActualPayment ? "completed" : "pending";
             }
 
-            // Find selected vendor terms
             const selectedVendor = String(row[47] || "").trim();
             let terms = "";
             if (selectedVendor === "vendor1") terms = String(row[23] || "").trim();
@@ -91,7 +281,7 @@ export default function Payment() {
             return {
               id: row[1] || `row-${originalIndex}`,
               rowIndex: originalIndex,
-              status: status,
+              status,
               createdAt: parseSheetDate(row[0]),
               data: {
                 timestamp: row[0],
@@ -108,415 +298,1242 @@ export default function Payment() {
               }
             };
           });
-        setSheetRecords(rows);
+        setAdvRecords(rows);
+      }
+
+      // 2. Vendor Invoice Payments mapping
+      if (payJson.success && Array.isArray(payJson.data)) {
+        const rows = payJson.data.slice(6)
+          .map((row: any, i: number) => ({ row, originalIndex: i + 7 }))
+          .filter(({ row }: any) => row[1] && String(row[1]).trim() !== "")
+          .map(({ row, originalIndex }: any) => {
+            const totalVal = parseNum(row[11]);
+            const pendingRaw = row[17];
+            const currentPending = (pendingRaw !== undefined && pendingRaw !== "" && pendingRaw !== "-")
+              ? parseNum(pendingRaw)
+              : totalVal;
+            const storedPaid = parseNum(row[16]);
+            const plan1 = row[13];
+            const actual1 = row[14];
+            const status = (!!plan1 && String(plan1).trim() !== "" && String(plan1).trim() !== "-")
+              ? ((!actual1 || String(actual1).trim() === "" || String(actual1).trim() === "-" || currentPending > 1) ? "pending" : "history")
+              : "not_ready";
+
+            const invNo = String(row[1] || "").trim();
+            const dueDateVal = row[21] ? String(row[21]).trim() : "-";
+            const totalRcvd = String(row[10] || "").split(',')
+              .map(v => parseFloat(v.trim()) || 0)
+              .reduce((sum, val) => sum + val, 0);
+
+            return {
+              id: `${invNo}_${originalIndex}`,
+              rowIndex: originalIndex,
+              status,
+              data: {
+                id: invNo,
+                invoiceNo: invNo,
+                invoiceCopy: row[2] || "",
+                invoiceDate: toDate(row[3]),
+                dueDate: dueDateVal,
+                vendor: String(row[4] || "").trim(),
+                poNumber: row[5] || "",
+                totalRcvd,
+                poCopy: row[6] || "",
+                qty: row[10] || "",
+                receivedItems: row[12] || "",
+                totalVal,
+                plan1: toDate(plan1),
+                actual1: toDate(actual1),
+                totalPaid: storedPaid,
+                pendingAmount: currentPending,
+                paymentStatus: currentPending <= 1 ? "paid" : (storedPaid > 0 ? "partial" : "pending"),
+              }
+            };
+          });
+        setVendorRecords(rows.filter((r: any) => r.status === "pending"));
+      }
+
+      // 3. Paid history mapping (PAID-DATA)
+      if (histJson.success && Array.isArray(histJson.data)) {
+        const vLookup = new Map();
+        if (payJson.success && Array.isArray(payJson.data)) {
+          payJson.data.slice(6).forEach((row: any) => {
+            const invNo = String(row[1] || "").trim();
+            if (invNo) {
+              vLookup.set(invNo, { planned: toDate(row[13]), actual: toDate(row[14]) });
+            }
+          });
+        }
+
+        const fLookup = new Map();
+        if (frtJson.success && Array.isArray(frtJson.data)) {
+          frtJson.data.slice(6).forEach((row: any) => {
+            const lrNo = String(row[1] || "").trim();
+            if (lrNo) {
+              fLookup.set(lrNo, { planned: toDate(row[9]), actual: toDate(row[10]) });
+            }
+          });
+        }
+
+        const vHist: any[] = [];
+        const fHist: any[] = [];
+
+        histJson.data.slice(1).forEach((row: any, i: number) => {
+          const type = row[1];
+          const refNo = String(row[2] || "").trim();
+          if (type === "Vendor Payment") {
+            const extra = vLookup.get(refNo) || { planned: "-", actual: "-" };
+            vHist.push({
+              id: `VHIST_${i}`,
+              invoiceNo: row[2],
+              vendor: row[3],
+              amountPaid: row[4],
+              status: row[5],
+              date: toDate(row[6]),
+              planned: extra.planned,
+              actual: extra.actual,
+              mode: row[7],
+              proof: row[8],
+            });
+          } else if (type === "Freight Payment") {
+            const extra = fLookup.get(refNo) || { planned: "-", actual: "-" };
+            fHist.push({
+              id: `FHIST_${i}`,
+              lrNo: row[2],
+              transporter: row[3],
+              amountPaid: row[4],
+              status: row[5],
+              date: toDate(row[6]),
+              planned: extra.planned,
+              actual: extra.actual,
+              mode: row[7],
+              proof: row[8],
+            });
+          }
+        });
+
+        setVendorHistory(vHist.reverse());
+        setFreightHistory(fHist.reverse());
+      }
+
+      // 4. Freight Payments mapping (FREIGHT-PAYMENTS)
+      if (frtJson.success && Array.isArray(frtJson.data)) {
+        const rows = frtJson.data.slice(6)
+          .map((row: any, i: number) => ({ row, originalIndex: i + 7 }))
+          .filter(({ row }: any) => row[1] && String(row[1]).trim() !== "")
+          .map(({ row, originalIndex }: any) => {
+            const plan1 = row[9];
+            const actual1 = row[10];
+            const freightAmt = parseNum(row[3]);
+            const pendingRaw = row[13];
+            const currentPending = (pendingRaw !== undefined && pendingRaw !== "" && pendingRaw !== "-")
+              ? parseNum(pendingRaw)
+              : freightAmt;
+            const totalPaid = parseNum(row[12]);
+
+            return {
+              id: `${String(row[1]).trim()}_${originalIndex}`,
+              rowIndex: originalIndex,
+              status: "pending",
+              data: {
+                lrNo: row[1] || "",
+                biltyImage: row[2] || "",
+                freightAmount: row[3] || "",
+                transporter: row[4] || "",
+                vehicleNo: row[5] || "",
+                contact: row[6] || "",
+                advanceAmount: row[7] || "",
+                paymentDate: formatDate(row[8]),
+                plan1: formatDate(plan1),
+                actual1: formatDate(actual1),
+                totalPaid,
+                pendingAmount: currentPending,
+                invoiceNo: row[14] || "",
+                invoiceCopy: row[15] || "",
+                freightVal: freightAmt,
+                advanceVal: parseNum(row[7]),
+              }
+            };
+          });
+        setFreightRecords(rows.filter((r: any) => r.data.pendingAmount > 1));
       }
     } catch (e) {
-      console.error("Fetch error Payment Stage:", e);
+      console.error(e);
+      toast.error("Failed to load spreadsheet details");
     }
     setIsLoading(false);
-  };
+  }, []);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
-  const pending = useMemo(() => sheetRecords
-    .filter((r) => r.status === "pending")
-    .filter((r) => {
-      const searchLower = searchTerm.toLowerCase();
-      return (
-        r.data.indentNumber?.toLowerCase().includes(searchLower) ||
-        r.data.itemName?.toLowerCase().includes(searchLower) ||
-        r.data.selectedVendorName?.toLowerCase().includes(searchLower)
-      );
-    }), [sheetRecords, searchTerm]);
+  // Derived search term lower casing
+  const searchLower = useMemo(() => searchTerm.toLowerCase(), [searchTerm]);
 
-  const completed = useMemo(() => sheetRecords
-    .filter((r) => r.status === "completed")
-    .filter((r) => {
-      const searchLower = searchTerm.toLowerCase();
-      return (
-        r.data.indentNumber?.toLowerCase().includes(searchLower) ||
-        r.data.itemName?.toLowerCase().includes(searchLower) ||
-        r.data.selectedVendorName?.toLowerCase().includes(searchLower)
-      );
-    }), [sheetRecords, searchTerm]);
+  // --- Filtering PO Advance rows ---
+  const filteredAdvPending = useMemo(() => {
+    return advRecords.filter((r: any) => r.status === "pending" && (
+      r.data.indentNumber?.toLowerCase().includes(searchLower) ||
+      r.data.itemName?.toLowerCase().includes(searchLower) ||
+      r.data.selectedVendorName?.toLowerCase().includes(searchLower)
+    ));
+  }, [advRecords, searchLower]);
 
-  const baseColumns = [
-    { key: "indentNumber", label: "Indent" },
-    { key: "itemName", label: "Item" },
-    { key: "selectedVendorName", label: "Vendor" },
-    { key: "poNumber", label: "PO Number" },
-    { key: "totalValue", label: "PO Value" },
-    { key: "plannedPayment", label: "Planned Date" },
-  ];
+  const filteredAdvHistory = useMemo(() => {
+    return advRecords.filter((r: any) => r.status === "completed" && (
+      r.data.indentNumber?.toLowerCase().includes(searchLower) ||
+      r.data.itemName?.toLowerCase().includes(searchLower) ||
+      r.data.selectedVendorName?.toLowerCase().includes(searchLower)
+    ));
+  }, [advRecords, searchLower]);
 
-  const [selectedColumns, setSelectedColumns] = useState<string[]>(
-    baseColumns.map((c) => c.key)
-  );
+  // --- Filtering Vendor Invoice rows ---
+  const filteredVendorPending = useMemo(() => {
+    let result = vendorRecords.filter((r: any) => (
+      r.data.invoiceNo?.toLowerCase().includes(searchLower) ||
+      r.data.vendor?.toLowerCase().includes(searchLower) ||
+      r.data.receivedItems?.toLowerCase().includes(searchLower) ||
+      r.data.poNumber?.toLowerCase().includes(searchLower) ||
+      r.data.dueDate?.toLowerCase().includes(searchLower)
+    ));
+    if (showOverdueOnly) {
+      result = result.filter((r: any) => isDueDateOverdueOrToday(r.data.dueDate));
+    }
+    return result;
+  }, [vendorRecords, searchLower, showOverdueOnly]);
 
-  const ColumnSelector = () => (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="outline" className="w-40 justify-start h-10 rounded-xl bg-white border-slate-200">
-          {selectedColumns.length === baseColumns.length
-            ? "All columns"
-            : `${selectedColumns.length} column${
-                selectedColumns.length !== 1 ? "s" : ""
-              } selected`}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-40 p-2 bg-white border shadow-md">
-        <div className="space-y-2">
-          <div className="flex items-center space-x-2 pb-2 border-b">
-            <Checkbox
-              checked={selectedColumns.length === baseColumns.length}
-              onCheckedChange={(c) => {
-                if (c) setSelectedColumns(baseColumns.map((col) => col.key));
-                else setSelectedColumns([]);
-              }}
-            />
-            <Label className="text-sm font-medium">All Columns</Label>
-          </div>
+  const filteredVendorHistory = useMemo(() => {
+    return vendorHistory.filter((r: any) => (
+      r.invoiceNo?.toLowerCase().includes(searchLower) ||
+      r.vendor?.toLowerCase().includes(searchLower)
+    ));
+  }, [vendorHistory, searchLower]);
 
-          {baseColumns.map((col) => (
-            <div key={col.key} className="flex items-center space-x-2 py-1">
-              <Checkbox
-                checked={selectedColumns.includes(col.key)}
-                onCheckedChange={(checked) => {
-                  if (checked) {
-                    setSelectedColumns((prev) => [...prev, col.key]);
-                  } else {
-                    setSelectedColumns((prev) =>
-                      prev.filter((c) => c !== col.key)
-                    );
-                  }
-                }}
-              />
-              <Label className="text-sm">{col.label}</Label>
-            </div>
-          ))}
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
+  // --- Filtering Freight rows ---
+  const filteredFreightPending = useMemo(() => {
+    return freightRecords.filter((r: any) => (
+      String(r.data.lrNo || "").toLowerCase().includes(searchLower) ||
+      String(r.data.transporter || "").toLowerCase().includes(searchLower) ||
+      String(r.data.vehicleNo || "").toLowerCase().includes(searchLower) ||
+      String(r.data.contact || "").toLowerCase().includes(searchLower)
+    ));
+  }, [freightRecords, searchLower]);
 
-  const handleOpenForm = (record: any) => {
-    setCurrentRecord(record);
-    setFormData({
+  const filteredFreightHistory = useMemo(() => {
+    return freightHistory.filter((r: any) => (
+      String(r.lrNo || "").toLowerCase().includes(searchLower) ||
+      String(r.transporter || "").toLowerCase().includes(searchLower)
+    ));
+  }, [freightHistory, searchLower]);
+
+  // --- Sub-workflow Actions & Forms Submission ---
+
+  // 1. Submit PO Advance
+  const handleOpenAdvForm = (record: any) => {
+    setCurrentAdvRecord(record);
+    setAdvForm({
       paymentRef: "",
       paymentDate: new Date().toISOString().split("T")[0],
-      remarks: "",
     });
-    setOpen(true);
+    setAdvOpen(true);
   };
 
-  const resetForm = () => {
-    setOpen(false);
-    setCurrentRecord(null);
-    setFormData({
-      paymentRef: "",
-      paymentDate: new Date().toISOString().split("T")[0],
-      remarks: "",
-    });
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleAdvSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentRecord || !formData.paymentRef) {
+    if (!currentAdvRecord || !advForm.paymentRef) {
       toast.error("Please enter the Payment Reference Number.");
       return;
     }
-
-    const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI;
     if (!SHEET_API_URL) return;
 
     setIsSubmitting(true);
-    setSubmitError(null);
-
     try {
       const rowArray = new Array(75).fill("");
+      rowArray[73] = advForm.paymentDate || getFmsTimestamp();
+      rowArray[74] = advForm.paymentRef;
 
-      // Update Payment Stage completion details
-      rowArray[73] = formData.paymentDate || getFmsTimestamp(); // Actual Payment Date
-      rowArray[74] = formData.paymentRef;                     // Payment Reference No
-
-      const params = new URLSearchParams();
-      params.append("action", "update");
-      params.append("sheetName", "INDENT-LIFT");
-      params.append("rowIndex", currentRecord.rowIndex.toString());
-      params.append("rowData", JSON.stringify(rowArray));
-
-      const response = await fetch(SHEET_API_URL, {
-        method: "POST",
-        body: params,
+      const params = new URLSearchParams({
+        action: "update",
+        sheetName: "INDENT-LIFT",
+        rowIndex: currentAdvRecord.rowIndex.toString(),
+        rowData: JSON.stringify(rowArray),
       });
 
-      if (!response.ok) throw new Error("Update failed");
-
+      const response = await fetch(SHEET_API_URL, { method: "POST", body: params });
       const result = await response.json();
       if (result.success) {
-        toast.success("Payment recorded and transitioned successfully!");
+        toast.success("Advance Payment recorded and transitioned successfully!");
+        setAdvOpen(false);
         await fetchData();
-        resetForm();
       } else {
-        throw new Error(result.error || "Unknown error");
+        throw new Error(result.error || "Transition failed");
       }
     } catch (err: any) {
-      console.error("Payment Submit Error:", err);
-      setSubmitError(err.message || "Failed to record payment");
-      toast.error(err.message || "Failed submission");
+      toast.error(err.message || "Failed to submit payment");
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // 2. Bulk Vendor Payments
+  const vendorsList = useMemo(() => {
+    const list = new Set<string>();
+    vendorRecords.forEach((r: any) => { if (r.data.vendor) list.add(r.data.vendor); });
+    return Array.from(list);
+  }, [vendorRecords]);
+
+  const filteredVendorsList = useMemo(() => {
+    const term = vendorSearch.toLowerCase();
+    return vendorsList.filter((v: any) => v.toLowerCase().includes(term));
+  }, [vendorsList, vendorSearch]);
+
+  const handleBulkOpen = () => {
+    setSelectedBulkVendor("");
+    setVendorSearch("");
+    setBulkInvoices({});
+    setBulkFormData(defaultBulkForm());
+    setTerms(defaultTerms);
+    setBulkStep("vendor");
+    setBulkOpen(true);
+  };
+
+  const handleSelectVendor = (vendorName: string) => {
+    setSelectedBulkVendor(vendorName);
+    const matched = vendorRecords.filter((r: any) => r.data.vendor === vendorName);
+    const invoiceStates: Record<string, { selected: boolean; payAmount: string; originalPending: number }> = {};
+    matched.forEach((r: any) => {
+      invoiceStates[r.id] = {
+        selected: false,
+        payAmount: (r.data.pendingAmount || 0).toString(),
+        originalPending: r.data.pendingAmount || 0,
+      };
+    });
+    setBulkInvoices(invoiceStates);
+    setBulkStep("invoices");
+  };
+
+  const bulkTotalToPay = useMemo(() => {
+    return Object.entries(bulkInvoices)
+      .filter(([_, info]) => info.selected)
+      .reduce((sum, [_, info]) => sum + (parseFloat(info.payAmount) || 0), 0);
+  }, [bulkInvoices]);
+
+  const handleBulkSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const selectedIds = Object.entries(bulkInvoices)
+      .filter(([_, info]) => info.selected)
+      .map(([id]) => id);
+
+    if (selectedIds.length === 0) {
+      toast.error("Please select at least one invoice.");
+      return;
+    }
+    if (!bulkFormData.paymentMode) {
+      toast.error("Please select payment mode.");
+      return;
+    }
+    if (!SHEET_API_URL) return;
+
+    setIsSubmitting(true);
+    const toastId = toast.loading("Processing Vendor payments...");
+    try {
+      const dateStr = bulkFormData.paymentDate ? format(bulkFormData.paymentDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd");
+
+      // Upload payment proof if present
+      let proofUrl = "";
+      if (bulkFormData.proof) {
+        const base64Data = await new Promise<string>(resolve => {
+          const reader = new FileReader();
+          reader.onload = ev => resolve(ev.target?.result as string);
+          reader.readAsDataURL(bulkFormData.proof!);
+        });
+        const upParams = new URLSearchParams({
+          action: "uploadFile",
+          fileName: `BULKPAY_${selectedBulkVendor}_${Date.now()}`,
+          mimeType: bulkFormData.proof.type,
+          base64Data,
+          ...(IMAGE_FOLDER_ID ? { folderId: IMAGE_FOLDER_ID } : {}),
+        });
+        const upJson = await fetch(SHEET_API_URL, { method: "POST", body: upParams }).then(r => r.json());
+        if (upJson.success) proofUrl = upJson.fileUrl;
+      }
+
+      // Record payments in PAID-DATA sequentially
+      let successCount = 0;
+      for (const id of selectedIds) {
+        const rec = vendorRecords.find(r => r.id === id);
+        if (!rec) continue;
+        const payInfo = bulkInvoices[id];
+        const payAmount = parseFloat(payInfo.payAmount) || 0;
+        if (payAmount <= 0) continue;
+
+        const paymentStatus = (rec.data.totalVal - (rec.data.totalPaid + payAmount)) <= 1 ? "Paid" : "Partial";
+
+        const paidRow = [
+          getFmsTimestamp(),
+          "Vendor Payment",
+          rec.data.invoiceNo || "",
+          rec.data.vendor || "",
+          payAmount.toString(),
+          paymentStatus,
+          dateStr,
+          bulkFormData.paymentMode,
+          proofUrl,
+        ];
+
+        const paidParams = new URLSearchParams({
+          action: "insert",
+          sheetName: "PAID-DATA",
+          rowData: JSON.stringify(paidRow),
+        });
+        await fetch(SHEET_API_URL, { method: "POST", body: paidParams });
+        successCount++;
+      }
+
+      toast.success(`Processed ${successCount} payments!`, { id: toastId });
+      setBulkOpen(false);
+      await fetchData();
+    } catch (err: any) {
+      toast.error(err.message || "Bulk Payment failed", { id: toastId });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // 3. Submit Freight Payments
+  const handleOpenFreightForm = (recordId: string) => {
+    const rec = freightRecords.find(r => r.id === recordId);
+    if (!rec) return;
+
+    const freight = rec.data.freightVal;
+    const advance = rec.data.advanceVal;
+    const pendingAmt = rec.data.pendingAmount > 0 ? rec.data.pendingAmount : (freight - advance);
+
+    setSelectedFreightId(recordId);
+    setFreightForm({
+      amount: (pendingAmt > 0 ? pendingAmt : 0).toFixed(2),
+      paymentDetails: "",
+      paymentDate: new Date(),
+      paymentStatus: pendingAmt <= 1 ? "paid" : "pending",
+      totalPaid: rec.data.totalPaid.toString(),
+      pendingAmount: (pendingAmt > 0 ? pendingAmt : 0).toFixed(2),
+      paymentProof: null,
+    });
+    setFreightCalcData({ freightAmount: freight, advanceAmount: advance });
+    setFreightOpen(true);
+  };
+
+  const handleFreightSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedFreightId) return;
+
+    const rec = freightRecords.find(r => r.id === selectedFreightId);
+    if (!rec) return;
+    if (!SHEET_API_URL) return;
+
+    setIsSubmitting(true);
+    const toastId = toast.loading("Processing Freight Payment...");
+
+    try {
+      const dateStr = format(freightForm.paymentDate, "yyyy-MM-dd");
+
+      // Upload proof if present
+      let proofUrl = "";
+      if (freightForm.paymentProof) {
+        const base64Data = await new Promise<string>(resolve => {
+          const reader = new FileReader();
+          reader.onload = ev => resolve(ev.target?.result as string);
+          reader.readAsDataURL(freightForm.paymentProof!);
+        });
+
+        const upParams = new URLSearchParams({
+          action: "uploadFile",
+          fileName: `FRT_${rec.data.lrNo}_${Date.now()}`,
+          mimeType: freightForm.paymentProof.type,
+          base64Data,
+          ...(IMAGE_FOLDER_ID ? { folderId: IMAGE_FOLDER_ID } : {}),
+        });
+        const upRes = await fetch(SHEET_API_URL, { method: "POST", body: upParams });
+        const upJson = await upRes.json();
+        if (upJson.success) proofUrl = upJson.fileUrl;
+      }
+
+      // Write payment details to PAID-DATA
+      const payAmount = parseNum(freightForm.amount);
+      const newTotalPaid = (rec.data.totalPaid || 0) + payAmount;
+      const newPending = rec.data.freightVal - newTotalPaid;
+      const paymentStatus = newPending <= 1 ? "Paid" : "Partial";
+
+      const paidRow = [
+        getFmsTimestamp(),
+        "Freight Payment",
+        rec.data.lrNo || "",
+        rec.data.transporter || "",
+        payAmount.toString(),
+        paymentStatus,
+        dateStr,
+        freightForm.paymentDetails || "",
+        proofUrl,
+      ];
+
+      const paidParams = new URLSearchParams({
+        action: "insert",
+        sheetName: "PAID-DATA",
+        rowData: JSON.stringify(paidRow),
+      });
+      const paidRes = await fetch(SHEET_API_URL, { method: "POST", body: paidParams });
+      const paidJson = await paidRes.json();
+
+      if (paidJson.success) {
+        toast.success("Freight Payment Recorded!", { id: toastId });
+        setFreightOpen(false);
+        await fetchData();
+      } else {
+        throw new Error(paidJson.error || "Update failed");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Freight payment failed", { id: toastId });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Visibility toggle helpers
+  const handleVendorColumnToggle = (key: string, checked: boolean) => {
+    setVendorSelectedColumns(prev => checked ? [...prev, key] : prev.filter(k => k !== key));
+  };
+
+  const handleFreightColumnToggle = (key: string, checked: boolean) => {
+    setFreightSelectedColumns(prev => checked ? [...prev, key] : prev.filter(k => k !== key));
+  };
+
+  // safeValue renderer for files/URLs
+  const renderSafeValue = (val: any) => {
+    if (!val || val === "-" || val === "") return "-";
+    if (typeof val === "string" && (val.startsWith("http") || val.includes("drive.google"))) {
+      let displayUrl = val;
+      if (displayUrl.includes("drive.google.com/uc")) {
+        const idMatch = displayUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+        if (idMatch && idMatch[1]) {
+          displayUrl = `https://drive.google.com/file/d/${idMatch[1]}/view`;
+        }
+      }
+      return (
+        <a href={displayUrl} target="_blank" rel="noopener noreferrer"
+          className="text-blue-600 hover:underline flex items-center gap-1 font-semibold">
+          <FileText className="w-3.5 h-3.5" /> View
+        </a>
+      );
+    }
+    return String(val);
+  };
+
   return (
-    <div className="p-4 md:p-6 max-w-[1600px] mx-auto w-full flex-1 flex flex-col overflow-hidden">
-      {/* Header Card */}
-      <div className="mb-6 p-6 bg-gradient-to-br from-slate-50 to-white border border-slate-200 rounded-xl shadow-sm shrink-0">
+    <div className="flex-1 flex flex-col overflow-hidden bg-slate-50/50 p-6 space-y-6">
+      {/* Upper Header Card */}
+      <div className="p-6 bg-gradient-to-br from-slate-50 to-white border border-slate-200 rounded-xl shadow-sm shrink-0">
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-slate-900 rounded-lg shadow-slate-100 shadow-xl text-white">
               <CreditCard className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Stage 6: Payment</h1>
-              <p className="text-slate-500 text-sm">Process advance payments for approved vendor items.</p>
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Payment Hub</h2>
+              <p className="text-slate-500 text-sm">Process, record, and track all stages of purchase and freight payments.</p>
             </div>
           </div>
 
-          <div className="flex-1 flex items-center justify-end gap-4 w-full md:w-auto">
-            <div className="relative w-full max-w-sm">
+          <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+            {workflow === "vendor" && (
+              <Button
+                onClick={handleBulkOpen}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md flex items-center gap-2 h-10 px-5 rounded-xl"
+              >
+                <Banknote className="w-4 h-4" /> Process Payment
+              </Button>
+            )}
+
+            <div className="relative w-full max-w-xs">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
               <Input
-                placeholder="Search by indent, item, vendor..."
+                placeholder="Search..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 bg-white"
+                className="pl-9 bg-white border-slate-200 focus-visible:ring-slate-400"
               />
             </div>
 
-            <div className="flex items-center gap-3">
-              <Label className="text-sm font-semibold text-slate-600 hidden md:inline-block">Show Columns:</Label>
-              <ColumnSelector />
-            </div>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={fetchData}
+              disabled={isLoading}
+              className="h-10 w-10 bg-white hover:bg-slate-50 border-slate-200 flex-shrink-0 rounded-xl"
+            >
+              <RefreshCw className={cn("w-4 h-4 text-slate-600", isLoading && "animate-spin")} />
+            </Button>
           </div>
         </div>
       </div>
 
-      {/* Tabs Layout */}
-      <Tabs value={activeTab} onValueChange={(val: any) => setActiveTab(val)} className="flex-1 flex flex-col overflow-hidden">
-        <TabsList className="bg-slate-100/80 p-1 w-fit rounded-lg mb-4">
-          <TabsTrigger value="pending" className="px-4 py-2 text-sm font-medium rounded-md transition-all">
-            Pending Payments ({pending.length})
-          </TabsTrigger>
-          <TabsTrigger value="history" className="px-4 py-2 text-sm font-medium rounded-md transition-all">
-            History ({completed.length})
-          </TabsTrigger>
-        </TabsList>
+      {/* Main Switcher and View */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Unified switcher tabs */}
+        <div className="flex items-center justify-between mb-4 border-b border-slate-200 pb-3 flex-shrink-0">
+          <div className="flex items-center gap-2 bg-slate-100/80 p-1 w-fit rounded-lg">
+            <Button
+              variant={workflow === "advance" ? "secondary" : "ghost"}
+              onClick={() => { setWorkflow("advance"); setActiveTab("pending"); }}
+              className={cn("px-4 py-2 text-xs font-semibold rounded-md h-8 shadow-none", workflow === "advance" && "bg-white text-slate-900 hover:bg-white")}
+            >
+              Advance Payment
+            </Button>
+            <Button
+              variant={workflow === "vendor" ? "secondary" : "ghost"}
+              onClick={() => { setWorkflow("vendor"); setActiveTab("pending"); }}
+              className={cn("px-4 py-2 text-xs font-semibold rounded-md h-8 shadow-none", workflow === "vendor" && "bg-white text-slate-900 hover:bg-white")}
+            >
+              Vendor payment
+            </Button>
+            <Button
+              variant={workflow === "freight" ? "secondary" : "ghost"}
+              onClick={() => { setWorkflow("freight"); setActiveTab("pending"); }}
+              className={cn("px-4 py-2 text-xs font-semibold rounded-md h-8 shadow-none", workflow === "freight" && "bg-white text-slate-900 hover:bg-white")}
+            >
+              Freight Payments
+            </Button>
+          </div>
 
-        {/* Pending Tab content */}
-        <TabsContent value="pending" className="mt-0 flex-1 flex flex-col overflow-hidden">
-          {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-24 bg-white border rounded-lg shadow-sm">
-              <Loader2 className="w-12 h-12 animate-spin text-blue-600 mb-4" />
-              <p className="text-lg font-medium text-gray-900">Loading payments...</p>
-            </div>
-          ) : pending.length === 0 ? (
-            <div className="text-center py-12 text-gray-500 border rounded-lg bg-gray-50">
-              <p className="text-lg">No pending payments</p>
-              <p className="text-sm mt-1">All advance payments are caught up!</p>
-            </div>
-          ) : (
-            <div className="flex-1 overflow-auto border rounded-xl bg-white shadow-sm scrollbar-thin scrollbar-thumb-slate-200">
-              <table className="w-full caption-bottom text-sm border-collapse">
-                <TableHeader className="sticky top-0 z-30 bg-slate-200 shadow-sm border-none">
-                  <TableRow className="bg-slate-200 hover:bg-slate-200 border-none">
-                    <TableHead className="sticky top-0 z-30 bg-slate-200 border-none px-4 py-3 text-slate-700 font-bold uppercase text-[13px] tracking-wider">
-                      Actions
-                    </TableHead>
-                    {baseColumns.filter((col) => selectedColumns.includes(col.key)).map((col) => (
-                      <TableHead key={col.key} className="sticky top-0 z-30 bg-slate-200 border-none px-4 py-3 text-slate-700 font-bold uppercase text-[13px] tracking-wider">
-                        {col.label}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pending.map((record) => (
-                    <TableRow key={record.id} className="hover:bg-muted/50 odd:bg-white even:bg-slate-50/80 group">
-                      <TableCell className="px-4 py-3">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenForm(record)}
-                          className="h-8 text-xs font-semibold px-3 border-blue-200 text-blue-700 hover:bg-blue-50/80 transition-colors"
-                        >
-                          Record Payment
-                        </Button>
-                      </TableCell>
-                      {baseColumns.filter((col) => selectedColumns.includes(col.key)).map((col) => (
-                        <TableCell key={col.key} className="text-sm text-slate-700 px-4">
-                          {col.key === "plannedPayment"
-                            ? formatDateDash(record.data[col.key])
-                            : col.key === "totalValue"
-                              ? record.data[col.key] && record.data[col.key] !== "-" ? `₹${record.data[col.key]}` : "-"
-                              : String(record.data[col.key] ?? "-")}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </table>
-            </div>
-          )}
-        </TabsContent>
-
-        {/* Completed Tab content */}
-        <TabsContent value="history" className="mt-0 flex-1 flex flex-col overflow-hidden">
-          {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-24 bg-white border rounded-lg shadow-sm">
-              <Loader2 className="w-12 h-12 animate-spin text-blue-600 mb-4" />
-              <p className="text-lg font-medium text-gray-900">Loading History...</p>
-            </div>
-          ) : completed.length === 0 ? (
-            <div className="text-center py-12 text-gray-500 border rounded-lg bg-gray-50">
-              <p className="text-lg">No completed payments</p>
-            </div>
-          ) : (
-            <div className="flex-1 overflow-auto border rounded-xl bg-white shadow-sm scrollbar-thin scrollbar-thumb-slate-200">
-              <table className="w-full caption-bottom text-sm border-collapse">
-                <TableHeader className="sticky top-0 z-30 bg-slate-200 shadow-sm border-none">
-                  <TableRow className="bg-slate-200 hover:bg-slate-200 border-none">
-                    {baseColumns.filter((col) => selectedColumns.includes(col.key)).map((col) => (
-                      <TableHead key={col.key} className="sticky top-0 z-30 bg-slate-200 border-none px-4 py-3 text-slate-700 font-bold uppercase text-[13px] tracking-wider">
-                        {col.label}
-                      </TableHead>
-                    ))}
-                    <TableHead className="sticky top-0 z-30 bg-slate-200 border-none px-4 py-3 text-slate-700 font-bold uppercase text-[13px] tracking-wider">
-                      Payment Ref No.
-                    </TableHead>
-                    <TableHead className="sticky top-0 z-30 bg-slate-200 border-none px-4 py-3 text-slate-700 font-bold uppercase text-[13px] tracking-wider">
-                      Payment Date
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {completed.map((record) => (
-                    <TableRow key={record.id} className="hover:bg-muted/50 odd:bg-white even:bg-slate-50/80 group">
-                      {baseColumns.filter((col) => selectedColumns.includes(col.key)).map((col) => (
-                        <TableCell key={col.key} className="text-sm text-slate-700 px-4">
-                          {col.key === "plannedPayment"
-                            ? formatDateDash(record.data[col.key])
-                            : col.key === "totalValue"
-                              ? record.data[col.key] && record.data[col.key] !== "-" ? `₹${record.data[col.key]}` : "-"
-                              : String(record.data[col.key] ?? "-")}
-                        </TableCell>
-                      ))}
-                      <TableCell className="text-sm text-slate-700 px-4 font-semibold text-blue-700">
-                        {record.data.paymentRef}
-                      </TableCell>
-                      <TableCell className="text-sm text-slate-700 px-4">
-                        {formatDateDash(record.data.actualPayment)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </table>
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
-
-      {/* RECORD PAYMENT DECISION MODAL */}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md flex flex-col">
-          <DialogHeader className="flex-shrink-0">
-            <DialogTitle className="flex items-center gap-2">
-              <CreditCard className="w-5 h-5 text-blue-600" />
-              <span>Record Advance Payment</span>
-            </DialogTitle>
-          </DialogHeader>
-
-          <form onSubmit={handleSubmit} className="flex-1 space-y-4 pr-1 py-1">
-            {/* Indent summary */}
-            <div className="border border-blue-100 rounded-lg p-3 bg-blue-50/40 text-xs space-y-1">
-              <div className="flex justify-between">
-                <span className="font-semibold text-slate-500">Indent:</span>
-                <span className="font-bold text-slate-900">{currentRecord?.data?.indentNumber}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-semibold text-slate-500">Item Name:</span>
-                <span className="font-medium text-slate-900">{currentRecord?.data?.itemName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-semibold text-slate-500">Selected Vendor:</span>
-                <span className="font-bold text-slate-900">{currentRecord?.data?.selectedVendorName}</span>
-              </div>
-              <div className="flex justify-between border-t border-blue-100/50 pt-1 mt-1">
-                <span className="font-semibold text-slate-500">PO Number:</span>
-                <span className="font-medium text-slate-900">{currentRecord?.data?.poNumber}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-semibold text-slate-500">PO Total Value:</span>
-                <span className="font-extrabold text-blue-700">₹{currentRecord?.data?.totalValue}</span>
-              </div>
+          <div className="flex items-center gap-2">
+            <div className="bg-slate-100 p-1 rounded-lg h-9 inline-flex items-center gap-1">
+              <button
+                onClick={() => setActiveTab("pending")}
+                className={cn(
+                  "px-4 py-1.5 text-xs font-semibold rounded-md transition-all",
+                  activeTab === "pending" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
+                )}
+              >
+                Pending (
+                {workflow === "advance" && filteredAdvPending.length}
+                {workflow === "vendor" && filteredVendorPending.length}
+                {workflow === "freight" && filteredFreightPending.length}
+                )
+              </button>
+              <button
+                onClick={() => setActiveTab("history")}
+                className={cn(
+                  "px-4 py-1.5 text-xs font-semibold rounded-md transition-all",
+                  activeTab === "history" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
+                )}
+              >
+                History (
+                {workflow === "advance" && filteredAdvHistory.length}
+                {workflow === "vendor" && filteredVendorHistory.length}
+                {workflow === "freight" && filteredFreightHistory.length}
+                )
+              </button>
             </div>
 
-            {/* Payment Reference Number */}
-            <div className="space-y-1.5">
-              <Label htmlFor="paymentRef" className="font-bold text-xs uppercase tracking-wider text-slate-500">
-                Payment Ref No. / UTR <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="paymentRef"
-                required
-                value={formData.paymentRef}
-                onChange={(e) => setFormData({ ...formData, paymentRef: e.target.value })}
-                placeholder="Enter Transaction Ref / UTR / Cheque No."
-                className="border-slate-200"
-              />
-            </div>
-
-            {/* Payment Date */}
-            <div className="space-y-1.5">
-              <Label htmlFor="paymentDate" className="font-bold text-xs uppercase tracking-wider text-slate-500">
-                Payment Date <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="paymentDate"
-                type="date"
-                required
-                value={formData.paymentDate}
-                onChange={(e) => setFormData({ ...formData, paymentDate: e.target.value })}
-                className="border-slate-200"
-              />
-            </div>
-
-            {/* Remarks */}
-            <div className="space-y-1.5">
-              <Label htmlFor="remarks" className="font-bold text-xs uppercase tracking-wider text-slate-500">Remarks</Label>
-              <Textarea
-                id="remarks"
-                value={formData.remarks}
-                onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                placeholder="Any special transaction reference or payment notes..."
-                className="min-h-16 border-slate-200"
-              />
-            </div>
-
-            {submitError && (
-              <p className="text-red-500 text-xs font-semibold">{submitError}</p>
+            {/* Overdue switch for vendor payments */}
+            {workflow === "vendor" && activeTab === "pending" && (
+              <Button
+                variant={showOverdueOnly ? "destructive" : "outline"}
+                onClick={() => setShowOverdueOnly(!showOverdueOnly)}
+                className="h-9 px-3 rounded-lg text-xs font-bold"
+              >
+                Overdue Only
+              </Button>
             )}
+          </div>
+        </div>
 
-            <DialogFooter className="flex-shrink-0 border-t pt-4">
-              <Button type="button" variant="outline" onClick={resetForm} disabled={isSubmitting}>
+        {/* Dynamic Workflow Area */}
+        <div className="flex-1 overflow-hidden bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col relative">
+          {isLoading && (
+            <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
+              <Loader2 className="w-12 h-12 animate-spin text-slate-800 mb-4" />
+              <p className="font-semibold text-slate-700 text-sm">Syncing spreadsheet records...</p>
+            </div>
+          )}
+
+          {/* Workflow 1: Advance Payments Pending Table */}
+          {workflow === "advance" && activeTab === "pending" && (
+            <div className="overflow-auto flex-1 custom-scrollbar">
+              {filteredAdvPending.length === 0 ? (
+                <div className="py-24 text-center text-slate-400">No pending advance payments found.</div>
+              ) : (
+                <Table className="text-xs">
+                  <TableHeader className="bg-slate-50 sticky top-0 z-20">
+                    <TableRow>
+                      <TableHead className="font-bold p-3">Action</TableHead>
+                      <TableHead className="font-bold p-3">Indent #</TableHead>
+                      <TableHead className="font-bold p-3">Item Details</TableHead>
+                      <TableHead className="font-bold p-3">Vendor</TableHead>
+                      <TableHead className="font-bold p-3">PO Number</TableHead>
+                      <TableHead className="font-bold p-3 text-right">PO Value</TableHead>
+                      <TableHead className="font-bold p-3">Payment Terms</TableHead>
+                      <TableHead className="font-bold p-3">Planned Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredAdvPending.map((r) => (
+                      <TableRow key={r.id} className="hover:bg-slate-50/50">
+                        <TableCell className="p-3">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenAdvForm(r)}
+                            className="h-7 text-xs font-semibold px-2.5 hover:bg-slate-100 hover:text-black"
+                          >
+                            Pay
+                          </Button>
+                        </TableCell>
+                        <TableCell className="p-3 font-semibold text-slate-700">IND-{r.data.indentNumber}</TableCell>
+                        <TableCell className="p-3 font-semibold text-slate-900">{r.data.itemName} (Qty: {r.data.quantity})</TableCell>
+                        <TableCell className="p-3 text-slate-600">{r.data.selectedVendorName}</TableCell>
+                        <TableCell className="p-3 font-mono text-xs">{r.data.poNumber}</TableCell>
+                        <TableCell className="p-3 text-right font-semibold text-slate-800">{formatAmount(r.data.totalValue)}</TableCell>
+                        <TableCell className="p-3 text-slate-500">{r.data.paymentTerms}</TableCell>
+                        <TableCell className="p-3 text-slate-600 font-medium">{formatDate(r.data.plannedPayment)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          )}
+
+          {/* Workflow 1: Advance Payments History Table */}
+          {workflow === "advance" && activeTab === "history" && (
+            <div className="overflow-auto flex-1 custom-scrollbar">
+              {filteredAdvHistory.length === 0 ? (
+                <div className="py-24 text-center text-slate-400">No advance payment history found.</div>
+              ) : (
+                <Table className="text-xs">
+                  <TableHeader className="bg-slate-50 sticky top-0 z-20">
+                    <TableRow>
+                      <TableHead className="font-bold p-3">Indent #</TableHead>
+                      <TableHead className="font-bold p-3">Item Details</TableHead>
+                      <TableHead className="font-bold p-3">Vendor</TableHead>
+                      <TableHead className="font-bold p-3">PO Number</TableHead>
+                      <TableHead className="font-bold p-3 text-right">PO Value</TableHead>
+                      <TableHead className="font-bold p-3">Actual Payment Date</TableHead>
+                      <TableHead className="font-bold p-3">Payment Reference</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredAdvHistory.map((r) => (
+                      <TableRow key={r.id} className="hover:bg-slate-50/50">
+                        <TableCell className="p-3 font-semibold text-slate-700">IND-{r.data.indentNumber}</TableCell>
+                        <TableCell className="p-3 font-semibold text-slate-900">{r.data.itemName} (Qty: {r.data.quantity})</TableCell>
+                        <TableCell className="p-3 text-slate-600">{r.data.selectedVendorName}</TableCell>
+                        <TableCell className="p-3 font-mono text-xs">{r.data.poNumber}</TableCell>
+                        <TableCell className="p-3 text-right font-semibold text-slate-800">{formatAmount(r.data.totalValue)}</TableCell>
+                        <TableCell className="p-3 text-slate-600 font-medium">{formatDate(r.data.actualPayment)}</TableCell>
+                        <TableCell className="p-3 font-mono text-xs text-slate-700">{r.data.paymentRef}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          )}
+
+          {/* Workflow 2: Vendor Payments Table */}
+          {workflow === "vendor" && activeTab === "pending" && (
+            <div className="overflow-auto flex-1 custom-scrollbar">
+              {filteredVendorPending.length === 0 ? (
+                <div className="py-24 text-center text-slate-400">No pending vendor invoices found.</div>
+              ) : (
+                <Table className="text-xs min-w-[1400px]">
+                  <TableHeader className="bg-slate-50 sticky top-0 z-20">
+                    <TableRow>
+                      <TableHead className="font-bold p-3">Invoice No</TableHead>
+                      <TableHead className="font-bold p-3">Vendor</TableHead>
+                      <TableHead className="font-bold p-3 text-right">Pending Amount</TableHead>
+                      <TableHead className="font-bold p-3 text-right">Total Value</TableHead>
+                      <TableHead className="font-bold p-3 text-right">Paid Amount</TableHead>
+                      <TableHead className="font-bold p-3">Due Date</TableHead>
+                      <TableHead className="font-bold p-3">Planned Date</TableHead>
+                      <TableHead className="font-bold p-3">PO Number</TableHead>
+                      <TableHead className="font-bold p-3">Invoice Copy</TableHead>
+                      <TableHead className="font-bold p-3 text-right">Rec. Qty</TableHead>
+                      <TableHead className="font-bold p-3">Rec. Items</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredVendorPending.map((r) => {
+                      const overdue = isDueDateOverdueOrToday(r.data.dueDate);
+                      return (
+                        <TableRow key={r.id} className={cn("hover:bg-slate-50/50", overdue && "bg-red-50/30 hover:bg-red-50/50")}>
+                          <TableCell className="p-3 font-semibold text-slate-800">{r.data.invoiceNo}</TableCell>
+                          <TableCell className="p-3 font-semibold text-slate-900">{r.data.vendor}</TableCell>
+                          <TableCell className="p-3 text-right font-bold text-red-600">{formatAmount(r.data.pendingAmount)}</TableCell>
+                          <TableCell className="p-3 text-right font-semibold text-slate-800">{formatAmount(r.data.totalVal)}</TableCell>
+                          <TableCell className="p-3 text-right text-emerald-600 font-semibold">{formatAmount(r.data.totalPaid)}</TableCell>
+                          <TableCell className="p-3 font-semibold">
+                            <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold", overdue ? "bg-red-100 text-red-800" : "bg-slate-100 text-slate-600")}>
+                              {r.data.dueDate}
+                            </span>
+                          </TableCell>
+                          <TableCell className="p-3 text-slate-500">{r.data.plan1}</TableCell>
+                          <TableCell className="p-3 font-mono text-xs">{r.data.poNumber}</TableCell>
+                          <TableCell className="p-3">{renderSafeValue(r.data.invoiceCopy)}</TableCell>
+                          <TableCell className="p-3 text-right font-medium">{r.data.totalRcvd}</TableCell>
+                          <TableCell className="p-3 text-slate-500 max-w-[200px] truncate">{r.data.receivedItems}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          )}
+
+          {/* Workflow 2: Vendor Payments History Table */}
+          {workflow === "vendor" && activeTab === "history" && (
+            <div className="overflow-auto flex-1 custom-scrollbar">
+              {filteredVendorHistory.length === 0 ? (
+                <div className="py-24 text-center text-slate-400">No vendor payment history found.</div>
+              ) : (
+                <Table className="text-xs">
+                  <TableHeader className="bg-slate-50 sticky top-0 z-20">
+                    <TableRow>
+                      <TableHead className="font-bold p-3">Payment Date</TableHead>
+                      <TableHead className="font-bold p-3">Invoice No</TableHead>
+                      <TableHead className="font-bold p-3">Vendor</TableHead>
+                      <TableHead className="font-bold p-3 text-right">Amount Paid</TableHead>
+                      <TableHead className="font-bold p-3">Payment Mode</TableHead>
+                      <TableHead className="font-bold p-3">Status</TableHead>
+                      <TableHead className="font-bold p-3">Proof</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredVendorHistory.map((r) => (
+                      <TableRow key={r.id} className="hover:bg-slate-50/50">
+                        <TableCell className="p-3 font-medium text-slate-700">{r.date}</TableCell>
+                        <TableCell className="p-3 font-semibold text-slate-800">{r.invoiceNo}</TableCell>
+                        <TableCell className="p-3 font-semibold text-slate-900">{r.vendor}</TableCell>
+                        <TableCell className="p-3 text-right font-bold text-slate-800">{formatAmount(r.amountPaid)}</TableCell>
+                        <TableCell className="p-3 text-slate-600">{r.mode}</TableCell>
+                        <TableCell className="p-3">
+                          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                            {r.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="p-3">{renderSafeValue(r.proof)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          )}
+
+          {/* Workflow 3: Freight Payments Table */}
+          {workflow === "freight" && activeTab === "pending" && (
+            <div className="overflow-auto flex-1 custom-scrollbar">
+              {filteredFreightPending.length === 0 ? (
+                <div className="py-24 text-center text-slate-400">No pending freight payments found.</div>
+              ) : (
+                <Table className="text-xs min-w-[1250px]">
+                  <TableHeader className="bg-slate-50 sticky top-0 z-20">
+                    <TableRow>
+                      <TableHead className="font-bold p-3">Action</TableHead>
+                      <TableHead className="font-bold p-3">LR No.</TableHead>
+                      <TableHead className="font-bold p-3">Transporter</TableHead>
+                      <TableHead className="font-bold p-3 text-right">Freight Amt</TableHead>
+                      <TableHead className="font-bold p-3 text-right">Pending Amount</TableHead>
+                      <TableHead className="font-bold p-3 text-right">Advance Paid</TableHead>
+                      <TableHead className="font-bold p-3">Vehicle No.</TableHead>
+                      <TableHead className="font-bold p-3">Contact</TableHead>
+                      <TableHead className="font-bold p-3">Planned Date</TableHead>
+                      <TableHead className="font-bold p-3">Bilty</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredFreightPending.map((r) => (
+                      <TableRow key={r.id} className="hover:bg-slate-50/50">
+                        <TableCell className="p-3">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenFreightForm(r.id)}
+                            className="h-7 text-xs font-semibold px-2.5 hover:bg-slate-100 hover:text-black"
+                          >
+                            Pay
+                          </Button>
+                        </TableCell>
+                        <TableCell className="p-3 font-semibold text-slate-800">{r.data.lrNo}</TableCell>
+                        <TableCell className="p-3 font-semibold text-slate-900">{r.data.transporter}</TableCell>
+                        <TableCell className="p-3 text-right font-semibold text-slate-800">{formatAmount(r.data.freightAmount)}</TableCell>
+                        <TableCell className="p-3 text-right font-bold text-red-600">{formatAmount(r.data.pendingAmount)}</TableCell>
+                        <TableCell className="p-3 text-right text-emerald-600 font-semibold">{formatAmount(r.data.advanceAmount)}</TableCell>
+                        <TableCell className="p-3 font-mono text-xs">{r.data.vehicleNo}</TableCell>
+                        <TableCell className="p-3 text-slate-600">{r.data.contact}</TableCell>
+                        <TableCell className="p-3 text-slate-500">{r.data.plan1}</TableCell>
+                        <TableCell className="p-3">{renderSafeValue(r.data.biltyImage)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          )}
+
+          {/* Workflow 3: Freight Payments History Table */}
+          {workflow === "freight" && activeTab === "history" && (
+            <div className="overflow-auto flex-1 custom-scrollbar">
+              {filteredFreightHistory.length === 0 ? (
+                <div className="py-24 text-center text-slate-400">No freight payment history found.</div>
+              ) : (
+                <Table className="text-xs">
+                  <TableHeader className="bg-slate-50 sticky top-0 z-20">
+                    <TableRow>
+                      <TableHead className="font-bold p-3">Payment Date</TableHead>
+                      <TableHead className="font-bold p-3">LR No.</TableHead>
+                      <TableHead className="font-bold p-3">Transporter</TableHead>
+                      <TableHead className="font-bold p-3 text-right">Amount Paid</TableHead>
+                      <TableHead className="font-bold p-3">Payment Mode</TableHead>
+                      <TableHead className="font-bold p-3">Status</TableHead>
+                      <TableHead className="font-bold p-3">Proof</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredFreightHistory.map((r) => (
+                      <TableRow key={r.id} className="hover:bg-slate-50/50">
+                        <TableCell className="p-3 font-medium text-slate-700">{r.date}</TableCell>
+                        <TableCell className="p-3 font-semibold text-slate-800">{r.lrNo}</TableCell>
+                        <TableCell className="p-3 font-semibold text-slate-900">{r.transporter}</TableCell>
+                        <TableCell className="p-3 text-right font-bold text-slate-800">{formatAmount(r.amountPaid)}</TableCell>
+                        <TableCell className="p-3 text-slate-600">{r.mode}</TableCell>
+                        <TableCell className="p-3">
+                          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                            {r.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="p-3">{renderSafeValue(r.proof)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* --- Workflow 1 Dialog: Record PO Advance Payment --- */}
+      <Dialog open={advOpen} onOpenChange={setAdvOpen}>
+        <DialogContent className="max-w-md bg-white border shadow-lg rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-slate-950">Record Advance Payment</DialogTitle>
+            <DialogDescription className="text-slate-500 text-xs">
+              Confirm payment of advance value for Indent IND-{currentAdvRecord?.data?.indentNumber}.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleAdvSubmit} className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-700">Payment Reference Number / Transaction ID</Label>
+              <Input
+                value={advForm.paymentRef}
+                onChange={(e) => setAdvForm({ ...advForm, paymentRef: e.target.value })}
+                placeholder="e.g. TXN-1002345"
+                required
+                className="border-slate-200 focus-visible:ring-slate-400"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-700">Payment Date</Label>
+              <Input
+                type="date"
+                value={advForm.paymentDate}
+                onChange={(e) => setAdvForm({ ...advForm, paymentDate: e.target.value })}
+                required
+                className="border-slate-200 focus-visible:ring-slate-400"
+              />
+            </div>
+            <DialogFooter className="pt-4 border-t">
+              <Button type="button" variant="outline" onClick={() => setAdvOpen(false)} disabled={isSubmitting}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 text-white">
-                {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                Record Payment
+              <Button type="submit" disabled={isSubmitting} className="bg-slate-900 text-white hover:bg-slate-800 font-semibold px-6 shadow-sm">
+                {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : "Confirm Payment"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* --- Workflow 2 Dialog: Bulk Vendor Invoices Payment --- */}
+      <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
+        <DialogContent className="max-w-4xl bg-white border shadow-lg rounded-2xl flex flex-col max-h-[85vh]">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle className="text-lg font-bold text-slate-950">Bulk Vendor Payment</DialogTitle>
+            <DialogDescription className="text-slate-500 text-xs">
+              Select a vendor and invoices to process payments in batch.
+            </DialogDescription>
+          </DialogHeader>
+
+          {bulkStep === "vendor" ? (
+            <div className="flex-1 overflow-hidden flex flex-col space-y-4 pt-2">
+              <div className="relative flex-shrink-0">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
+                <Input
+                  placeholder="Search vendor name..."
+                  value={vendorSearch}
+                  onChange={(e) => setVendorSearch(e.target.value)}
+                  className="pl-9 bg-white border-slate-200"
+                />
+              </div>
+              <div className="flex-1 overflow-y-auto border border-slate-100 rounded-xl bg-slate-50/50 p-2 space-y-1">
+                {filteredVendorsList.length === 0 ? (
+                  <div className="py-8 text-center text-slate-400 text-sm">No vendors found with pending invoices.</div>
+                ) : (
+                  filteredVendorsList.map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => handleSelectVendor(v)}
+                      className="w-full text-left px-4 py-3 bg-white hover:bg-slate-100/80 border rounded-lg shadow-sm text-sm font-semibold text-slate-900 transition-colors"
+                    >
+                      {v}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleBulkSubmit} className="flex-1 overflow-hidden flex flex-col space-y-4 pt-2">
+              <div className="font-bold text-sm text-slate-800">
+                Vendor: <span className="text-emerald-700 font-extrabold">{selectedBulkVendor}</span>
+              </div>
+              <div className="flex-1 overflow-y-auto border rounded-xl overflow-hidden shadow-sm">
+                <Table className="text-xs">
+                  <TableHeader className="bg-slate-50 sticky top-0">
+                    <TableRow>
+                      <TableHead className="w-12 text-center p-3">Select</TableHead>
+                      <TableHead className="p-3">Invoice No</TableHead>
+                      <TableHead className="p-3">PO Number</TableHead>
+                      <TableHead className="p-3 text-right">Pending Amount</TableHead>
+                      <TableHead className="p-3 text-right">Paying Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {vendorRecords
+                      .filter(r => r.data.vendor === selectedBulkVendor)
+                      .map((r) => {
+                        const info = bulkInvoices[r.id] || { selected: false, payAmount: "0" };
+                        return (
+                          <TableRow key={r.id} className="hover:bg-slate-50/30">
+                            <TableCell className="text-center p-3">
+                              <Checkbox
+                                checked={info.selected}
+                                onCheckedChange={(chk) => {
+                                  setBulkInvoices(prev => ({
+                                    ...prev,
+                                    [r.id]: { ...prev[r.id], selected: !!chk },
+                                  }));
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell className="p-3 font-semibold text-slate-700">{r.data.invoiceNo}</TableCell>
+                            <TableCell className="p-3 font-mono text-xs">{r.data.poNumber}</TableCell>
+                            <TableCell className="p-3 text-right font-bold text-slate-800">{formatAmount(r.data.pendingAmount)}</TableCell>
+                            <TableCell className="p-3">
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={info.payAmount}
+                                disabled={!info.selected}
+                                onChange={(e) => {
+                                  setBulkInvoices(prev => ({
+                                    ...prev,
+                                    [r.id]: { ...prev[r.id], payAmount: e.target.value },
+                                  }));
+                                }}
+                                className="h-8 text-xs max-w-[120px] ml-auto border-slate-200 text-right font-bold"
+                              />
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Terms and payments info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4 flex-shrink-0">
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">Payment Mode</Label>
+                    <Select
+                      value={bulkFormData.paymentMode}
+                      onValueChange={(val: string) => setBulkFormData(prev => ({ ...prev, paymentMode: val }))}
+                    >
+                      <SelectTrigger className="border-slate-200"><SelectValue placeholder="Select mode" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="RTGS">RTGS / Bank Transfer</SelectItem>
+                        <SelectItem value="Cheque">Cheque</SelectItem>
+                        <SelectItem value="DD">Demand Draft</SelectItem>
+                        <SelectItem value="Cash">Cash</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">Payment Date</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start h-10 text-left border-slate-200">
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {bulkFormData.paymentDate ? format(bulkFormData.paymentDate, "PPP") : <span>Pick date</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 bg-white border">
+                        <Calendar
+                          mode="single"
+                          selected={bulkFormData.paymentDate}
+                          onSelect={(d) => setBulkFormData(prev => ({ ...prev, paymentDate: d }))}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">Upload Receipt / Proof</Label>
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setBulkFormData(prev => ({ ...prev, proof: file }));
+                      }}
+                      className="hidden"
+                      id="bulk-payment-proof-file"
+                    />
+                    <label htmlFor="bulk-payment-proof-file" className="flex h-10 items-center justify-center border border-slate-200 rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-600 transition-colors">
+                      <Upload className="mr-2 h-4 w-4 text-slate-500" />
+                      {bulkFormData.proof ? bulkFormData.proof.name : "Choose receipt copy..."}
+                    </label>
+                  </div>
+                  <div className="bg-slate-50 p-3 rounded-lg flex justify-between items-center h-10 border border-slate-150">
+                    <span className="text-xs font-bold text-slate-500">TOTAL TO PAY:</span>
+                    <span className="text-sm font-extrabold text-slate-900">{formatAmount(bulkTotalToPay)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter className="pt-4 border-t flex-shrink-0">
+                <Button type="button" variant="outline" onClick={() => setBulkStep("vendor")} disabled={isSubmitting}>
+                  Back
+                </Button>
+                <Button type="submit" disabled={isSubmitting || bulkTotalToPay <= 0 || !bulkFormData.paymentMode} className="bg-slate-900 text-white hover:bg-slate-800 font-semibold px-6 shadow-sm">
+                  {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : "Submit Payment"}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* --- Workflow 3 Dialog: Record Freight Payment --- */}
+      <Dialog open={freightOpen} onOpenChange={setFreightOpen}>
+        <DialogContent className="max-w-2xl bg-white border shadow-lg rounded-2xl flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-slate-950">Transporter Freight Payment</DialogTitle>
+            <DialogDescription className="text-slate-500 text-xs">
+              Confirm payment for Freight LR No. <span className="font-bold text-slate-800">{freightRecords.find(r => r.id === selectedFreightId)?.data.lrNo}</span>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleFreightSubmit} className="space-y-4 pt-2">
+            {/* Calculation info box */}
+            <div className="grid grid-cols-3 gap-2 bg-slate-50 p-3 border rounded-xl text-center text-xs">
+              <div>
+                <span className="block text-[10px] font-bold text-slate-400 uppercase">Freight Amount</span>
+                <span className="font-bold text-slate-800">{formatAmount(freightCalcData.freightAmount)}</span>
+              </div>
+              <div>
+                <span className="block text-[10px] font-bold text-slate-400 uppercase">Advance Paid</span>
+                <span className="font-bold text-emerald-600">{formatAmount(freightCalcData.advanceAmount)}</span>
+              </div>
+              <div>
+                <span className="block text-[10px] font-bold text-slate-400 uppercase">Calculated Due</span>
+                <span className="font-bold text-red-600">{formatAmount(freightCalcData.freightAmount - freightCalcData.advanceAmount)}</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-700">Amount Paying</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={freightForm.amount}
+                  onChange={(e) => setFreightForm({ ...freightForm, amount: e.target.value })}
+                  placeholder="0.00"
+                  required
+                  className="border-slate-200 focus-visible:ring-slate-400 font-bold"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-700">Payment Date</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start h-10 text-left border-slate-200">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {freightForm.paymentDate ? format(freightForm.paymentDate, "PPP") : <span>Pick date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 bg-white border">
+                    <Calendar
+                      mode="single"
+                      selected={freightForm.paymentDate}
+                      onSelect={(d) => d && setFreightForm({ ...freightForm, paymentDate: d })}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-700">Payment Reference / Details</Label>
+              <Input
+                value={freightForm.paymentDetails}
+                onChange={(e) => setFreightForm({ ...freightForm, paymentDetails: e.target.value })}
+                placeholder="RTGS / Cheque Reference Details"
+                className="border-slate-200 focus-visible:ring-slate-400"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-700">Upload Bilty / Receipt Copy</Label>
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] || null;
+                  setFreightForm(prev => ({ ...prev, paymentProof: file }));
+                }}
+                className="hidden"
+                id="freight-payment-proof-file"
+              />
+              <label htmlFor="freight-payment-proof-file" className="flex h-10 items-center justify-center border border-slate-200 rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-600 transition-colors">
+                <Upload className="mr-2 h-4 w-4 text-slate-500" />
+                {freightForm.paymentProof ? freightForm.paymentProof.name : "Choose receipt copy..."}
+              </label>
+            </div>
+
+            <DialogFooter className="pt-4 border-t">
+              <Button type="button" variant="outline" onClick={() => setFreightOpen(false)} disabled={isSubmitting}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting} className="bg-slate-900 text-white hover:bg-slate-800 font-semibold px-6 shadow-sm">
+                {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : "Submit Payment"}
               </Button>
             </DialogFooter>
           </form>

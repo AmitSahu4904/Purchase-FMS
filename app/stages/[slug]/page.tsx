@@ -7,13 +7,11 @@ import Quotation from "@/components/stages/quotation";
 import ApprovedVendor from "@/components/stages/approved-vendor";
 import POEntry from "@/components/stages/po-entry";
 import Payment from "@/components/stages/payment";
-import Lifting from "@/components/stages/lifting";
+import FollowUpLifting from "@/components/stages/follow-up-lifting";
 import TransporterFollowUp from "@/components/stages/transporter-follow-up";
 import MaterialReceived from "@/components/stages/material-received";
 import BillingStage from "@/components/stages/billing";
 import PurchaseReturn from "@/components/stages/purchase-return";
-import VendorPayment from "@/components/stages/vendor-payment";
-import FreightPayments from "@/components/stages/freight-payments";
 import OrderCancelPage from "@/components/stages/order-cancel";
 
 const stageComponents: Record<string, React.ComponentType> = {
@@ -24,13 +22,13 @@ const stageComponents: Record<string, React.ComponentType> = {
     "approved-vendor": ApprovedVendor,
     "po-entry": POEntry,
     "payment": Payment,
-    "follow-up-vendor": Lifting,
+    "follow-up-vendor": FollowUpLifting,
     "transporter-follow-up": TransporterFollowUp,
     "material-received": MaterialReceived,
     "receipt-in-tally": BillingStage,
     "purchase-return": PurchaseReturn,
-    "vendor-payment": VendorPayment,
-    "freight-payments": FreightPayments,
+    "vendor-payment": Payment,
+    "freight-payments": Payment,
     "order-cancel": OrderCancelPage,
 };
 

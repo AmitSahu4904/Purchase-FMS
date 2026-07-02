@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Menu, X, LogOut, LayoutDashboard
@@ -30,7 +30,7 @@ export default function Sidebar() {
     return pageAccess.includes(pageName);
   }, [pageAccess]);
 
-  const filteredStages = STAGES.filter(stage => isPageAllowed(stage.name));
+  const filteredStages = useMemo(() => STAGES.filter(stage => isPageAllowed(stage.name)), [isPageAllowed]);
   const showDashboard = isPageAllowed("Dashboard");
 
   // Determine active state helper
@@ -45,7 +45,7 @@ export default function Sidebar() {
       const activeStageNames = filteredStages.map(s => s.name);
       
       const needsIndentLift = activeStageNames.some(name => 
-        ["Create Indent", "Indent Approval", "Quotation", "Approved Vendor", "Make PO", "Payment", "Lifting"].includes(name)
+        ["Create Indent", "Indent Approval", "Quotation", "Approved Vendor", "Make PO", "Payment", "Follow UP / Lifting"].includes(name)
       );
       const needsReceivingAccounts = activeStageNames.some(name => 
         ["Transporter Follow-Up", "Material Received", "Billing"].includes(name)
@@ -53,8 +53,8 @@ export default function Sidebar() {
       const needsPartialQc = activeStageNames.some(name => 
         ["Purchase Return"].includes(name)
       );
-      const needsVendorPayments = activeStageNames.includes("Vendor Payment");
-      const needsFreightPayments = activeStageNames.includes("Freight Payments");
+      const needsVendorPayments = activeStageNames.includes("Payment");
+      const needsFreightPayments = activeStageNames.includes("Payment");
 
       const fetchPromises: Record<string, Promise<any>> = {};
       if (needsIndentLift) {
@@ -146,7 +146,7 @@ export default function Sidebar() {
         newCounts["Approved Vendor"] = approvedVendorCount;
         newCounts["Make PO"] = poEntryCount;
         newCounts["Payment"] = paymentCount;
-        newCounts["Lifting"] = followUpVendorCount;
+        newCounts["Follow UP / Lifting"] = followUpVendorCount;
       }
 
       // 2. RECEIVING-ACCOUNTS dependent counts
@@ -259,6 +259,8 @@ export default function Sidebar() {
 
         newCounts["Freight Payments"] = freightPaymentsCount;
       }
+
+      newCounts["Payment"] = (newCounts["Payment"] || 0) + (newCounts["Vendor Payment"] || 0) + (newCounts["Freight Payments"] || 0);
 
       setCounts(newCounts);
     } catch (e) {

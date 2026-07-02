@@ -432,8 +432,21 @@ export default function Stage5() {
         gst: "",        // new dropdown (replaces remarks)
       };
     });
+    // Find highest PO number in sheetRecords
+    let maxPoNum = 1000; // default start
+    sheetRecords.forEach((r) => {
+      const poVal = r.data.poNumber;
+      if (poVal && String(poVal).startsWith("PO-")) {
+        const numPart = parseInt(String(poVal).replace("PO-", ""), 10);
+        if (!isNaN(numPart) && numPart > maxPoNum) {
+          maxPoNum = numPart;
+        }
+      }
+    });
+    const nextPoNumber = `PO-${maxPoNum + 1}`;
+
     setBulkFormData(initialData);
-    setCommonPONumber("");
+    setCommonPONumber(nextPoNumber);
     setCommonPOCopy(null);
     setCommonPkgAmount("");
     setCommonPkgGST("");
@@ -1158,14 +1171,7 @@ export default function Stage5() {
                     <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Quotation Date</Label>
                     <Input type="date" value={poForm.quotationDate} onChange={(e) => setPoForm((prev) => ({ ...prev, quotationDate: e.target.value }))} />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Our Enq No.</Label>
-                    <Input value={poForm.enquiryNumber} onChange={(e) => setPoForm((prev) => ({ ...prev, enquiryNumber: e.target.value }))} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Enquiry Date</Label>
-                    <Input type="date" value={poForm.enquiryDate} onChange={(e) => setPoForm((prev) => ({ ...prev, enquiryDate: e.target.value }))} />
-                  </div>
+                  {/* Enquiry fields removed */}
                   <div className="space-y-1.5 md:col-span-2">
                     <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Description / Remarks</Label>
                     <textarea
@@ -1307,41 +1313,7 @@ export default function Stage5() {
                 </div>
               </section>
 
-              <section className="overflow-hidden rounded-lg border bg-white shadow-sm">
-                <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Packaging / Forwarding Amount</Label>
-                    <Input type="number" step="0.01" value={commonPkgAmount} onChange={(e) => setCommonPkgAmount(e.target.value)} placeholder="0.00" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">GST on Packaging</Label>
-                    <Select value={commonPkgGST} onValueChange={setCommonPkgGST}>
-                      <SelectTrigger><SelectValue placeholder="Select GST" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0%">0%</SelectItem>
-                        <SelectItem value="5%">5%</SelectItem>
-                        <SelectItem value="12%">12%</SelectItem>
-                        <SelectItem value="18%">18%</SelectItem>
-                        <SelectItem value="28%">28%</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Optional PO Attachment</Label>
-                    <input
-                      type="file"
-                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                      onChange={(e) => handleCommonFileChange(e.target.files?.[0] || null)}
-                      className="hidden"
-                      id="po-attachment-file"
-                    />
-                    <label htmlFor="po-attachment-file" className="flex h-10 cursor-pointer items-center justify-center rounded-md border bg-white text-sm hover:bg-slate-50">
-                      <Upload className="mr-2 h-4 w-4" />
-                      {commonPOCopy ? commonPOCopy.name : "Upload PO copy"}
-                    </label>
-                  </div>
-                </div>
-              </section>
+              {/* Packaging and optional attachment sections removed */}
             </div>
           </form>
 
@@ -1731,7 +1703,7 @@ export default function Stage5() {
                       <div className="flex justify-between"><span className="text-slate-500">Delivery Date:</span><span className="font-semibold text-slate-800">{formatDateDash(poForm.deliveryDate)}</span></div>
                       <div className="flex justify-between"><span className="text-slate-500">Quotation No:</span><span className="font-semibold text-slate-800">{poForm.quotationNumber || "—"}</span></div>
                       <div className="flex justify-between"><span className="text-slate-500">Quotation Date:</span><span className="font-semibold text-slate-800">{formatDateDash(poForm.quotationDate)}</span></div>
-                      <div className="flex justify-between border-t pt-1 mt-1"><span className="text-slate-500">Our Enq Ref:</span><span className="font-semibold text-slate-800">{poForm.enquiryNumber || "—"}</span></div>
+                      <div className="flex justify-between border-t pt-1 mt-1"></div>
                     </div>
                   </div>
                 </div>
