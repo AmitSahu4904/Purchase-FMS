@@ -21,7 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Upload, X, Shield, ShieldCheck, Loader2, ClipboardList, History, Search, Plus, Trash2, Eye, Save, Edit2, FileEdit } from "lucide-react";
+import { FileText, Upload, X, Shield, ShieldCheck, Loader2, ClipboardList, History, Search, Plus, Trash2, Eye, Save, Edit2, FileEdit, Mail, Send, Check, CheckCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Popover,
@@ -65,6 +65,28 @@ const formatInputDate = (date: any) => {
   return parsed.toISOString().split("T")[0];
 };
 
+const VENDOR_EMAILS: Record<string, string> = {
+  "INFOSYS TECH": "procurement@infosys.com",
+  "KOTAK MAHINDRA": "corporate@kotak.com",
+  "Vendor A": "sales@vendorA.com",
+  "Vendor B": "orders@vendorB.com",
+  "Vendor C": "contact@vendorC.com",
+  "Vendor IT": "support@vendorit.com",
+  "Express Logistics": "dispatch@expresslogistics.com",
+  "DHL Express": "billing@dhl.com"
+};
+
+const VENDOR_ADDRESSES: Record<string, string> = {
+  "INFOSYS TECH": "Electronics City, Hosur Road, Bangalore",
+  "KOTAK MAHINDRA": "Kotak Infiniti, Goregaon East, Mumbai",
+  "Vendor A": "A-Block, Industrial Area, Sector 62, Noida",
+  "Vendor B": "B-Wing, Commercial Plaza, Andheri East, Mumbai",
+  "Vendor C": "C-Square Building, Salt Lake, Kolkata",
+  "Vendor IT": "IT Park, Phase 1, Hinjewadi, Pune",
+  "Express Logistics": "Logistics Hub, NH-8, Gurugram",
+  "DHL Express": "Express Tower, Nariman Point, Mumbai"
+};
+
 export default function Stage5() {
   const [open, setOpen] = useState(false);
   const [selectedRecordIds, setSelectedRecordIds] = useState<string[]>([]);
@@ -74,6 +96,27 @@ export default function Stage5() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // States for PO Preview and Email Simulator
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [emailSimOpen, setEmailSimOpen] = useState(false);
+  const [emailSimSteps, setEmailSimSteps] = useState<string[]>([]);
+  const [emailSimActiveIndex, setEmailSimActiveIndex] = useState(0);
+
+  // Auto-advance simulated email delivery steps
+  React.useEffect(() => {
+    if (!emailSimOpen) return;
+    const interval = setInterval(() => {
+      setEmailSimActiveIndex((prev) => {
+        if (prev >= emailSimSteps.length - 1) {
+          clearInterval(interval);
+          return prev;
+        }
+        return prev + 1;
+      });
+    }, 900);
+    return () => clearInterval(interval);
+  }, [emailSimOpen, emailSimSteps]);
 
   // Shared fields for bulk PO
   const [commonPONumber, setCommonPONumber] = useState("");
@@ -400,6 +443,8 @@ export default function Stage5() {
     setPoForm({
       ...defaultPOForm,
       supplierName: firstVendor?.name && firstVendor.name !== "-" ? firstVendor.name : "",
+      supplierEmail: firstVendor?.name ? (VENDOR_EMAILS[firstVendor.name] || "") : "",
+      supplierAddress: firstVendor?.name ? (VENDOR_ADDRESSES[firstVendor.name] || "") : "",
       deliveryDate: firstVendor?.delivery ? formatInputDate(firstVendor.delivery) : "",
       quotationDate: new Date().toISOString().split("T")[0],
       enquiryDate: new Date().toISOString().split("T")[0],
@@ -539,9 +584,15 @@ export default function Stage5() {
         }
 
         await fetchData();
-        setOpen(false);
-        setSelectedRecordIds([]);
-        setBulkFormData({});
+        setEmailSimActiveIndex(0);
+        setEmailSimSteps([
+          "Generating PDF Purchase Order Document...",
+          "Connecting to SMTP server at mail.divineempire.com...",
+          "Attaching Purchase Order and commercial annexures...",
+          `Sending email to supplier: ${poForm.supplierEmail || "vendor@example.com"}...`,
+          "Purchase Order successfully dispatched via Email!"
+        ]);
+        setEmailSimOpen(true);
         return { successCount, total: recordsToProcess.length };
       } finally {
         setIsSubmitting(false);
@@ -553,6 +604,14 @@ export default function Stage5() {
       success: (data) => `Successfully processed ${data.successCount} of ${data.total} POs.`,
       error: (err) => `Error during bulk processing: ${err.message}`,
     });
+  };
+
+  const handleCloseEmailSim = () => {
+    setEmailSimOpen(false);
+    setOpen(false);
+    setSelectedRecordIds([]);
+    setBulkFormData({});
+    resetPOForm();
   };
 
   const handleCommonFileChange = (file: File | null) => {
@@ -577,18 +636,46 @@ export default function Stage5() {
     };
   };
 
+  const selectedVendorName = useMemo(() => {
+    if (selectedRecordIds.length === 0) return null;
+    const firstSelected = sheetRecords.find((r) => r.id === selectedRecordIds[0]);
+    return firstSelected ? getVendorData(firstSelected).name : null;
+  }, [selectedRecordIds, sheetRecords]);
+
   const toggleSelectAll = () => {
-    if (selectedRecordIds.length === pending.length) {
+    if (selectedVendorName) {
       setSelectedRecordIds([]);
     } else {
-      setSelectedRecordIds(pending.map((r) => r.id));
+      if (pending.length === 0) return;
+      const firstVendor = getVendorData(pending[0]).name;
+      const sameVendorIds = pending
+        .filter((r) => getVendorData(r).name === firstVendor)
+        .map((r) => r.id);
+      setSelectedRecordIds(sameVendorIds);
+      toast.success(`Selected all pending items for supplier "${firstVendor}".`);
     }
   };
 
   const toggleSelectOne = (id: string) => {
-    setSelectedRecordIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
+    setSelectedRecordIds((prev) => {
+      if (prev.includes(id)) {
+        return prev.filter((x) => x !== id);
+      }
+      const recordToSelect = sheetRecords.find((r) => r.id === id);
+      if (!recordToSelect) return prev;
+      const vendorName = getVendorData(recordToSelect).name;
+      if (prev.length > 0) {
+        const firstSelected = sheetRecords.find((r) => r.id === prev[0]);
+        if (firstSelected) {
+          const firstVendor = getVendorData(firstSelected).name;
+          if (vendorName !== firstVendor) {
+            toast.warning(`You can only select indents from the same supplier ("${firstVendor}") to create a PO.`);
+            return prev;
+          }
+        }
+      }
+      return [...prev, id];
+    });
   };
 
   const ColumnSelector = () => (
@@ -735,7 +822,7 @@ export default function Stage5() {
                       <TableHead className="w-12 sticky top-0 z-20 bg-slate-200 border-none pl-4 py-3 ">
                         <div className="flex items-center justify-start h-full">
                           <Checkbox
-                            checked={selectedRecordIds.length === pending.length && pending.length > 0}
+                            checked={selectedRecordIds.length > 0 && pending.filter((r) => getVendorData(r).name === selectedVendorName).length === selectedRecordIds.length}
                             onCheckedChange={toggleSelectAll}
                           />
                         </div>
@@ -757,15 +844,17 @@ export default function Stage5() {
                     {pending.map((record) => {
                       const v = getVendorData(record);
                       const isSelected = selectedRecordIds.includes(record.id);
+                      const isRowDisabled = selectedVendorName !== null && v.name !== selectedVendorName;
                       return (
                         <TableRow
                           key={record.id}
-                          className={isSelected ? "bg-blue-50" : ""}
+                          className={isSelected ? "bg-blue-50" : isRowDisabled ? "opacity-40 transition-opacity" : ""}
                         >
                           <TableCell>
                             <Checkbox
                               checked={isSelected}
                               onCheckedChange={() => toggleSelectOne(record.id)}
+                              disabled={isRowDisabled}
                             />
                           </TableCell>
                           {baseColumns
@@ -1017,7 +1106,15 @@ export default function Stage5() {
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Supplier Name</Label>
-                    <Select value={poForm.supplierName || undefined} onValueChange={(value) => setPoForm((prev) => ({ ...prev, supplierName: value }))}>
+                    <Select 
+                      value={poForm.supplierName || undefined} 
+                      onValueChange={(value) => setPoForm((prev) => ({ 
+                        ...prev, 
+                        supplierName: value,
+                        supplierEmail: VENDOR_EMAILS[value] || `${value.toLowerCase().replace(/\s+/g, "")}@example.com`,
+                        supplierAddress: VENDOR_ADDRESSES[value] || `${value} Business Park, Mumbai`
+                      }))}
+                    >
                       <SelectTrigger><SelectValue placeholder="Select Supplier" /></SelectTrigger>
                       <SelectContent>
                         {Array.from(new Set([
@@ -1252,7 +1349,7 @@ export default function Stage5() {
             <Button type="button" variant="secondary" onClick={resetPOForm} disabled={isSubmitting}>
               Reset
             </Button>
-            <Button type="button" variant="secondary" disabled>
+            <Button type="button" variant="secondary" onClick={() => setPreviewOpen(true)} disabled={selectedRecordIds.length === 0}>
               <Eye className="mr-2 h-4 w-4" />
               Preview
             </Button>
@@ -1272,12 +1369,12 @@ export default function Stage5() {
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Generating...
+                  Sending PO...
                 </>
               ) : (
                 <>
-                  <Save className="mr-2 h-4 w-4" />
-                  Generate
+                  <Send className="mr-2 h-4 w-4" />
+                  Send PO
                 </>
               )}
             </Button>
@@ -1578,6 +1675,247 @@ export default function Stage5() {
               </Button>
             </DialogFooter>
           </div>
+        </DialogContent>
+      </Dialog>
+      {/* PO DRAFT PREVIEW MODAL */}
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden bg-slate-900 border-none">
+          <DialogHeader className="p-4 bg-slate-800 text-white flex-shrink-0 flex flex-row items-center justify-between border-b border-slate-700">
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <Eye className="w-5 h-5 text-indigo-400" />
+              <span>Purchase Order Document Preview</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto p-8 bg-slate-100/50 flex justify-center scrollbar-thin">
+            {/* A4 Paper mockup layout */}
+            <div className="w-full max-w-3xl bg-white border border-slate-200 shadow-xl rounded-md p-8 md:p-12 text-slate-800 font-sans space-y-8 min-h-[1000px] flex flex-col justify-between">
+              <div>
+                {/* Header Section */}
+                <div className="flex items-start justify-between border-b pb-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-slate-950 rounded flex items-center justify-center text-white font-extrabold text-xl shadow">
+                      DE
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-slate-900 leading-tight">Divine Empire</h2>
+                      <p className="text-xs text-slate-500">Gateway Park, Mumbai, Maharashtra</p>
+                      <p className="text-xs text-slate-500">GSTIN: {poForm.companyGstin || "-"}</p>
+                      <p className="text-xs text-slate-500">Email: accounts@divineempire.com</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <h1 className="text-2xl font-black text-indigo-600 tracking-wide">PURCHASE ORDER</h1>
+                    <p className="text-xs text-slate-500 mt-1">Ref: {commonPONumber || "DRAFT"}</p>
+                    <p className="text-xs text-slate-500">Date: {formatDateDash(poForm.poDate)}</p>
+                  </div>
+                </div>
+
+                {/* Info Block */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
+                  {/* Vendor Details */}
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Supplier Info</h3>
+                    <div className="bg-slate-50 border rounded-lg p-3 text-xs space-y-1">
+                      <p className="font-bold text-slate-900">{poForm.supplierName || "—"}</p>
+                      <p className="text-slate-600 leading-relaxed">{poForm.supplierAddress || "—"}</p>
+                      <p className="text-slate-600"><span className="font-semibold text-slate-500">GSTIN:</span> {poForm.gstin || "—"}</p>
+                      <p className="text-slate-600"><span className="font-semibold text-slate-500">Email:</span> {poForm.supplierEmail || "—"}</p>
+                    </div>
+                  </div>
+
+                  {/* Delivery & Reference details */}
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Delivery & Order References</h3>
+                    <div className="bg-slate-50 border rounded-lg p-3 text-xs space-y-1">
+                      <div className="flex justify-between"><span className="text-slate-500">Delivery Date:</span><span className="font-semibold text-slate-800">{formatDateDash(poForm.deliveryDate)}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Quotation No:</span><span className="font-semibold text-slate-800">{poForm.quotationNumber || "—"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Quotation Date:</span><span className="font-semibold text-slate-800">{formatDateDash(poForm.quotationDate)}</span></div>
+                      <div className="flex justify-between border-t pt-1 mt-1"><span className="text-slate-500">Our Enq Ref:</span><span className="font-semibold text-slate-800">{poForm.enquiryNumber || "—"}</span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+                  {/* Billing Details */}
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Billing Address</h3>
+                    <div className="bg-slate-50 border rounded-lg p-3 text-xs leading-relaxed">
+                      <p className="font-bold text-slate-900">{poForm.billingName}</p>
+                      <p className="text-slate-600">{poForm.billingAddress}</p>
+                    </div>
+                  </div>
+
+                  {/* Shipping Details */}
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Destination / Ship-To Address</h3>
+                    <div className="bg-slate-50 border rounded-lg p-3 text-xs leading-relaxed">
+                      <p className="font-bold text-slate-900">{poForm.destinationName}</p>
+                      <p className="text-slate-600">{poForm.destinationAddress}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Items details table */}
+                <div className="pt-6">
+                  <div className="border rounded-lg overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 text-slate-600 font-bold border-b text-left">
+                          <th className="p-3 text-center w-10">S/N</th>
+                          <th className="p-3">Item Description</th>
+                          <th className="p-3">HSN</th>
+                          <th className="p-3 text-center">Qty</th>
+                          <th className="p-3 text-right">Unit Price</th>
+                          <th className="p-3 text-center">GST</th>
+                          <th className="p-3 text-right">Total Price</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedPORecords.map((record: any, index) => {
+                          const v = getVendorData(record);
+                          const data = bulkFormData[record.id] || {};
+                          const total = parseFloat(data.totalWithTax) || 0;
+                          return (
+                            <tr key={record.id} className="border-b last:border-0 hover:bg-slate-50/30">
+                              <td className="p-3 text-center text-slate-500">{index + 1}</td>
+                              <td className="p-3">
+                                <div className="font-bold text-slate-900">{record.data.itemName}</div>
+                                <div className="text-[10px] text-slate-500 font-mono">Indent: {record.data.indentNumber}</div>
+                              </td>
+                              <td className="p-3 font-mono">{data.hsn || "—"}</td>
+                              <td className="p-3 text-center font-semibold text-slate-700">{record.data.quantity || "—"}</td>
+                              <td className="p-3 text-right font-medium">₹{parseFloat(v.rate || "0").toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
+                              <td className="p-3 text-center text-slate-600 font-semibold">{data.gst || "0%"}</td>
+                              <td className="p-3 text-right font-bold text-slate-900">₹{total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Summary block */}
+                <div className="flex justify-end pt-6">
+                  <div className="w-72 bg-slate-50 border rounded-lg p-3 text-xs space-y-1.5">
+                    <div className="flex justify-between text-slate-600">
+                      <span>Subtotal:</span>
+                      <span className="font-medium">₹{poSummary.subtotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600">
+                      <span>GST amount:</span>
+                      <span className="font-medium">₹{poSummary.gst.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    {commonPkgAmount && (
+                      <div className="flex justify-between text-slate-600">
+                        <span>Pkg & Fwd ({commonPkgGST || "0%"}):</span>
+                        <span className="font-medium">₹{parseFloat(commonPkgAmount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between border-t pt-1.5 text-sm font-bold text-indigo-700">
+                      <span>GRAND TOTAL:</span>
+                      <span>₹{poSummary.grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Terms and Conditions block */}
+                <div className="pt-6 space-y-2">
+                  <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Terms & Conditions</h4>
+                  <ol className="list-decimal pl-4 text-[10px] text-slate-500 space-y-1 leading-relaxed">
+                    {terms.filter(t => t.trim() !== "").map((term, i) => (
+                      <li key={i}>{term}</li>
+                    ))}
+                  </ol>
+                </div>
+              </div>
+
+              {/* Signatures block */}
+              <div className="border-t pt-8 flex items-center justify-between text-[11px] text-slate-500">
+                <div>
+                  <p>Prepared By: Procurement Department</p>
+                  <p className="font-mono text-[9px] mt-0.5">FMS System Draft Generation</p>
+                </div>
+                <div className="text-right">
+                  <div className="h-10 w-32 border-b border-dashed border-slate-300 ml-auto mb-1"></div>
+                  <p className="font-bold text-slate-700">For Divine Empire</p>
+                  <p className="text-[9px]">Authorized Signatory</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="p-4 bg-slate-800 flex-shrink-0 border-t border-slate-700">
+            <Button type="button" variant="outline" className="border-slate-600 text-slate-300 hover:bg-slate-700" onClick={() => setPreviewOpen(false)}>
+              Close Preview
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* EMAIL SIMULATION MODAL */}
+      <Dialog open={emailSimOpen} onOpenChange={setEmailSimOpen}>
+        <DialogContent className="max-w-md p-6 bg-slate-900 border border-slate-800 text-white rounded-xl shadow-2xl flex flex-col items-center text-center">
+          <DialogHeader className="sr-only">
+            <DialogTitle>PO Email Dispatch Simulator</DialogTitle>
+          </DialogHeader>
+          <div className="w-16 h-16 rounded-full bg-indigo-500/10 flex items-center justify-center mb-4">
+            {emailSimActiveIndex === emailSimSteps.length - 1 ? (
+              <CheckCircle className="w-8 h-8 text-emerald-400 animate-bounce" />
+            ) : (
+              <Mail className="w-8 h-8 text-indigo-400 animate-pulse" />
+            )}
+          </div>
+          
+          <h2 className="text-xl font-bold tracking-tight text-white mb-2">PO Email Dispatch Simulator</h2>
+          <p className="text-xs text-slate-400 max-w-xs mb-6">
+            Dispatching Purchase Order Ref: <span className="text-indigo-400 font-bold font-mono">{commonPONumber}</span> to <span className="text-indigo-400 font-bold">{poForm.supplierName}</span> via SMTP relay.
+          </p>
+
+          <div className="w-full space-y-3.5 mb-6 text-left max-w-sm">
+            {emailSimSteps.map((step, idx) => {
+              const isCompleted = idx < emailSimActiveIndex;
+              const isActive = idx === emailSimActiveIndex;
+              return (
+                <div key={idx} className="flex items-center gap-3 text-xs transition-opacity duration-300">
+                  <div className="shrink-0">
+                    {isCompleted ? (
+                      <div className="w-4 h-4 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
+                        <Check className="w-2.5 h-2.5 text-emerald-400" />
+                      </div>
+                    ) : isActive ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
+                    ) : (
+                      <div className="w-4 h-4 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-500 text-[9px] font-mono">
+                        {idx + 1}
+                      </div>
+                    )}
+                  </div>
+                  <span className={`font-medium ${isCompleted ? "text-emerald-400" : isActive ? "text-white font-bold" : "text-slate-500"}`}>
+                    {step}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Simple progress bar */}
+          <div className="w-full bg-slate-800 rounded-full h-1.5 mb-6 overflow-hidden">
+            <div 
+              className="bg-indigo-500 h-1.5 rounded-full transition-all duration-300"
+              style={{ width: `${((emailSimActiveIndex + 1) / emailSimSteps.length) * 100}%` }}
+            ></div>
+          </div>
+
+          <Button
+            type="button"
+            onClick={handleCloseEmailSim}
+            disabled={emailSimActiveIndex < emailSimSteps.length - 1}
+            className={`w-full font-bold h-10 ${emailSimActiveIndex === emailSimSteps.length - 1 ? "bg-emerald-500 hover:bg-emerald-600 text-white" : "bg-slate-800 text-slate-500 cursor-not-allowed"}`}
+          >
+            {emailSimActiveIndex === emailSimSteps.length - 1 ? "Done / Complete" : "Sending PO..."}
+          </Button>
         </DialogContent>
       </Dialog>
     </div>
