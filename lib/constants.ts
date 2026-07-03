@@ -5,7 +5,6 @@ import {
 } from "lucide-react";
 
 export const STAGES = [
-    { num: 0, name: "Master", slug: "master", icon: LayoutGrid },
     { num: 1, name: "Create Indent", slug: "create-indent", icon: PlusCircle },
     { num: 2, name: "Indent Approval", slug: "indent-approval", icon: CheckCircle2 },
     { num: 3, name: "Quotation", slug: "quotation", icon: MessagesSquare },
@@ -18,4 +17,5 @@ export const STAGES = [
     { num: 10, name: "Billing", slug: "receipt-in-tally", icon: FileText },
     { num: 11, name: "Purchase Return", slug: "purchase-return", icon: CornerUpLeft },
     { num: 12, name: "Order Cancel", slug: "order-cancel", icon: XCircle },
+    { num: 13, name: "Master", slug: "master", icon: LayoutGrid },
 ];

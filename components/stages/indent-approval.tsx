@@ -215,7 +215,6 @@ export default function Stage2() {
     { key: "warehouseLocation", label: "Warehouse", icon: Warehouse },
     { key: "itemCode", label: "Item Code", icon: Hash },
     { key: "leadTime", label: "Expected Requirement Date", icon: Calendar },
-    { key: "plannedDate", label: "Planned", icon: Calendar },
     { key: "actualDate", label: "Actual", icon: Calendar },
     { key: "delay", label: "Delay", icon: Clock },
     { key: "status", label: "Status", icon: Tag },
@@ -590,9 +589,7 @@ export default function Stage2() {
                               <TableCell key={col.key}>
                                 {col.key === "leadTime"
                                   ? `${record.data[col.key] || 0} days`
-                                  : col.key === "plannedDate"
-                                    ? formatDateDash(record.data[col.key])
-                                    : record.data[col.key] || "-"}
+                                  : record.data[col.key] || "-"}
                               </TableCell>
                             ))}
                         </TableRow>
@@ -646,7 +643,7 @@ export default function Stage2() {
                           <TableCell key={col.key} className="text-sm text-slate-700">
                             {col.key === "leadTime"
                               ? `${record.data[col.key] || 0} days`
-                              : (col.key === "plannedDate" || col.key === "actualDate")
+                              : col.key === "actualDate"
                                 ? formatDateDash(record.data[col.key])
                                 : record.data[col.key] || "-"}
                           </TableCell>

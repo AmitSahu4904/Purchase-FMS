@@ -14,6 +14,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Settings,
   Plus,
   Trash2,
@@ -29,19 +36,56 @@ import {
   FileSpreadsheet,
   Search,
   Wrench,
-  CheckSquare
+  CheckSquare,
+  XCircle,
+  Clock,
+  Edit3
 } from "lucide-react";
+import { STAGES } from "@/lib/constants";
 
 interface ItemOption {
   itemCode: string;
   category: string;
   itemName: string;
+  uom: string;
+}
+
+interface TransporterInfo {
+  transporterName: string;
+  contactPerson: string;
+  phone: string;
+  vehicleType: string;
+}
+
+interface VendorInfo {
+  vendorName: string;
+  contactPerson: string;
+  phone: string;
+  email: string;
+  address: string;
 }
 
 export default function MasterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("createdBy");
+
+  // TAT Manager state variables
+  interface TatRule {
+    systemName: string;
+    sectionName: string;
+    timeUnit: string;
+    completionTime: number;
+  }
+  const [currentView, setCurrentView] = useState<"config" | "tat">("config");
+  const [tatRules, setTatRules] = useState<TatRule[]>([]);
+  const [tatForm, setTatForm] = useState<TatRule>({
+    systemName: "Purchase FMS",
+    sectionName: "Create Indent",
+    timeUnit: "day",
+    completionTime: 1
+  });
+  const [editingTatIndex, setEditingTatIndex] = useState<number | null>(null);
   
   // RAW sheet data to preserve headers/size
   const [rawSheetData, setRawSheetData] = useState<any[][]>([]);
@@ -50,19 +94,27 @@ export default function MasterPage() {
   const [createdBy, setCreatedBy] = useState<string[]>([]);
   const [warehouse, setWarehouse] = useState<string[]>([]);
   const [approver, setApprover] = useState<string[]>([]);
-  const [transporter, setTransporter] = useState<string[]>([]);
+  const [transporter, setTransporter] = useState<TransporterInfo[]>([]);
+  const [newTransporter, setNewTransporter] = useState<TransporterInfo>({ transporterName: "", contactPerson: "", phone: "", vehicleType: "" });
+  const [transporterSearch, setTransporterSearch] = useState<string>("");
   const [accountant, setAccountant] = useState<string[]>([]);
   const [uom, setUom] = useState<string[]>([]);
   const [qcEngineer, setQcEngineer] = useState<string[]>([]);
   const [checklist, setChecklist] = useState<string[]>([]);
   const [rejectReason, setRejectReason] = useState<string[]>([]);
+  const [cancelStages, setCancelStages] = useState<string[]>([]);
+  const [tatSystems, setTatSystems] = useState<string[]>([]);
+  const [tatUnits, setTatUnits] = useState<string[]>([]);
   
   // Complex items catalog
   const [items, setItems] = useState<ItemOption[]>([]);
+  const [vendors, setVendors] = useState<VendorInfo[]>([]);
+  const [newVendor, setNewVendor] = useState<VendorInfo>({ vendorName: "", contactPerson: "", phone: "", email: "", address: "" });
+  const [vendorSearch, setVendorSearch] = useState<string>("");
 
   // Form Inputs
   const [newSimpleVal, setNewSimpleVal] = useState<string>("");
-  const [newItem, setNewItem] = useState<ItemOption>({ itemCode: "", category: "", itemName: "" });
+  const [newItem, setNewItem] = useState<ItemOption>({ itemCode: "", category: "", itemName: "", uom: "" });
   const [itemSearch, setItemSearch] = useState<string>("");
 
   const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI;
@@ -88,25 +140,211 @@ export default function MasterPage() {
             .filter((val: string) => val !== "");
         };
 
-        setCreatedBy(extractCol(0));
-        setWarehouse(extractCol(1));
-        setApprover(extractCol(8));
-        setTransporter(extractCol(10));
-        setQcEngineer(extractCol(11));
-        setAccountant(extractCol(12));
-        setUom(extractCol(13));
-        setChecklist(extractCol(15));
-        setRejectReason(extractCol(16));
+        const cancelStagesFromSheet = extractCol(17);
+        const systemsFromSheet = extractCol(18);
+        const unitsFromSheet = extractCol(19);
 
-        // Items triplet: Code (C: 2), Category (D: 3), Name (E: 4)
-        const parsedItems: ItemOption[] = dataRows
+        let cbList = extractCol(0);
+        let whList = extractCol(1);
+        let apList = extractCol(8);
+        let qcList = extractCol(11);
+        let acList = extractCol(12);
+        let uomList = extractCol(13);
+        let chList = extractCol(15);
+        let rjList = extractCol(16);
+
+        let needSave = false;
+
+        if (cbList.length === 0) {
+          cbList = ["Amit Sahu", "Admin", "Purchase Team"];
+          setCreatedBy(cbList);
+          needSave = true;
+        } else {
+          setCreatedBy(cbList);
+        }
+
+        if (whList.length === 0) {
+          whList = ["Warehouse A", "Warehouse B", "Depot Main"];
+          setWarehouse(whList);
+          needSave = true;
+        } else {
+          setWarehouse(whList);
+        }
+
+        if (apList.length === 0) {
+          apList = ["Approver User", "Fin Director", "QA Manager"];
+          setApprover(apList);
+          needSave = true;
+        } else {
+          setApprover(apList);
+        }
+
+        if (qcList.length === 0) {
+          qcList = ["QC Eng 1", "QC Eng 2"];
+          setQcEngineer(qcList);
+          needSave = true;
+        } else {
+          setQcEngineer(qcList);
+        }
+
+        if (acList.length === 0) {
+          acList = ["Acc 1", "Acc 2"];
+          setAccountant(acList);
+          needSave = true;
+        } else {
+          setAccountant(acList);
+        }
+
+        if (uomList.length === 0) {
+          uomList = ["Nos", "Sets", "Kgs", "Bags", "Mtrs"];
+          setUom(uomList);
+          needSave = true;
+        } else {
+          setUom(uomList);
+        }
+
+        if (chList.length === 0) {
+          chList = ["Check Packaging", "Check Quality Standards", "Quantity Audit"];
+          setChecklist(chList);
+          needSave = true;
+        } else {
+          setChecklist(chList);
+        }
+
+        if (rjList.length === 0) {
+          rjList = ["Damaged Material", "Specification Mismatch", "Short Supply"];
+          setRejectReason(rjList);
+          needSave = true;
+        } else {
+          setRejectReason(rjList);
+        }
+
+        const rawTransporters = dataRows
+          .map((row: any) => String(row[10] || "").trim())
+          .filter((val: string) => val !== "");
+        
+        let parsedTransporters: TransporterInfo[] = rawTransporters.map((val: string) => {
+          if (val.startsWith("{")) {
+            try {
+              return JSON.parse(val);
+            } catch (e) {
+              // fall through
+            }
+          }
+          return {
+            transporterName: val,
+            contactPerson: "-",
+            phone: "-",
+            vehicleType: "-"
+          };
+        });
+
+        if (parsedTransporters.length === 0) {
+          parsedTransporters = [
+            { transporterName: "Fast Logistics", contactPerson: "Jane Smith", phone: "9876543210", vehicleType: "truck" },
+            { transporterName: "Swift Movers", contactPerson: "John Doe", phone: "9876501234", vehicleType: "van" }
+          ];
+          setTransporter(parsedTransporters);
+          needSave = true;
+        } else {
+          setTransporter(parsedTransporters);
+        }
+
+        let parsedItems: ItemOption[] = dataRows
           .filter((row: any) => row[3] || row[4])
           .map((row: any) => ({
             itemCode: String(row[2] || "").trim(),
             category: String(row[3] || "").trim(),
             itemName: String(row[4] || "").trim(),
+            uom: String(row[5] || "").trim(),
           }));
-        setItems(parsedItems);
+
+        if (parsedItems.length === 0) {
+          parsedItems = [
+            { itemCode: "IT-LAP-101", category: "IT Supplies", itemName: "Dell Latitude Laptop", uom: "pcs" },
+            { itemCode: "OFF-CHR-002", category: "Office Furniture", itemName: "Ergonomic Chair", uom: "pcs" }
+          ];
+          setItems(parsedItems);
+          needSave = true;
+        } else {
+          setItems(parsedItems);
+        }
+
+        const rawVendors = dataRows
+          .map((row: any) => String(row[6] || "").trim())
+          .filter((val: string) => val !== "");
+        
+        let parsedVendors: VendorInfo[] = rawVendors.map((val: string) => {
+          if (val.startsWith("{")) {
+            try {
+              return JSON.parse(val);
+            } catch (e) {
+              // fall through
+            }
+          }
+          return {
+            vendorName: val,
+            contactPerson: "-",
+            phone: "-",
+            email: "-",
+            address: "-"
+          };
+        });
+
+        if (parsedVendors.length === 0) {
+          parsedVendors = [
+            { vendorName: "INFOSYS TECH", contactPerson: "Nandan Nilekani", phone: "9876543210", email: "infosys@company.com", address: "Electronic City, Bangalore" },
+            { vendorName: "KOTAK MAHINDRA", contactPerson: "Uday Kotak", phone: "9876501234", email: "kotak@company.com", address: "Bandra Kurla Complex, Mumbai" },
+            { vendorName: "Vendor A", contactPerson: "John Doe", phone: "9876543210", email: "vendorA@company.com", address: "123 Street A, City" },
+            { vendorName: "Vendor B", contactPerson: "Jane Smith", phone: "9876505432", email: "vendorB@company.com", address: "456 Avenue B, City" },
+            { vendorName: "Vendor C", contactPerson: "Alice Brown", phone: "9876509876", email: "vendorC@company.com", address: "789 Lane C, City" }
+          ];
+          setVendors(parsedVendors);
+          needSave = true;
+        } else {
+          setVendors(parsedVendors);
+        }
+
+        let finalCancel = cancelStagesFromSheet;
+        if (cancelStagesFromSheet.length === 0) {
+          finalCancel = [
+            "Create Indent", "Indent Approval", "Quotation", "Approved Vendor",
+            "Make PO", "Payment", "Follow UP / Lifting", "Transporter Follow-Up",
+            "Material Received", "Billing", "Purchase Return", "Order Cancel"
+          ];
+          setCancelStages(finalCancel);
+          needSave = true;
+        } else {
+          setCancelStages(cancelStagesFromSheet);
+        }
+
+        let finalSystems = systemsFromSheet;
+        if (systemsFromSheet.length === 0) {
+          finalSystems = ["Purchase FMS", "IMS", "FMS", "FMS Portal"];
+          setTatSystems(finalSystems);
+          needSave = true;
+        } else {
+          setTatSystems(systemsFromSheet);
+        }
+
+        let finalUnits = unitsFromSheet;
+        if (unitsFromSheet.length === 0) {
+          finalUnits = ["minute", "hour", "day"];
+          setTatUnits(finalUnits);
+          needSave = true;
+        } else {
+          setTatUnits(unitsFromSheet);
+        }
+
+        if (needSave) {
+          setTimeout(() => {
+            handleSave(
+              cbList, whList, apList, parsedTransporters, qcList,
+              acList, uomList, chList, rjList, finalCancel,
+              parsedItems, finalSystems, finalUnits, parsedVendors
+            );
+          }, 0);
+        }
       } else {
         toast.error("Failed to load options: " + (json.error || "Unknown error"));
       }
@@ -118,8 +356,133 @@ export default function MasterPage() {
     }
   };
 
+  // Load TAT Rules from the Google Sheet
+  const fetchTatRules = async () => {
+    if (!SHEET_API_URL) return;
+    try {
+      const res = await fetch(`${SHEET_API_URL}?sheet=TAT-Rules&action=getAll`);
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+        // Skip header row
+        const rules: TatRule[] = json.data.slice(1).map((row: any) => ({
+          systemName: String(row[0] || ""),
+          sectionName: String(row[1] || ""),
+          timeUnit: String(row[2] || ""),
+          completionTime: parseFloat(String(row[3] || "0")) || 0
+        })).filter((r: any) => r.systemName && r.sectionName);
+        setTatRules(rules);
+      }
+    } catch (e) {
+      console.error("Error fetching TAT rules:", e);
+    }
+  };
+
+  // Save TAT Rules to the Google Sheet
+  const saveTatRules = async (rulesToSave: TatRule[]) => {
+    if (!SHEET_API_URL) return;
+    setIsSubmitting(true);
+    try {
+      const headers = ["System Name", "Page / Section", "Time Unit", "Completion Time"];
+      const rowsData = [headers];
+      rulesToSave.forEach(rule => {
+        rowsData.push([
+          rule.systemName,
+          rule.sectionName,
+          rule.timeUnit,
+          String(rule.completionTime)
+        ]);
+      });
+
+      // Overwrite the entire sheet
+      try {
+        const checkRes = await fetch(`${SHEET_API_URL}?sheet=TAT-Rules&action=getAll`);
+        const checkJson = await checkRes.json();
+        if (checkJson.success && Array.isArray(checkJson.data)) {
+          const prevCount = checkJson.data.length;
+          while (rowsData.length < prevCount) {
+            rowsData.push(["", "", "", ""]);
+          }
+        }
+      } catch {}
+
+      const params = new URLSearchParams();
+      params.append("action", "batchInsert");
+      params.append("sheetName", "TAT-Rules");
+      params.append("startRow", "1");
+      params.append("rowsData", JSON.stringify(rowsData));
+
+      const res = await fetch(SHEET_API_URL, {
+        method: "POST",
+        body: params
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success("TAT rules saved successfully!");
+      } else {
+        toast.error("Failed to save TAT rules");
+      }
+    } catch (e) {
+      console.error("Error saving TAT rules:", e);
+      toast.error("Network error saving TAT rules");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAddTatRule = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tatForm.systemName || !tatForm.sectionName || !tatForm.timeUnit || tatForm.completionTime <= 0) {
+      toast.error("Please fill out all fields correctly!");
+      return;
+    }
+
+    if (editingTatIndex !== null) {
+      const updated = [...tatRules];
+      updated[editingTatIndex] = tatForm;
+      setTatRules(updated);
+      saveTatRules(updated);
+      setEditingTatIndex(null);
+    } else {
+      if (tatRules.some(r => r.systemName === tatForm.systemName && r.sectionName === tatForm.sectionName)) {
+        toast.warning("A TAT rule for this system and page already exists!");
+        return;
+      }
+      const updated = [...tatRules, tatForm];
+      setTatRules(updated);
+      saveTatRules(updated);
+    }
+
+    setTatForm({
+      systemName: "Purchase FMS",
+      sectionName: "Create Indent",
+      timeUnit: "day",
+      completionTime: 1
+    });
+  };
+
+  const handleDeleteTatRule = (idx: number) => {
+    const updated = tatRules.filter((_, i) => i !== idx);
+    setTatRules(updated);
+    saveTatRules(updated);
+    if (editingTatIndex === idx) {
+      setEditingTatIndex(null);
+      setTatForm({
+        systemName: "Purchase FMS",
+        sectionName: "Create Indent",
+        timeUnit: "day",
+        completionTime: 1
+      });
+    }
+  };
+
+  const handleStartEditTatRule = (idx: number) => {
+    setEditingTatIndex(idx);
+    setTatForm(tatRules[idx]);
+  };
+
   useEffect(() => {
     fetchDropdowns();
+    fetchTatRules();
   }, []);
 
   // Save the current states back to the google sheet
@@ -133,16 +496,36 @@ export default function MasterPage() {
     updatedUom = uom,
     updatedChecklist = checklist,
     updatedRejectReason = rejectReason,
-    updatedItems = items
+    updatedCancelStages = cancelStages,
+    updatedItems = items,
+    updatedTatSystems = tatSystems,
+    updatedTatUnits = tatUnits,
+    updatedVendors = vendors
   ) => {
     if (!SHEET_API_URL) return;
     setIsSubmitting(true);
 
-    const headers = rawSheetData[0] || [
-      "Created By", "Warehouse Location", "Item Code", "Category", "Item Name", 
-      "", "", "", "Approver", "", "Transporter", "QC Engineer", "Accountant", 
-      "UOM", "", "Checklist Item", "Reject Reason"
-    ];
+    const headers = [...(rawSheetData[0] || [])];
+    while (headers.length < 20) {
+      headers.push("");
+    }
+    headers[0] = headers[0] || "Created By";
+    headers[1] = headers[1] || "Warehouse Location";
+    headers[2] = headers[2] || "Item Code";
+    headers[3] = headers[3] || "Category";
+    headers[4] = headers[4] || "Item Name";
+    headers[5] = headers[5] || "Item UOM";
+    headers[6] = headers[6] || "Vendor Info";
+    headers[8] = headers[8] || "Approver";
+    headers[10] = headers[10] || "Transporter";
+    headers[11] = headers[11] || "QC Engineer";
+    headers[12] = headers[12] || "Accountant";
+    headers[13] = headers[13] || "UOM";
+    headers[15] = headers[15] || "Checklist Item";
+    headers[16] = headers[16] || "Reject Reason";
+    headers[17] = headers[17] || "Cancel Stage";
+    headers[18] = headers[18] || "TAT System";
+    headers[19] = headers[19] || "TAT Time Unit";
 
     const maxRows = Math.max(
       updatedCreatedBy.length,
@@ -154,7 +537,11 @@ export default function MasterPage() {
       updatedUom.length,
       updatedChecklist.length,
       updatedRejectReason.length,
-      updatedItems.length
+      updatedCancelStages.length,
+      updatedItems.length,
+      updatedTatSystems.length,
+      updatedTatUnits.length,
+      updatedVendors.length
     );
 
     const rowsData: any[][] = [];
@@ -167,13 +554,18 @@ export default function MasterPage() {
       row[2] = updatedItems[i]?.itemCode || "";
       row[3] = updatedItems[i]?.category || "";
       row[4] = updatedItems[i]?.itemName || "";
+      row[5] = updatedItems[i]?.uom || "";
+      row[6] = updatedVendors[i] ? JSON.stringify(updatedVendors[i]) : "";
       row[8] = updatedApprover[i] || "";
-      row[10] = updatedTransporter[i] || "";
+      row[10] = updatedTransporter[i] ? JSON.stringify(updatedTransporter[i]) : "";
       row[11] = updatedQcEngineer[i] || "";
       row[12] = updatedAccountant[i] || "";
       row[13] = updatedUom[i] || "";
       row[15] = updatedChecklist[i] || "";
       row[16] = updatedRejectReason[i] || "";
+      row[17] = updatedCancelStages[i] || "";
+      row[18] = updatedTatSystems[i] || "";
+      row[19] = updatedTatUnits[i] || "";
       rowsData.push(row);
     }
 
@@ -238,12 +630,6 @@ export default function MasterPage() {
         setApprover(updatedList);
         handleSave(undefined, undefined, updatedList);
         break;
-      case "transporter":
-        if (transporter.includes(val)) { toast.warning("Option already exists!"); return; }
-        updatedList = [...transporter, val];
-        setTransporter(updatedList);
-        handleSave(undefined, undefined, undefined, updatedList);
-        break;
       case "qcEngineer":
         if (qcEngineer.includes(val)) { toast.warning("Option already exists!"); return; }
         updatedList = [...qcEngineer, val];
@@ -274,6 +660,24 @@ export default function MasterPage() {
         setRejectReason(updatedList);
         handleSave(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, updatedList);
         break;
+      case "cancelStage":
+        if (cancelStages.includes(val)) { toast.warning("Option already exists!"); return; }
+        updatedList = [...cancelStages, val];
+        setCancelStages(updatedList);
+        handleSave(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, updatedList);
+        break;
+      case "tatSystem":
+        if (tatSystems.includes(val)) { toast.warning("Option already exists!"); return; }
+        updatedList = [...tatSystems, val];
+        setTatSystems(updatedList);
+        handleSave(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, updatedList);
+        break;
+      case "tatUnit":
+        if (tatUnits.includes(val)) { toast.warning("Option already exists!"); return; }
+        updatedList = [...tatUnits, val];
+        setTatUnits(updatedList);
+        handleSave(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, updatedList);
+        break;
     }
 
     setNewSimpleVal("");
@@ -298,11 +702,6 @@ export default function MasterPage() {
         updatedList = approver.filter(item => item !== valToRemove);
         setApprover(updatedList);
         handleSave(undefined, undefined, updatedList);
-        break;
-      case "transporter":
-        updatedList = transporter.filter(item => item !== valToRemove);
-        setTransporter(updatedList);
-        handleSave(undefined, undefined, undefined, updatedList);
         break;
       case "qcEngineer":
         updatedList = qcEngineer.filter(item => item !== valToRemove);
@@ -329,6 +728,21 @@ export default function MasterPage() {
         setRejectReason(updatedList);
         handleSave(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, updatedList);
         break;
+      case "cancelStage":
+        updatedList = cancelStages.filter(item => item !== valToRemove);
+        setCancelStages(updatedList);
+        handleSave(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, updatedList);
+        break;
+      case "tatSystem":
+        updatedList = tatSystems.filter(item => item !== valToRemove);
+        setTatSystems(updatedList);
+        handleSave(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, updatedList);
+        break;
+      case "tatUnit":
+        updatedList = tatUnits.filter(item => item !== valToRemove);
+        setTatUnits(updatedList);
+        handleSave(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, updatedList);
+        break;
     }
   };
 
@@ -338,9 +752,10 @@ export default function MasterPage() {
     const code = newItem.itemCode.trim();
     const cat = newItem.category.trim();
     const name = newItem.itemName.trim();
+    const unit = newItem.uom.trim();
 
-    if (!code || !cat || !name) {
-      toast.error("Please fill out Code, Category, and Item Name!");
+    if (!code || !cat || !name || !unit) {
+      toast.error("Please fill out all fields!");
       return;
     }
 
@@ -349,18 +764,18 @@ export default function MasterPage() {
       return;
     }
 
-    const updatedCatalog = [...items, { itemCode: code, category: cat, itemName: name }];
+    const updatedCatalog = [...items, { itemCode: code, category: cat, itemName: name, uom: unit }];
     setItems(updatedCatalog);
-    handleSave(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, updatedCatalog);
+    handleSave(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, updatedCatalog);
 
-    setNewItem({ itemCode: "", category: "", itemName: "" });
+    setNewItem({ itemCode: "", category: "", itemName: "", uom: "" });
   };
 
   // Remove Item from Catalog
   const handleRemoveItem = (nameToRemove: string) => {
     const updatedCatalog = items.filter(item => item.itemName !== nameToRemove);
     setItems(updatedCatalog);
-    handleSave(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, updatedCatalog);
+    handleSave(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, updatedCatalog);
   };
 
   // Search filtered catalog items
@@ -370,15 +785,107 @@ export default function MasterPage() {
       return (
         item.itemName.toLowerCase().includes(search) ||
         item.itemCode.toLowerCase().includes(search) ||
-        item.category.toLowerCase().includes(search)
+        item.category.toLowerCase().includes(search) ||
+        (item.uom && item.uom.toLowerCase().includes(search))
       );
     });
   }, [items, itemSearch]);
+
+  const handleAddVendor = (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = newVendor.vendorName.trim();
+    const contact = newVendor.contactPerson.trim();
+    const ph = newVendor.phone.trim();
+    const mail = newVendor.email.trim();
+    const addr = newVendor.address.trim();
+
+    if (!name || !contact || !ph || !addr) {
+      toast.error("Please fill out all required fields!");
+      return;
+    }
+
+    if (vendors.some(v => v.vendorName.toLowerCase() === name.toLowerCase())) {
+      toast.warning("A vendor with this name already exists!");
+      return;
+    }
+
+    const updatedList = [...vendors, { vendorName: name, contactPerson: contact, phone: ph, email: mail, address: addr }];
+    setVendors(updatedList);
+    handleSave(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, updatedList);
+    setNewVendor({ vendorName: "", contactPerson: "", phone: "", email: "", address: "" });
+  };
+
+  const handleRemoveVendor = (nameToRemove: string) => {
+    const updatedList = vendors.filter(v => v.vendorName !== nameToRemove);
+    setVendors(updatedList);
+    handleSave(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, updatedList);
+  };
+
+  const filteredVendors = useMemo(() => {
+    return vendors.filter(v => {
+      const search = vendorSearch.toLowerCase();
+      return (
+        v.vendorName.toLowerCase().includes(search) ||
+        v.contactPerson.toLowerCase().includes(search) ||
+        v.phone.includes(search) ||
+        v.email.toLowerCase().includes(search) ||
+        v.address.toLowerCase().includes(search)
+      );
+    });
+  }, [vendors, vendorSearch]);
+
+  const handleAddTransporter = (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = newTransporter.transporterName.trim();
+    const contact = newTransporter.contactPerson.trim();
+    const ph = newTransporter.phone.trim();
+    const vType = newTransporter.vehicleType.trim();
+
+    if (!name || !contact || !ph || !vType) {
+      toast.error("Please fill out all fields!");
+      return;
+    }
+
+    if (transporter.some(t => t.transporterName.toLowerCase() === name.toLowerCase())) {
+      toast.warning("A transporter with this name already exists!");
+      return;
+    }
+
+    const updatedList = [...transporter, { transporterName: name, contactPerson: contact, phone: ph, vehicleType: vType }];
+    setTransporter(updatedList);
+    handleSave(undefined, undefined, undefined, updatedList);
+    setNewTransporter({ transporterName: "", contactPerson: "", phone: "", vehicleType: "" });
+  };
+
+  const handleRemoveTransporter = (nameToRemove: string) => {
+    const updatedList = transporter.filter(t => t.transporterName !== nameToRemove);
+    setTransporter(updatedList);
+    handleSave(undefined, undefined, undefined, updatedList);
+  };
+
+  const filteredTransporters = useMemo(() => {
+    return transporter.filter(t => {
+      const search = transporterSearch.toLowerCase();
+      return (
+        t.transporterName.toLowerCase().includes(search) ||
+        t.contactPerson.toLowerCase().includes(search) ||
+        t.phone.includes(search) ||
+        t.vehicleType.toLowerCase().includes(search)
+      );
+    });
+  }, [transporter, transporterSearch]);
+
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (e.deltaY !== 0) {
+      e.currentTarget.scrollLeft += e.deltaY;
+    }
+  };
 
   const tabsConfig = [
     { id: "createdBy", label: "Created By", icon: Users, desc: "System operators and indent authors." },
     { id: "warehouse", label: "Warehouse / Area", icon: MapPin, desc: "Warehouse depots and lifting destination zones." },
     { id: "items", label: "Product Catalog", icon: Boxes, desc: "Registered inventory items, categories, and item codes." },
+    { id: "vendor", label: "Vendors", icon: Users, desc: "Approved material suppliers and service vendors." },
     { id: "approver", label: "Approvers", icon: ShieldCheck, desc: "Authorized personnel who approve indents and vendors." },
     { id: "transporter", label: "Transporters", icon: Truck, desc: "Lifting logistics and transporting suppliers." },
     { id: "qcEngineer", label: "QC Engineers", icon: Wrench, desc: "Engineers inspecting items on arrival." },
@@ -386,12 +893,15 @@ export default function MasterPage() {
     { id: "uom", label: "UOMs", icon: Settings, desc: "Units of Measure (e.g. Nos, Sets, Kgs, Bags)." },
     { id: "checklist", label: "QC Checklists", icon: CheckSquare, desc: "Quality inspection standard checklist options." },
     { id: "rejectReason", label: "Reject Reasons", icon: AlertCircle, desc: "Reasons cited for material returns." },
+    { id: "cancelStage", label: "Cancel Stages", icon: XCircle, desc: "Stage options for Order Cancellation." },
+    { id: "tatSystem", label: "TAT Systems", icon: Settings, desc: "System names for Turn Around Time rules." },
+    { id: "tatUnit", label: "TAT Time Units", icon: Clock, desc: "Time duration units for Turn Around Time limits." },
   ];
 
   const activeTabConfig = tabsConfig.find(t => t.id === activeTab);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-50px)] lg:h-screen bg-slate-50 overflow-hidden">
+    <div className="flex flex-col h-full w-full bg-slate-50 overflow-hidden">
       {/* Top Banner Header */}
       <div className="bg-slate-900 text-white p-6 shadow-md flex-shrink-0 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -421,264 +931,744 @@ export default function MasterPage() {
         </div>
       </div>
 
+      {/* View Switcher Header */}
+      <div className="bg-white border-b border-slate-200 px-6 py-3 flex gap-2 flex-shrink-0">
+        <Button
+          onClick={() => setCurrentView("config")}
+          variant={currentView === "config" ? "default" : "outline"}
+          className={`h-9 px-5 rounded-xl text-xs font-semibold ${
+            currentView === "config" ? "bg-slate-900 text-white" : ""
+          }`}
+        >
+          Configurations
+        </Button>
+        <Button
+          onClick={() => setCurrentView("tat")}
+          variant={currentView === "tat" ? "default" : "outline"}
+          className={`h-9 px-5 rounded-xl text-xs font-semibold ${
+            currentView === "tat" ? "bg-slate-900 text-white" : ""
+          }`}
+        >
+          TAT Manager
+        </Button>
+      </div>
+
       {/* Main settings body */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Side Settings Navigator */}
-        <div className="w-64 border-r border-slate-200 bg-white p-4 overflow-y-auto space-y-1.5 flex-shrink-0 flex flex-col justify-between">
-          <div className="space-y-1">
-            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-2 mb-2">Configurations</h3>
-            {tabsConfig.map(t => {
-              const TabIcon = t.icon;
-              const isSelected = activeTab === t.id;
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => {
-                    setActiveTab(t.id);
-                    setNewSimpleVal("");
-                  }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold text-left transition-all ${
-                    isSelected
-                      ? "bg-slate-900 text-white shadow-md"
-                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                  }`}
-                >
-                  <TabIcon className={`w-4 h-4 ${isSelected ? "text-indigo-400" : "text-slate-400"}`} />
-                  <span>{t.label}</span>
-                </button>
-              );
-            })}
-          </div>
-          <div className="bg-slate-50 border p-3 rounded-xl text-[10px] text-slate-500 flex items-start gap-2">
-            <FileSpreadsheet className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="font-bold text-slate-700">Real-time Sync</p>
-              <p className="mt-0.5 leading-relaxed">Changes made are automatically batch-inserted into the Dropdown Google Sheet.</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Side Options List Manager */}
-        <div className="flex-1 p-6 overflow-y-auto bg-slate-50 flex flex-col">
-          {isLoading ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
-              <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mb-2" />
-              <p className="text-sm font-semibold">Loading options database...</p>
-            </div>
-          ) : (
-            <div className="space-y-6 flex-1 flex flex-col">
-              {/* Category Info header */}
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm">
-                <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                  {activeTabConfig && <activeTabConfig.icon className="w-5 h-5 text-indigo-600" />}
-                  <span>Manage {activeTabConfig?.label}</span>
-                </h2>
-                <p className="text-xs text-slate-500 mt-1">{activeTabConfig?.desc}</p>
+        {currentView === "tat" ? (
+          /* TAT MANAGER VIEW */
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            {/* Add TAT Rule Form */}
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm space-y-4 max-w-xl mx-auto">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <Clock className="w-4 h-4 text-slate-700" />
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  {editingTatIndex !== null ? "Edit TAT Rule" : "Add TAT Rule"}
+                </h4>
               </div>
-
-              {activeTab === "items" ? (
-                /* PRODUCT CATALOG MANAGEMENT */
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start flex-1">
-                  {/* Left panel: Catalog Addition Form */}
-                  <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm space-y-4 xl:col-span-1">
-                    <div className="flex items-center gap-2 border-b pb-2">
-                      <Plus className="w-4 h-4 text-indigo-600" />
-                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Add Catalog Item</h4>
-                    </div>
-                    <form onSubmit={handleAddItem} className="space-y-4">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs text-slate-600">Item Code</Label>
-                        <Input
-                          placeholder="e.g. IT-LAP-101"
-                          value={newItem.itemCode}
-                          onChange={(e) => setNewItem({ ...newItem, itemCode: e.target.value })}
-                          className="h-10"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs text-slate-600">Category</Label>
-                        <Input
-                          placeholder="e.g. IT Supplies"
-                          value={newItem.category}
-                          onChange={(e) => setNewItem({ ...newItem, category: e.target.value })}
-                          className="h-10"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs text-slate-600">Item Name</Label>
-                        <Input
-                          placeholder="e.g. Dell Latitude Laptop"
-                          value={newItem.itemName}
-                          onChange={(e) => setNewItem({ ...newItem, itemName: e.target.value })}
-                          className="h-10"
-                        />
-                      </div>
-                      <Button
-                        type="submit"
-                        disabled={isSubmitting}
-                        className="w-full h-10 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs shadow-md transition-all mt-2"
-                      >
-                        {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
-                        Add to Catalog
-                      </Button>
-                    </form>
-                  </div>
-
-                  {/* Right panel: Catalog Table list */}
-                  <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden xl:col-span-2 flex flex-col h-[500px]">
-                    <div className="p-4 border-b bg-slate-50 flex items-center justify-between gap-4">
-                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Catalog Items ({items.length})</h4>
-                      <div className="relative w-64">
-                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
-                        <Input
-                          placeholder="Search items..."
-                          value={itemSearch}
-                          onChange={(e) => setItemSearch(e.target.value)}
-                          className="pl-9 h-9 text-xs bg-white"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex-1 overflow-y-auto">
-                      <Table>
-                        <TableHeader className="bg-slate-50/50">
-                          <TableRow>
-                            <TableHead className="w-[120px] text-xs font-bold text-slate-600">Code</TableHead>
-                            <TableHead className="w-[150px] text-xs font-bold text-slate-600">Category</TableHead>
-                            <TableHead className="text-xs font-bold text-slate-600">Item Name</TableHead>
-                            <TableHead className="w-[80px] text-xs font-bold text-slate-600 text-center">Action</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filteredCatalog.length === 0 ? (
-                            <TableRow>
-                              <TableCell colSpan={4} className="text-center text-slate-400 py-12 text-xs">
-                                No items found in catalog.
-                              </TableCell>
-                            </TableRow>
-                          ) : (
-                            filteredCatalog.map((item, idx) => (
-                              <TableRow key={idx} className="hover:bg-slate-50/50">
-                                <TableCell className="font-mono text-xs text-slate-700">{item.itemCode}</TableCell>
-                                <TableCell className="text-xs text-slate-600 font-semibold">{item.category}</TableCell>
-                                <TableCell className="text-xs text-slate-800 font-bold">{item.itemName}</TableCell>
-                                <TableCell className="text-center">
-                                  <Button
-                                    type="button"
-                                    onClick={() => handleRemoveItem(item.itemName)}
-                                    disabled={isSubmitting}
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 hover:text-red-650 rounded-lg hover:bg-red-50 text-slate-400 transition-colors"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            ))
-                          )}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </div>
+              <form onSubmit={handleAddTatRule} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* System Name */}
+                <div className="space-y-1.5 col-span-1">
+                  <Label className="text-xs text-slate-655 font-semibold">System Name *</Label>
+                  <Select
+                    value={tatForm.systemName}
+                    onValueChange={(val) => setTatForm(prev => ({ ...prev, systemName: val }))}
+                  >
+                    <SelectTrigger className="h-10 text-xs rounded-xl bg-slate-50 border-slate-200">
+                      <SelectValue placeholder="Select System" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border text-xs rounded-xl shadow-md">
+                      {tatSystems.length === 0 ? (
+                        <div className="p-2 text-center text-slate-400">No systems configured</div>
+                      ) : (
+                        tatSystems.map(sys => (
+                          <SelectItem key={sys} value={sys}>{sys}</SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
                 </div>
-              ) : (
-                /* SIMPLE VALUES MANAGEMENT (Created By, Warehouse, Approver, etc.) */
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start flex-1">
-                  {/* Option Add panel */}
-                  <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm space-y-4 xl:col-span-1">
-                    <div className="flex items-center gap-2 border-b pb-2">
-                      <Plus className="w-4 h-4 text-indigo-650" />
-                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Add Option Value</h4>
-                    </div>
-                    <form onSubmit={handleAddSimple} className="space-y-4">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs text-slate-650 font-semibold">Value Name</Label>
-                        <Input
-                          placeholder={`Enter new ${activeTabConfig?.label.toLowerCase() || "option"}...`}
-                          value={newSimpleVal}
-                          onChange={(e) => setNewSimpleVal(e.target.value)}
-                          className="h-10"
-                          required
-                        />
-                      </div>
-                      <Button
-                        type="submit"
-                        disabled={isSubmitting}
-                        className="w-full h-10 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs shadow-md transition-all mt-2"
-                      >
-                        {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
-                        Add Value
-                      </Button>
-                    </form>
-                  </div>
 
-                  {/* Option List Display panel */}
-                  <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden xl:col-span-2 flex flex-col h-[500px]">
-                    <div className="p-4 border-b bg-slate-50">
-                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                        Current Values ({
-                          activeTab === "createdBy" ? createdBy.length :
-                          activeTab === "warehouse" ? warehouse.length :
-                          activeTab === "approver" ? approver.length :
-                          activeTab === "transporter" ? transporter.length :
-                          activeTab === "qcEngineer" ? qcEngineer.length :
-                          activeTab === "accountant" ? accountant.length :
-                          activeTab === "uom" ? uom.length :
-                          activeTab === "checklist" ? checklist.length :
-                          activeTab === "rejectReason" ? rejectReason.length : 0
-                        })
-                      </h4>
-                    </div>
-                    <div className="flex-1 overflow-y-auto p-4 bg-slate-50/30">
-                      {/* Grid representation */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {(() => {
-                          const getList = () => {
-                            switch (activeTab) {
-                              case "createdBy": return createdBy;
-                              case "warehouse": return warehouse;
-                              case "approver": return approver;
-                              case "transporter": return transporter;
-                              case "qcEngineer": return qcEngineer;
-                              case "accountant": return accountant;
-                              case "uom": return uom;
-                              case "checklist": return checklist;
-                              case "rejectReason": return rejectReason;
-                              default: return [];
-                            }
-                          };
-                          const list = getList();
-                          if (list.length === 0) {
-                            return (
-                              <div className="col-span-2 text-center text-slate-400 py-12 text-xs">
-                                No values entered yet. Add options using the form on the left.
-                              </div>
-                            );
-                          }
-                          return list.map((val, idx) => (
-                            <div key={idx} className="flex items-center justify-between px-3 py-2 bg-white border border-slate-200/70 rounded-xl shadow-sm hover:border-slate-350 transition-colors">
-                              <span className="text-xs font-semibold text-slate-700 truncate mr-2" title={val}>{val}</span>
+                {/* Page / Section */}
+                <div className="space-y-1.5 col-span-1">
+                  <Label className="text-xs text-slate-655 font-semibold">Page / Section *</Label>
+                  <Select
+                    value={tatForm.sectionName}
+                    onValueChange={(val) => setTatForm(prev => ({ ...prev, sectionName: val }))}
+                  >
+                    <SelectTrigger className="h-10 text-xs rounded-xl bg-slate-50 border-slate-200">
+                      <SelectValue placeholder="Select Stage" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border text-xs rounded-xl shadow-md max-h-56 overflow-y-auto">
+                      {STAGES.filter(s => s.name !== "Master").map(s => (
+                        <SelectItem key={s.slug} value={s.name}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Time Unit */}
+                <div className="space-y-1.5 col-span-1">
+                  <Label className="text-xs text-slate-655 font-semibold">Time Unit *</Label>
+                  <Select
+                    value={tatForm.timeUnit}
+                    onValueChange={(val) => setTatForm(prev => ({ ...prev, timeUnit: val }))}
+                  >
+                    <SelectTrigger className="h-10 text-xs rounded-xl bg-slate-50 border-slate-200">
+                      <SelectValue placeholder="Select Time Unit" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border text-xs rounded-xl shadow-md">
+                      {tatUnits.length === 0 ? (
+                        <div className="p-2 text-center text-slate-400">No units configured</div>
+                      ) : (
+                        tatUnits.map(unit => (
+                          <SelectItem key={unit} value={unit}>{unit}</SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Completion Time */}
+                <div className="space-y-1.5 col-span-1">
+                  <Label className="text-xs text-slate-655 font-semibold">Completion Time *</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    required
+                    value={tatForm.completionTime || ""}
+                    onChange={(e) => setTatForm(prev => ({ ...prev, completionTime: parseInt(e.target.value) || 0 }))}
+                    placeholder="Enter value..."
+                    className="h-10 text-xs rounded-xl bg-slate-50 border-slate-200"
+                  />
+                </div>
+
+                {/* Submit Actions */}
+                <div className="col-span-2 flex gap-2 pt-2">
+                  <Button
+                    type="submit"
+                    className="flex-1 h-10 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition-all shadow-md"
+                  >
+                    {editingTatIndex !== null ? "Update Rule" : "Add Rule"}
+                  </Button>
+                  {editingTatIndex !== null && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setEditingTatIndex(null);
+                        setTatForm({
+                          systemName: "Purchase FMS",
+                          sectionName: "Create Indent",
+                          timeUnit: "day",
+                          completionTime: 1
+                        });
+                      }}
+                      className="h-10 rounded-xl text-xs font-semibold"
+                    >
+                      Cancel
+                    </Button>
+                  )}
+                </div>
+              </form>
+            </div>
+
+            {/* Rules Listing Table Card */}
+            <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden max-w-4xl mx-auto flex flex-col">
+              <div className="p-4 border-b bg-slate-50 flex items-center justify-between">
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  Configured TAT Rules ({tatRules.length})
+                </h4>
+              </div>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-slate-50/50">
+                    <TableRow>
+                      <TableHead className="text-xs font-bold text-slate-650">System Name</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-650">Page / Section</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-650">Time Unit</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-650 text-center">Completion Time</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-650 text-right w-24">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tatRules.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-slate-400 py-12 text-xs">
+                          No TAT rules configured yet. Add rules using the form above.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      tatRules.map((rule, idx) => (
+                        <TableRow key={idx} className="hover:bg-slate-50/50 transition-colors">
+                          <TableCell className="text-xs font-semibold text-slate-800">{rule.systemName}</TableCell>
+                          <TableCell className="text-xs text-slate-650">{rule.sectionName}</TableCell>
+                          <TableCell className="text-xs text-slate-650 font-semibold uppercase">{rule.timeUnit}</TableCell>
+                          <TableCell className="text-xs font-bold text-slate-800 text-center">{rule.completionTime}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
                               <Button
-                                type="button"
-                                onClick={() => handleRemoveSimple(val)}
-                                disabled={isSubmitting}
-                                variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 hover:text-red-650 hover:bg-red-50 text-slate-400 rounded-lg transition-colors flex-shrink-0"
+                                variant="ghost"
+                                onClick={() => handleStartEditTatRule(idx)}
+                                className="w-8 h-8 hover:text-indigo-650 rounded-lg text-slate-450"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => handleDeleteTatRule(idx)}
+                                className="w-8 h-8 hover:text-red-650 rounded-lg text-slate-450 hover:bg-rose-50"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </Button>
                             </div>
-                          ));
-                        })()}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* CONFIGURATIONS VIEW WITH HORIZONTAL SELECTOR */
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Horizontal config tabs selector */}
+            <div onWheel={handleWheel} className="bg-white border-b border-slate-200 px-6 py-3 flex gap-2 overflow-x-auto flex-shrink-0 scrollbar-hide">
+              {tabsConfig.map(t => {
+                const TabIcon = t.icon;
+                const isSelected = activeTab === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => {
+                      setActiveTab(t.id);
+                      setNewSimpleVal("");
+                    }}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                      isSelected
+                        ? "bg-slate-900 text-white shadow-sm"
+                        : "bg-slate-50 text-slate-655 hover:bg-slate-100 border border-slate-250/20"
+                    }`}
+                  >
+                    <TabIcon className="w-4 h-4 flex-shrink-0" />
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Options List Manager content */}
+            <div className="flex-1 p-6 overflow-y-auto bg-slate-50 flex flex-col">
+              {isLoading ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+                  <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mb-2" />
+                  <p className="text-sm font-semibold">Loading options database...</p>
+                </div>
+              ) : (
+                <div className="space-y-6 flex-1 flex flex-col">
+                  {/* Category Info header */}
+                  <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm">
+                    <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                      {activeTabConfig && <activeTabConfig.icon className="w-5 h-5 text-indigo-600" />}
+                      <span>Manage {activeTabConfig?.label}</span>
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">{activeTabConfig?.desc}</p>
+                  </div>
+
+                  {activeTab === "transporter" ? (
+                    /* TRANSPORTER MANAGEMENT */
+                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start flex-1">
+                      {/* Left panel: Transporter Form */}
+                      <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm space-y-4 xl:col-span-1">
+                        <div className="flex items-center gap-2 border-b pb-2">
+                          <Plus className="w-4 h-4 text-indigo-600" />
+                          <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Add Transporter</h4>
+                        </div>
+                        <form onSubmit={handleAddTransporter} className="space-y-4">
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-slate-600 font-semibold">Transporter Name *</Label>
+                            <Input
+                              placeholder="e.g. Fast Logistics"
+                              value={newTransporter.transporterName}
+                              onChange={(e) => setNewTransporter({ ...newTransporter, transporterName: e.target.value })}
+                              className="h-10 text-xs rounded-xl"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-slate-600 font-semibold">Contact Person *</Label>
+                            <Input
+                              placeholder="e.g. Jane Smith"
+                              value={newTransporter.contactPerson}
+                              onChange={(e) => setNewTransporter({ ...newTransporter, contactPerson: e.target.value })}
+                              className="h-10 text-xs rounded-xl"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-slate-600 font-semibold">Phone *</Label>
+                            <Input
+                              placeholder="e.g. 9876543210"
+                              value={newTransporter.phone}
+                              onChange={(e) => setNewTransporter({ ...newTransporter, phone: e.target.value })}
+                              className="h-10 text-xs rounded-xl"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-slate-600 font-semibold">Vehicle Type *</Label>
+                            <Select
+                              value={newTransporter.vehicleType}
+                              onValueChange={(val) => setNewTransporter({ ...newTransporter, vehicleType: val })}
+                            >
+                              <SelectTrigger className="h-10 text-xs rounded-xl bg-slate-50 border-slate-200">
+                                <SelectValue placeholder="Select Vehicle Type" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-white border text-xs rounded-xl shadow-md">
+                                <SelectItem value="truck">Truck</SelectItem>
+                                <SelectItem value="van">Van</SelectItem>
+                                <SelectItem value="trailer">Trailer</SelectItem>
+                                <SelectItem value="container">Container</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <Button
+                            type="submit"
+                            disabled={isSubmitting}
+                            className="w-full h-10 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs shadow-md transition-all mt-2"
+                          >
+                            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+                            Save Transporter
+                          </Button>
+                        </form>
+                      </div>
+
+                      {/* Right panel: Transporters Table list */}
+                      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden xl:col-span-2 flex flex-col h-auto min-h-[400px]">
+                        <div className="p-4 border-b bg-slate-50 flex items-center justify-between gap-4">
+                          <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Transporters ({transporter.length})</h4>
+                          <div className="relative w-64">
+                            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                            <Input
+                              placeholder="Search transporters..."
+                              value={transporterSearch}
+                              onChange={(e) => setTransporterSearch(e.target.value)}
+                              className="pl-9 h-9 text-xs bg-white"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <Table>
+                            <TableHeader className="bg-slate-50/50">
+                              <TableRow>
+                                <TableHead className="text-xs font-bold text-slate-660">Name</TableHead>
+                                <TableHead className="text-xs font-bold text-slate-660">Contact Person</TableHead>
+                                <TableHead className="text-xs font-bold text-slate-660">Phone</TableHead>
+                                <TableHead className="text-xs font-bold text-slate-660">Vehicle Type</TableHead>
+                                <TableHead className="w-[80px] text-xs font-bold text-slate-660 text-center">Action</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {filteredTransporters.length === 0 ? (
+                                <TableRow>
+                                  <TableCell colSpan={5} className="text-center text-slate-400 py-12 text-xs">
+                                    No transporters found.
+                                  </TableCell>
+                                </TableRow>
+                              ) : (
+                                filteredTransporters.map((t, idx) => (
+                                  <TableRow key={idx} className="hover:bg-slate-50/50">
+                                    <TableCell className="text-xs text-slate-800 font-bold">{t.transporterName}</TableCell>
+                                    <TableCell className="text-xs text-slate-600 font-semibold">{t.contactPerson}</TableCell>
+                                    <TableCell className="text-xs text-slate-600 font-mono">{t.phone}</TableCell>
+                                    <TableCell className="text-xs text-slate-700 capitalize font-medium">{t.vehicleType}</TableCell>
+                                    <TableCell className="text-center">
+                                      <Button
+                                        onClick={() => handleRemoveTransporter(t.transporterName)}
+                                        variant="ghost"
+                                        size="icon"
+                                        disabled={isSubmitting}
+                                        className="w-8 h-8 rounded-lg hover:bg-red-50 hover:text-red-600 text-slate-400 transition-colors"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+                                ))
+                              )}
+                            </TableBody>
+                          </Table>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  ) : activeTab === "items" ? (
+                    /* PRODUCT CATALOG MANAGEMENT */
+                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start flex-1">
+                      {/* Left panel: Catalog Addition Form */}
+                      <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm space-y-4 xl:col-span-1">
+                        <div className="flex items-center gap-2 border-b pb-2">
+                          <Plus className="w-4 h-4 text-indigo-600" />
+                          <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Add Catalog Item</h4>
+                        </div>
+                        <form onSubmit={handleAddItem} className="space-y-4">
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-slate-600">Item Code</Label>
+                            <Input
+                              placeholder="e.g. IT-LAP-101"
+                              value={newItem.itemCode}
+                              onChange={(e) => setNewItem({ ...newItem, itemCode: e.target.value })}
+                              className="h-10 text-xs rounded-xl"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-slate-600">Category *</Label>
+                            <Input
+                              placeholder="e.g. Electronics, Hardware"
+                              value={newItem.category}
+                              onChange={(e) => setNewItem({ ...newItem, category: e.target.value })}
+                              className="h-10 text-xs rounded-xl"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-slate-600">Item Name *</Label>
+                            <Input
+                              placeholder="e.g. Laptop, Screwdriver"
+                              value={newItem.itemName}
+                              onChange={(e) => setNewItem({ ...newItem, itemName: e.target.value })}
+                              className="h-10 text-xs rounded-xl"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-slate-600 font-semibold">UOM *</Label>
+                            <Select
+                              value={newItem.uom}
+                              onValueChange={(val) => setNewItem({ ...newItem, uom: val })}
+                            >
+                              <SelectTrigger className="h-10 text-xs rounded-xl bg-slate-50 border-slate-200">
+                                <SelectValue placeholder="Select UOM" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-white border text-xs rounded-xl shadow-md">
+                                {uom.length === 0 ? (
+                                  <div className="p-2 text-center text-slate-400">No UOMs configured</div>
+                                ) : (
+                                  uom.map((u) => (
+                                    <SelectItem key={u} value={u}>{u}</SelectItem>
+                                  ))
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <Button
+                            type="submit"
+                            disabled={isSubmitting}
+                            className="w-full h-10 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs shadow-md transition-all mt-2"
+                          >
+                            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+                            Add to Catalog
+                          </Button>
+                        </form>
+                      </div>
+
+                      {/* Right panel: Catalog Table list */}
+                      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden xl:col-span-2 flex flex-col h-auto min-h-[400px]">
+                        <div className="p-4 border-b bg-slate-50 flex items-center justify-between gap-4">
+                          <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Catalog Items ({items.length})</h4>
+                          <div className="relative w-64">
+                            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                            <Input
+                              placeholder="Search items..."
+                              value={itemSearch}
+                              onChange={(e) => setItemSearch(e.target.value)}
+                              className="pl-9 h-9 text-xs bg-white"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex-1 overflow-y-auto">
+                          <Table>
+                            <TableHeader className="bg-slate-50/50">
+                              <TableRow>
+                                <TableHead className="w-[100px] text-xs font-bold text-slate-660">Code</TableHead>
+                                <TableHead className="w-[120px] text-xs font-bold text-slate-660">Category</TableHead>
+                                <TableHead className="text-xs font-bold text-slate-660">Item Name</TableHead>
+                                <TableHead className="w-[80px] text-xs font-bold text-slate-660">UOM</TableHead>
+                                <TableHead className="w-[80px] text-xs font-bold text-slate-660 text-center">Action</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {filteredCatalog.length === 0 ? (
+                                <TableRow>
+                                  <TableCell colSpan={5} className="text-center text-slate-400 py-12 text-xs">
+                                    No items found in catalog.
+                                  </TableCell>
+                                </TableRow>
+                              ) : (
+                                filteredCatalog.map((item, idx) => (
+                                  <TableRow key={idx} className="hover:bg-slate-50/50">
+                                    <TableCell className="font-mono text-xs text-slate-700">{item.itemCode || "-"}</TableCell>
+                                    <TableCell className="text-xs text-slate-600 font-semibold">{item.category}</TableCell>
+                                    <TableCell className="text-xs text-slate-800 font-bold">{item.itemName}</TableCell>
+                                    <TableCell className="text-xs text-slate-700 font-medium capitalize">{item.uom || "-"}</TableCell>
+                                    <TableCell className="text-center">
+                                      <Button
+                                        type="button"
+                                        onClick={() => handleRemoveItem(item.itemName)}
+                                        disabled={isSubmitting}
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 hover:text-red-655 rounded-lg hover:bg-red-50 text-slate-400 transition-colors"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+                                ))
+                              )}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
+                    </div>
+                  ) : activeTab === "vendor" ? (
+                    /* VENDOR MANAGEMENT */
+                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start flex-1">
+                      {/* Left panel: Vendor Form */}
+                      <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm space-y-4 xl:col-span-1">
+                        <div className="flex items-center gap-2 border-b pb-2">
+                          <Plus className="w-4 h-4 text-indigo-600" />
+                          <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Add Vendor</h4>
+                        </div>
+                        <form onSubmit={handleAddVendor} className="space-y-4">
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-slate-600 font-semibold">Vendor Name *</Label>
+                            <Input
+                              placeholder="e.g. ABC Suppliers"
+                              value={newVendor.vendorName}
+                              onChange={(e) => setNewVendor({ ...newVendor, vendorName: e.target.value })}
+                              className="h-10 text-xs rounded-xl"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-slate-600 font-semibold">Contact Person *</Label>
+                            <Input
+                              placeholder="e.g. John Doe"
+                              value={newVendor.contactPerson}
+                              onChange={(e) => setNewVendor({ ...newVendor, contactPerson: e.target.value })}
+                              className="h-10 text-xs rounded-xl"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-slate-600 font-semibold">Phone *</Label>
+                            <Input
+                              placeholder="e.g. 9876543210"
+                              value={newVendor.phone}
+                              onChange={(e) => setNewVendor({ ...newVendor, phone: e.target.value })}
+                              className="h-10 text-xs rounded-xl"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-slate-600 font-semibold">Email</Label>
+                            <Input
+                              placeholder="e.g. vendor@example.com"
+                              type="email"
+                              value={newVendor.email}
+                              onChange={(e) => setNewVendor({ ...newVendor, email: e.target.value })}
+                              className="h-10 text-xs rounded-xl"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-slate-600 font-semibold">Address *</Label>
+                            <textarea
+                              placeholder="Enter complete address"
+                              value={newVendor.address}
+                              onChange={(e) => setNewVendor({ ...newVendor, address: e.target.value })}
+                              rows={3}
+                              className="w-full px-3 py-2 border text-xs rounded-xl bg-slate-50 border-slate-200 resize-none outline-none focus:border-indigo-500 transition-colors"
+                              required
+                            />
+                          </div>
+                          <Button
+                            type="submit"
+                            disabled={isSubmitting}
+                            className="w-full h-10 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs shadow-md transition-all mt-2"
+                          >
+                            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+                            Save Vendor
+                          </Button>
+                        </form>
+                      </div>
+
+                      {/* Right panel: Vendors Table list */}
+                      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden xl:col-span-2 flex flex-col h-auto min-h-[400px]">
+                        <div className="p-4 border-b bg-slate-50 flex items-center justify-between gap-4">
+                          <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Vendors ({vendors.length})</h4>
+                          <div className="relative w-64">
+                            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                            <Input
+                              placeholder="Search vendors..."
+                              value={vendorSearch}
+                              onChange={(e) => setVendorSearch(e.target.value)}
+                              className="pl-9 h-9 text-xs bg-white"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <Table>
+                            <TableHeader className="bg-slate-50/50">
+                              <TableRow>
+                                <TableHead className="text-xs font-bold text-slate-660">Name</TableHead>
+                                <TableHead className="text-xs font-bold text-slate-660">Contact Person</TableHead>
+                                <TableHead className="text-xs font-bold text-slate-660">Phone</TableHead>
+                                <TableHead className="text-xs font-bold text-slate-660">Email</TableHead>
+                                <TableHead className="text-xs font-bold text-slate-660">Address</TableHead>
+                                <TableHead className="w-[80px] text-xs font-bold text-slate-660 text-center">Action</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {filteredVendors.length === 0 ? (
+                                <TableRow>
+                                  <TableCell colSpan={6} className="text-center text-slate-400 py-12 text-xs">
+                                    No vendors found.
+                                  </TableCell>
+                                </TableRow>
+                              ) : (
+                                filteredVendors.map((v, idx) => (
+                                  <TableRow key={idx} className="hover:bg-slate-50/50">
+                                    <TableCell className="text-xs text-slate-800 font-bold">{v.vendorName}</TableCell>
+                                    <TableCell className="text-xs text-slate-600 font-semibold">{v.contactPerson}</TableCell>
+                                    <TableCell className="text-xs text-slate-600 font-mono">{v.phone}</TableCell>
+                                    <TableCell className="text-xs text-slate-600 font-semibold">{v.email || "-"}</TableCell>
+                                    <TableCell className="text-xs text-slate-700 font-medium truncate max-w-[150px]">{v.address}</TableCell>
+                                    <TableCell className="text-center">
+                                      <Button
+                                        onClick={() => handleRemoveVendor(v.vendorName)}
+                                        variant="ghost"
+                                        size="icon"
+                                        disabled={isSubmitting}
+                                        className="w-8 h-8 rounded-lg hover:bg-red-50 hover:text-red-600 text-slate-400 transition-colors"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+                                ))
+                              )}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* SIMPLE VALUES MANAGEMENT (Created By, Warehouse, Approver, etc.) */
+                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start flex-1">
+                      {/* Option Add panel */}
+                      <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm space-y-4 xl:col-span-1">
+                        <div className="flex items-center gap-2 border-b pb-2">
+                          <Plus className="w-4 h-4 text-indigo-655" />
+                          <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Add Option Value</h4>
+                        </div>
+                        <form onSubmit={handleAddSimple} className="space-y-4">
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-slate-650 font-semibold">Value Name</Label>
+                            <Input
+                              placeholder={`Enter new ${activeTabConfig?.label.toLowerCase() || "option"}...`}
+                              value={newSimpleVal}
+                              onChange={(e) => setNewSimpleVal(e.target.value)}
+                              className="h-10"
+                              required
+                            />
+                          </div>
+                          <Button
+                            type="submit"
+                            disabled={isSubmitting}
+                            className="w-full h-10 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs shadow-md transition-all mt-2"
+                          >
+                            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+                            Add Value
+                          </Button>
+                        </form>
+                      </div>
+
+                      {/* Option List Display panel */}
+                      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden xl:col-span-2 flex flex-col h-auto min-h-[400px]">
+                        <div className="p-4 border-b bg-slate-50">
+                          <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                            Current Values ({
+                              activeTab === "createdBy" ? createdBy.length :
+                              activeTab === "warehouse" ? warehouse.length :
+                              activeTab === "approver" ? approver.length :
+                              activeTab === "qcEngineer" ? qcEngineer.length :
+                              activeTab === "accountant" ? accountant.length :
+                              activeTab === "uom" ? uom.length :
+                              activeTab === "checklist" ? checklist.length :
+                              activeTab === "rejectReason" ? rejectReason.length :
+                              activeTab === "cancelStage" ? cancelStages.length :
+                              activeTab === "tatSystem" ? tatSystems.length :
+                              activeTab === "tatUnit" ? tatUnits.length : 0
+                            })
+                          </h4>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 bg-slate-50/30">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {(() => {
+                              const getList = () => {
+                                switch (activeTab) {
+                                  case "createdBy": return createdBy;
+                                  case "warehouse": return warehouse;
+                                  case "approver": return approver;
+                                  case "qcEngineer": return qcEngineer;
+                                  case "accountant": return accountant;
+                                  case "uom": return uom;
+                                  case "checklist": return checklist;
+                                  case "rejectReason": return rejectReason;
+                                  case "cancelStage": return cancelStages;
+                                  case "tatSystem": return tatSystems;
+                                  case "tatUnit": return tatUnits;
+                                  default: return [];
+                                }
+                              };
+                              const list = getList();
+                              if (list.length === 0) {
+                                return (
+                                  <div className="col-span-2 text-center text-slate-400 py-12 text-xs">
+                                    No values entered yet. Add options using the form on the left.
+                                  </div>
+                                );
+                              }
+                              return list.map((val, idx) => (
+                                <div key={idx} className="flex items-center justify-between px-3 py-2 bg-white border border-slate-200/70 rounded-xl shadow-sm hover:border-slate-350 transition-colors">
+                                  <span className="text-xs font-semibold text-slate-700 truncate mr-2" title={val}>{val}</span>
+                                  <Button
+                                    type="button"
+                                    onClick={() => handleRemoveSimple(val)}
+                                    disabled={isSubmitting}
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 hover:text-red-650 hover:bg-red-50 text-slate-400 rounded-lg transition-colors flex-shrink-0"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                </div>
+                              ));
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

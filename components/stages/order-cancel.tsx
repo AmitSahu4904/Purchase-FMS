@@ -153,28 +153,87 @@ export default function OrderCancelPage() {
     try {
       const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI || ""
 
-      const response = await fetch(`${SHEET_API_URL}?sheet=${SHEET_NAME}`)
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+      // Fetch Order-Cancel, INDENT-LIFT, and RECEIVING-ACCOUNTS in parallel
+      const [cancelRes, fmsRes, receivingRes] = await Promise.all([
+        fetch(`${SHEET_API_URL}?sheet=${SHEET_NAME}`),
+        fetch(`${SHEET_API_URL}?sheet=INDENT-LIFT&action=getAll`),
+        fetch(`${SHEET_API_URL}?sheet=RECEIVING-ACCOUNTS&action=getAll`)
+      ])
+
+      if (!cancelRes.ok) throw new Error(`HTTP error fetching cancellations! status: ${cancelRes.status}`)
+      if (!fmsRes.ok) throw new Error(`HTTP error fetching FMS! status: ${fmsRes.status}`)
+      if (!receivingRes.ok) throw new Error(`HTTP error fetching receiving accounts! status: ${receivingRes.status}`)
+
+      const cancelJson = await cancelRes.json()
+      const fmsJson = await fmsRes.json()
+      const receivingJson = await receivingRes.json()
+
+      // Process FMS (INDENT-LIFT) data to map Indent-No -> PO Qty
+      const fmsMap = new Map<string, { poQty: number }>()
+      if (fmsJson.success && Array.isArray(fmsJson.data)) {
+        // Data starts from index 6 (Row 7) or index 7 (Row 8) based on sheet structure
+        fmsJson.data.slice(6).forEach((row: any) => {
+          if (row && row[1]) {
+            const indentNo = String(row[1]).trim()
+            // approvedQty is index 14. Fallback to indent qty index 5 if empty or not a number.
+            const approvedQtyVal = parseFloat(String(row[14]).trim().replace(/,/g, ""))
+            const indentQtyVal = parseFloat(String(row[5]).trim().replace(/,/g, ""))
+            const poQty = !isNaN(approvedQtyVal) ? approvedQtyVal : (!isNaN(indentQtyVal) ? indentQtyVal : 0)
+            fmsMap.set(indentNo, { poQty })
+          }
+        })
       }
 
-      const json = await response.json()
-      if (json.success && Array.isArray(json.data)) {
+      // Process RECEIVING-ACCOUNTS data to map Indent-No -> { totalLiftedQty, totalReceivedQty }
+      const receivingMap = new Map<string, { totalLiftedQty: number, totalReceivedQty: number }>()
+      if (receivingJson.success && Array.isArray(receivingJson.data)) {
+        receivingJson.data.slice(6).forEach((row: any) => {
+          if (row && row[1]) {
+            const indentNo = String(row[1]).trim()
+            const liftingQty = parseFloat(String(row[8]).trim().replace(/,/g, "")) || 0
+            const receivedQty = parseFloat(String(row[25]).trim().replace(/,/g, "")) || 0
+
+            const existing = receivingMap.get(indentNo) || { totalLiftedQty: 0, totalReceivedQty: 0 }
+            receivingMap.set(indentNo, {
+              totalLiftedQty: existing.totalLiftedQty + liftingQty,
+              totalReceivedQty: existing.totalReceivedQty + receivedQty
+            })
+          }
+        })
+      }
+
+      if (cancelJson.success && Array.isArray(cancelJson.data)) {
         const orders: any[] = []
 
-        json.data.slice(1).forEach((row: any, index: number) => { // Skip header row
+        cancelJson.data.slice(1).forEach((row: any, index: number) => { // Skip header row
           if (row && row.length > 0) {
             const actualRowIndex = index + 2
+            const indentNo = row[1] || ""
+            const cancelQty = parseFloat(String(row[6]).trim().replace(/,/g, "")) || 0
+
+            // Get FMS and Receiving values
+            const fmsData = fmsMap.get(String(indentNo).trim()) || { poQty: 0 }
+            const recData = receivingMap.get(String(indentNo).trim()) || { totalLiftedQty: 0, totalReceivedQty: 0 }
+
+            const poQty = fmsData.poQty
+            const totalLiftedQty = recData.totalLiftedQty
+            const receivedQty = recData.totalReceivedQty
+            const pendingQty = poQty - cancelQty - receivedQty
+
             const order = {
               id: `CANCEL-${actualRowIndex}`,
               rowIndex: actualRowIndex,
               timestamp: row[0] || "", // Column A - Cancelled At
-              indentNo: row[1] || "", // Column B - Indent-No.
+              indentNo: indentNo, // Column B - Indent-No.
               poNumber: row[2] || "", // Column C - PO Number
               itemName: row[3] || "", // Column D - Item-Name
               cancelStage: row[4] || "", // Column E - Cancel Stage
               cancelReason: row[5] || "", // Column F - Cancel Reason
-              qty: row[6] || "", // Column G - Qty
+              qty: cancelQty, // Column G - Qty (Canceled Qty)
+              poQty,
+              totalLiftedQty,
+              receivedQty,
+              pendingQty,
               fullRowData: row,
             }
             orders.push(order)
@@ -183,10 +242,10 @@ export default function OrderCancelPage() {
 
         setCancelledOrders(orders)
       } else {
-        throw new Error(json.error || "Failed to fetch data")
+        throw new Error(cancelJson.error || "Failed to fetch cancellation logs")
       }
     } catch (err: any) {
-      console.error("Error fetching cancelled orders:", err)
+      console.error("Error fetching cancelled orders data:", err)
       setError(err.message)
       setCancelledOrders([])
     } finally {
@@ -198,22 +257,38 @@ export default function OrderCancelPage() {
     try {
       const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI || ""
 
-      const response = await fetch(`${SHEET_API_URL}?sheet=Master`)
+      const response = await fetch(`${SHEET_API_URL}?sheet=Dropdown&action=getAll`)
       if (!response.ok) return
 
       const json = await response.json()
       if (json.success && Array.isArray(json.data)) {
         const options: string[] = []
         json.data.slice(1).forEach((row: any) => { // Row 2 onwards
-          if (row && row[6]) {
-            options.push(String(row[6]).trim())
+          if (row && row[17]) {
+            options.push(String(row[17]).trim())
           }
         })
-        const uniqueOptions = [...new Set(options)].filter(Boolean)
+        let uniqueOptions = [...new Set(options)].filter(Boolean)
+        if (uniqueOptions.length === 0) {
+          uniqueOptions = [
+            "Create Indent",
+            "Indent Approval",
+            "Quotation",
+            "Approved Vendor",
+            "Make PO",
+            "Payment",
+            "Follow UP / Lifting",
+            "Transporter Follow-Up",
+            "Material Received",
+            "Billing",
+            "Purchase Return",
+            "Order Cancel"
+          ]
+        }
         setStageOptions(uniqueOptions)
       }
     } catch (err) {
-      console.error("Error fetching cancel stages from Master:", err)
+      console.error("Error fetching cancel stages from Dropdown:", err)
     }
   }
 
@@ -272,23 +347,51 @@ export default function OrderCancelPage() {
     try {
       const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI || ""
 
-      const response = await fetch(`${SHEET_API_URL}?sheet=INDENT-LIFT&action=getAll`)
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+      // Fetch INDENT-LIFT and RECEIVING-ACCOUNTS in parallel
+      const [fmsRes, receivingRes] = await Promise.all([
+        fetch(`${SHEET_API_URL}?sheet=INDENT-LIFT&action=getAll`),
+        fetch(`${SHEET_API_URL}?sheet=RECEIVING-ACCOUNTS&action=getAll`)
+      ])
+
+      if (!fmsRes.ok) throw new Error(`HTTP error! status: ${fmsRes.status}`)
+      if (!receivingRes.ok) throw new Error(`HTTP error! status: ${receivingRes.status}`)
+
+      const fmsJson = await fmsRes.json()
+      const receivingJson = await receivingRes.json()
+
+      // Process RECEIVING-ACCOUNTS to group by Indent Number
+      // We want to map Indent-No -> { receivedQty: sum(Column Z/index 25), invoiceNos: string[] }
+      const recMap = new Map<string, { receivedQty: number; invoiceNos: string[] }>()
+      if (receivingJson.success && Array.isArray(receivingJson.data)) {
+        receivingJson.data.slice(6).forEach((row: any) => {
+          if (row && row[1]) {
+            const indentNo = String(row[1]).trim()
+            const recQty = parseFloat(String(row[25]).trim().replace(/,/g, "")) || 0
+            const invNo = String(row[24] || "").trim()
+
+            const existing = recMap.get(indentNo) || { receivedQty: 0, invoiceNos: [] }
+            const newInvNos = [...existing.invoiceNos]
+            if (invNo && invNo !== "—" && invNo !== "-" && !newInvNos.includes(invNo)) {
+              newInvNos.push(invNo)
+            }
+            recMap.set(indentNo, {
+              receivedQty: existing.receivedQty + recQty,
+              invoiceNos: newInvNos
+            })
+          }
+        })
       }
 
-      const json = await response.json()
-      if (json.success && Array.isArray(json.data)) {
+      if (fmsJson.success && Array.isArray(fmsJson.data)) {
         const query = searchQuery.toLowerCase().trim()
         const results: any[] = []
 
         // Skip headers and first 6 indices
-        json.data.slice(6).forEach((row: any, index: number) => {
+        fmsJson.data.slice(6).forEach((row: any, index: number) => {
           if (row && row.length > 0) {
             const indentNumber = String(row[1] || "").trim()
             const poNumber = String(row[54] || "").trim()
             const itemName = String(row[4] || "").trim()
-            const remainingQty = String(row[64] || "").trim()
 
             if (!indentNumber) return
 
@@ -302,12 +405,28 @@ export default function OrderCancelPage() {
             }
 
             if (isMatch) {
+              // approvedQty is index 14. Fallback to indent qty index 5 if empty or not a number.
+              const approvedQtyVal = parseFloat(String(row[14]).trim().replace(/,/g, ""))
+              const indentQtyVal = parseFloat(String(row[5]).trim().replace(/,/g, ""))
+              const poQty = !isNaN(approvedQtyVal) ? approvedQtyVal : (!isNaN(indentQtyVal) ? indentQtyVal : 0)
+
+              // Get Received Qty & Invoice Numbers from RECEIVING-ACCOUNTS
+              const recData = recMap.get(indentNumber) || { receivedQty: 0, invoiceNos: [] }
+              const receivedQty = recData.receivedQty
+              const invoiceNo = recData.invoiceNos.length > 0 ? recData.invoiceNos.join(", ") : "—"
+
+              // Calculate Remaining Qty = PO Qty - Received Qty
+              const remainingQty = poQty - receivedQty
+
               results.push({
                 id: `lift-${index}`,
                 indentNumber,
                 poNumber: poNumber || "—",
                 itemName,
-                remainingQty: remainingQty || "—"
+                invoiceNo,
+                poQty,
+                receivedQty,
+                remainingQty: remainingQty >= 0 ? remainingQty : 0
               })
             }
           }
@@ -318,7 +437,7 @@ export default function OrderCancelPage() {
           toast.info("No matching records found")
         }
       } else {
-        throw new Error(json.error || "Failed to fetch search results")
+        throw new Error(fmsJson.error || "Failed to fetch search results")
       }
     } catch (err: any) {
       console.error("Error during FMS search:", err)
@@ -343,8 +462,13 @@ export default function OrderCancelPage() {
     // Validate that each selected row has a valid cancel quantity
     for (const row of selectedRows) {
       const q = cancelQuantities[row.id] ?? row.remainingQty
-      if (!q || isNaN(Number(q)) || Number(q) <= 0) {
+      const cancelNum = Number(q)
+      if (isNaN(cancelNum) || cancelNum <= 0) {
         toast.error(`Please enter a valid cancellation quantity for Indent: ${row.indentNumber}`)
+        return
+      }
+      if (cancelNum > row.remainingQty) {
+        toast.error(`Cancel quantity (${cancelNum}) cannot exceed remaining quantity (${row.remainingQty}) for Indent: ${row.indentNumber}`)
         return
       }
     }
@@ -526,13 +650,17 @@ export default function OrderCancelPage() {
                   <TableHead className="font-bold text-slate-700 uppercase text-[10px]">Item-Name</TableHead>
                   <TableHead className="font-bold text-slate-700 uppercase text-[10px]">Cancel Stage</TableHead>
                   <TableHead className="font-bold text-slate-700 uppercase text-[10px]">Cancel Reason</TableHead>
-                  <TableHead className="w-[100px] text-center font-bold text-slate-700 uppercase text-[10px]">Qty</TableHead>
+                  <TableHead className="w-[80px] text-center font-bold text-slate-700 uppercase text-[10px]">PO Qty</TableHead>
+                  <TableHead className="w-[100px] text-center font-bold text-slate-700 uppercase text-[10px]">Total Lifted Qty</TableHead>
+                  <TableHead className="w-[100px] text-center font-bold text-slate-700 uppercase text-[10px]">Received Qty</TableHead>
+                  <TableHead className="w-[100px] text-center font-bold text-slate-700 uppercase text-[10px]">Canceled Qty</TableHead>
+                  <TableHead className="w-[100px] text-center font-bold text-slate-700 uppercase text-[10px]">Pending Qty</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="h-48 text-center">
+                    <TableCell colSpan={11} className="h-48 text-center">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <Loader2 className="w-8 h-8 animate-spin text-red-600" />
                         <span className="text-slate-500 font-medium">Loading cancelled orders...</span>
@@ -571,7 +699,19 @@ export default function OrderCancelPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-center font-semibold text-slate-700 py-4">
-                        {order.qty || "—"}
+                        {order.poQty}
+                      </TableCell>
+                      <TableCell className="text-center font-semibold text-slate-700 py-4">
+                        {order.totalLiftedQty}
+                      </TableCell>
+                      <TableCell className="text-center font-semibold text-slate-700 py-4">
+                        {order.receivedQty}
+                      </TableCell>
+                      <TableCell className="text-center font-semibold text-slate-700 py-4">
+                        {order.qty}
+                      </TableCell>
+                      <TableCell className="text-center font-semibold text-slate-700 py-4">
+                        {order.pendingQty}
                       </TableCell>
                     </TableRow>
                   ))
@@ -579,7 +719,7 @@ export default function OrderCancelPage() {
                 {!loading && filteredCancelledOrders.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={7}
+                      colSpan={11}
                       className="text-center text-muted-foreground h-32"
                     >
                       {searchTerm
@@ -596,7 +736,7 @@ export default function OrderCancelPage() {
 
       {/* Cancel Order Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-6 overflow-hidden">
+        <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col p-6 overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle>Cancel Order</DialogTitle>
           </DialogHeader>
@@ -702,7 +842,10 @@ export default function OrderCancelPage() {
                         <TableHead className="text-xs uppercase font-semibold text-slate-600">Indent No.</TableHead>
                         <TableHead className="text-xs uppercase font-semibold text-slate-600">PO Number</TableHead>
                         <TableHead className="text-xs uppercase font-semibold text-slate-600">Item Name</TableHead>
-                        <TableHead className="w-[110px] text-center text-xs uppercase font-semibold text-slate-600">Remaining Qty</TableHead>
+                        <TableHead className="text-xs uppercase font-semibold text-slate-600">Invoice No.</TableHead>
+                        <TableHead className="text-center text-xs uppercase font-semibold text-slate-600">PO Qty</TableHead>
+                        <TableHead className="text-center text-xs uppercase font-semibold text-slate-600">Received Qty</TableHead>
+                        <TableHead className="text-center text-xs uppercase font-semibold text-slate-600">Remaining Qty</TableHead>
                         <TableHead className="w-[120px] text-center text-xs uppercase font-semibold text-slate-600">Qty to Cancel</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -729,10 +872,15 @@ export default function OrderCancelPage() {
                           </TableCell>
                           <TableCell className="font-medium text-xs text-slate-900">{row.indentNumber}</TableCell>
                           <TableCell className="font-mono text-[11px] text-slate-500">{row.poNumber}</TableCell>
-                          <TableCell className="text-xs text-slate-700 max-w-[200px] truncate" title={row.itemName}>
+                          <TableCell className="text-xs text-slate-700 max-w-[150px] truncate" title={row.itemName}>
                             {row.itemName}
                           </TableCell>
-                          <TableCell className="text-center text-xs text-slate-700">{row.remainingQty}</TableCell>
+                          <TableCell className="text-xs text-slate-700 max-w-[120px] truncate" title={row.invoiceNo}>
+                            {row.invoiceNo}
+                          </TableCell>
+                          <TableCell className="text-center text-xs text-slate-700">{row.poQty}</TableCell>
+                          <TableCell className="text-center text-xs text-slate-700">{row.receivedQty}</TableCell>
+                          <TableCell className="text-center text-xs text-slate-700 font-semibold">{row.remainingQty}</TableCell>
                           <TableCell className="text-center py-1">
                             <Input
                               type="number"
@@ -746,7 +894,10 @@ export default function OrderCancelPage() {
                                   [row.id]: val
                                 }))
                               }}
-                              className="w-20 text-center h-8 bg-white border-slate-200 focus-visible:ring-red-500 mx-auto"
+                              className={cn(
+                                "w-20 text-center h-8 bg-white border-slate-200 focus-visible:ring-red-500 mx-auto",
+                                Number(cancelQuantities[row.id] ?? row.remainingQty) > row.remainingQty && "border-destructive text-destructive focus-visible:ring-destructive focus:border-destructive"
+                              )}
                               placeholder="Qty"
                               disabled={!selectedSearchRowIds.includes(row.id)}
                             />
@@ -821,7 +972,9 @@ export default function OrderCancelPage() {
                 submitting ||
                 selectedSearchRowIds.some(id => {
                   const q = cancelQuantities[id] ?? searchResults.find(r => r.id === id)?.remainingQty
-                  return !q || isNaN(Number(q)) || Number(q) <= 0
+                  const numQ = Number(q)
+                  const remaining = searchResults.find(r => r.id === id)?.remainingQty || 0
+                  return !q || isNaN(numQ) || numQ <= 0 || numQ > remaining
                 })
               }
               className="bg-red-600 hover:bg-red-700 text-white font-medium"

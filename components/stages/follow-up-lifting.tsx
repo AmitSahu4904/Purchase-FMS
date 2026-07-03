@@ -293,10 +293,19 @@ export default function FollowUpLifting() {
         setReceivingAccountsData(historyRows);
       }
 
-      // Fetch Dropdown sheet for Transporters and Areas
       if (dropJson.success && Array.isArray(dropJson.data)) {
         const tList = dropJson.data.slice(1)
-          .map((row: any) => String(row[10] || "").trim())
+          .map((row: any) => {
+            const val = String(row[10] || "").trim();
+            if (val.startsWith("{")) {
+              try {
+                return JSON.parse(val).transporterName || "";
+              } catch (e) {
+                return val;
+              }
+            }
+            return val;
+          })
           .filter((t: string) => t !== "");
         setTransporterList(tList);
 

@@ -120,7 +120,7 @@ export default function PublicQuotationForm() {
 
       const rowArray = new Array(60).fill("");
       const vOffset = 21 + (vendorSlot - 1) * 8; // slot 1: 21, slot 2: 29, slot 3: 37
-      
+
       // Update the vendor quote details in the spreadsheet
       rowArray[vOffset + 1] = formData.rate;                     // Rate Per Qty
       rowArray[vOffset + 2] = formData.terms;                    // Payment Terms

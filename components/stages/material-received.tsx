@@ -641,7 +641,7 @@ export default function Stage7() {
                 className="w-full"
             >
                 {/* Sticky Header and Tabs Container */}
-                <div className="md:sticky md:top-0 z-30 bg-[#f8fafc] -mx-4 md:-mx-6 px-4 md:px-6 pt-2 pb-4 mb-4 border-b shadow-sm">
+                <div className="md:sticky md:top-0 z-50 bg-[#f8fafc] -mx-4 md:-mx-6 px-4 md:px-6 pt-2 pb-4 mb-4 border-b shadow-sm">
                     {/* ==================== HEADER ==================== */}
                     <div className="p-4 md:p-6 bg-white border rounded-lg shadow-sm mb-4 md:mb-6">
                         <div className="flex items-center justify-between">

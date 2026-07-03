@@ -320,9 +320,8 @@ export default function Quotation() {
         <Button variant="outline" className="w-40 justify-start h-10 rounded-xl bg-white border-slate-200">
           {selectedColumns.length === baseColumns.length
             ? "All columns"
-            : `${selectedColumns.length} column${
-                selectedColumns.length !== 1 ? "s" : ""
-              } selected`}
+            : `${selectedColumns.length} column${selectedColumns.length !== 1 ? "s" : ""
+            } selected`}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-40 p-2 bg-white border shadow-md">
