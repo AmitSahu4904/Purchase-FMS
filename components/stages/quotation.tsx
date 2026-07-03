@@ -397,8 +397,8 @@ export default function Quotation() {
     if (record.data.vendor1Name && record.data.vendor1Name !== "-") {
       setEmailSent(true);
       const links = tempInputs.map((v, i) => ({
-        name: `${v.name} (${record.data.indentNumber})`,
-        link: `${window.location.origin}/quotation-form?id=${record.id}&v=${i + 1}`,
+        name: v.name,
+        link: `${window.location.origin}/quotation-form?ids=${record.id}&v=${i + 1}`,
       }));
       setGeneratedLinks(links);
     } else {
@@ -449,15 +449,11 @@ export default function Quotation() {
     // Check if links need to be pre-generated (meaning email was already sent in this session or before)
     if (record.data.vendor1Name && record.data.vendor1Name !== "-") {
       setEmailSent(true);
-      const links: any[] = [];
-      records.forEach((rec) => {
-        tempInputs.forEach((v, i) => {
-          links.push({
-            name: `${v.name} (${rec.data.indentNumber})`,
-            link: `${window.location.origin}/quotation-form?id=${rec.id}&v=${i + 1}`,
-          });
-        });
-      });
+      const idsParam = records.map(r => r.id).join(",");
+      const links = tempInputs.map((v, i) => ({
+        name: v.name,
+        link: `${window.location.origin}/quotation-form?ids=${idsParam}&v=${i + 1}`,
+      }));
       setGeneratedLinks(links);
     } else {
       setEmailSent(false);
@@ -577,7 +573,14 @@ export default function Quotation() {
       await Promise.all(updatePromises);
       toast.success("Enquiry generated and sent! Selected indents moved to Approved Vendor stage.");
       await fetchData();
-      resetForm();
+
+      const idsParam = currentRecords.map(r => r.id).join(",");
+      const links = mappedInputs.map((v, i) => ({
+        name: v.name,
+        link: `${window.location.origin}/quotation-form?ids=${idsParam}&v=${i + 1}`,
+      }));
+      setGeneratedLinks(links);
+      setEmailSent(true);
     } catch (e: any) {
       console.error(e);
       toast.error("Failed to send details to vendors.");
@@ -872,7 +875,7 @@ export default function Quotation() {
       </Tabs>
 
       {/* DETAILED FORM MODAL */}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(val) => { if (!val) resetForm(); else setOpen(val); }}>
         <DialogContent className="max-w-4xl max-h-[95vh] flex flex-col p-6 overflow-hidden">
           <DialogHeader className="flex-shrink-0 flex flex-row items-center justify-between border-b pb-4">
             <DialogTitle className="text-xl font-bold text-slate-800">Quotation Dispatch & Response Tracking</DialogTitle>

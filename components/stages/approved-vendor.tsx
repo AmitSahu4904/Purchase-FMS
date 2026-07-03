@@ -52,16 +52,11 @@ const formatDateDash = (dateStr: string) => {
 export default function ApprovedVendor() {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"pending" | "history">("pending");
-  const [currentRecord, setCurrentRecord] = useState<any>(null);
+  const [currentGroup, setCurrentGroup] = useState<any>(null);
   const [sheetRecords, setSheetRecords] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-
-  // Bulk State
-  const [selectedIndents, setSelectedIndents] = useState<string[]>([]);
-  const [bulkModalOpen, setBulkModalOpen] = useState(false);
-  const [bulkRecords, setBulkRecords] = useState<any[]>([]);
 
   // Form State
   const [approvedVendor, setApprovedVendor] = useState("vendor1");
@@ -153,15 +148,36 @@ export default function ApprovedVendor() {
     fetchData();
   }, []);
 
-  const pending = useMemo(() => sheetRecords
-    .filter((r) => r.status === "pending")
-    .filter((r) => {
-      const searchLower = searchTerm.toLowerCase();
-      return (
-        r.data.indentNumber?.toLowerCase().includes(searchLower) ||
-        r.data.itemName?.toLowerCase().includes(searchLower)
-      );
-    }), [sheetRecords, searchTerm]);
+  const pending = useMemo(() => {
+    const pendingRecs = sheetRecords.filter((r) => r.status === "pending");
+    
+    // Group by actual3 timestamp
+    const groupsMap: Record<string, any[]> = {};
+    pendingRecs.forEach((r) => {
+      const key = r.data.actual3 || "single";
+      if (!groupsMap[key]) {
+        groupsMap[key] = [];
+      }
+      groupsMap[key].push(r);
+    });
+
+    const groups = Object.entries(groupsMap).map(([key, recs]) => {
+      recs.sort((a, b) => (a.data.indentNumber || "").localeCompare(b.data.indentNumber || ""));
+      return {
+        id: recs.map((r) => r.id).join(","),
+        actual3: key,
+        records: recs,
+        indentNumbers: recs.map((r) => r.data.indentNumber).join(", "),
+        itemNames: recs.map((r) => r.data.itemName).join(", "),
+      };
+    });
+
+    const searchLower = searchTerm.toLowerCase();
+    return groups.filter((g) => 
+      g.indentNumbers.toLowerCase().includes(searchLower) ||
+      g.itemNames.toLowerCase().includes(searchLower)
+    );
+  }, [sheetRecords, searchTerm]);
 
   const completed = useMemo(() => sheetRecords
     .filter((r) => r.status === "completed")
@@ -236,21 +252,18 @@ export default function ApprovedVendor() {
     { value: "90", label: "90 days" }
   ];
 
-  const handleOpenForm = (recordId: string) => {
-    const record = sheetRecords.find((r) => r.id === recordId);
-    if (!record) return;
-
-    setCurrentRecord(record);
-    setApprovedVendor(record.data.selectedVendor || "vendor1");
+  const handleOpenForm = (group: any) => {
+    setCurrentGroup(group);
+    setApprovedVendor("vendor1");
     setFormData({
-      remarks: record.data.negotiationRemarks || "",
+      remarks: "",
     });
     setOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentRecord) {
+    if (!currentGroup || currentGroup.records.length === 0) {
       toast.error("Please fill in all required fields.");
       return;
     }
@@ -263,106 +276,18 @@ export default function ApprovedVendor() {
 
     try {
       const timestamp = getFmsTimestamp();
-      const rowArray = new Array(60).fill("");
-
       const selIdx = parseInt(approvedVendor.replace("vendor", ""), 10);
-      const approvedName = currentRecord.data[`vendor${selIdx}Name`] || "";
 
-      // Stage 4 approval details
-      rowArray[47] = approvedVendor; // AV: Selected Vendor ID
-      rowArray[48] = approvedName;   // AW: Selected Vendor Name
-      rowArray[49] = ""; // AX: Approved By
-      rowArray[50] = formData.remarks;    // AY: Remarks
-      rowArray[51] = timestamp; // AZ: Actual Approved Vendor (Planned Stage 5 PO Entry)
-
-      const params = new URLSearchParams();
-      params.append("action", "update");
-      params.append("sheetName", "INDENT-LIFT");
-      params.append("rowIndex", currentRecord.rowIndex.toString());
-      params.append("rowData", JSON.stringify(rowArray));
-
-      const response = await fetch(SHEET_API_URL, {
-        method: "POST",
-        body: params,
-      });
-
-      if (!response.ok) throw new Error("Update failed");
-
-      const result = await response.json();
-      if (result.success) {
-        toast.success("Approved Vendor set successfully!");
-        await fetchData();
-        resetForm();
-      } else {
-        throw new Error(result.error || "Unknown error");
-      }
-    } catch (err: any) {
-      console.error("Stage 4 Submit Error:", err);
-      setSubmitError(err.message || "Failed to submit Approved Vendor");
-      toast.error(err.message || "Failed submission");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const resetForm = () => {
-    setOpen(false);
-    setCurrentRecord(null);
-    setApprovedVendor("vendor1");
-    setFormData({ remarks: "" });
-  };
-
-  // Bulk options
-  const toggleIndentSelection = (indentId: string) => {
-    setSelectedIndents(prev =>
-      prev.includes(indentId)
-        ? prev.filter(id => id !== indentId)
-        : [...prev, indentId]
-    );
-  };
-
-  const toggleSelectAll = () => {
-    if (selectedIndents.length === pending.length) {
-      setSelectedIndents([]);
-    } else {
-      setSelectedIndents(pending.map(r => r.id));
-    }
-  };
-
-  const handleOpenBulkModal = () => {
-    const records = selectedIndents.map(id => sheetRecords.find(r => r.id === id)).filter(Boolean);
-    setBulkRecords(records);
-    setApprovedVendor("vendor1");
-    setFormData({ remarks: "" });
-    setBulkModalOpen(true);
-  };
-
-  const handleBulkSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (bulkRecords.length === 0) {
-      toast.error("Please fill in all required fields.");
-      return;
-    }
-
-    const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI;
-    if (!SHEET_API_URL) return;
-
-    setIsSubmitting(true);
-    setSubmitError(null);
-
-    try {
-      const timestamp = getFmsTimestamp();
-
-      for (const record of bulkRecords) {
+      // Loop through all records in the group and update
+      const updatePromises = currentGroup.records.map(async (record: any) => {
         const rowArray = new Array(60).fill("");
-        const selIdx = parseInt(approvedVendor.replace("vendor", ""), 10);
         const approvedName = record.data[`vendor${selIdx}Name`] || "";
 
-        rowArray[47] = approvedVendor;
-        rowArray[48] = approvedName;
-        rowArray[49] = "";
-        rowArray[50] = formData.remarks;
-        rowArray[51] = timestamp;
+        rowArray[47] = approvedVendor; // AV: Selected Vendor ID
+        rowArray[48] = approvedName;   // AW: Selected Vendor Name
+        rowArray[49] = ""; // AX: Approved By
+        rowArray[50] = formData.remarks;    // AY: Remarks
+        rowArray[51] = timestamp; // AZ: Actual Approved Vendor (Planned Stage 5 PO Entry)
 
         const params = new URLSearchParams();
         params.append("action", "update");
@@ -375,63 +300,92 @@ export default function ApprovedVendor() {
           body: params,
         });
 
-        if (!response.ok) throw new Error(`Failed to update row ${record.id}`);
-        const result = await response.json();
-        if (!result.success) throw new Error(result.error || `Failed to update ${record.id}`);
-      }
+        if (!response.ok) throw new Error("Update failed");
 
-      toast.success("Bulk Approved Vendor submission completed!");
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error || "Unknown error");
+        return result;
+      });
+
+      await Promise.all(updatePromises);
+      toast.success("Approved Vendor set successfully!");
       await fetchData();
-      setBulkModalOpen(false);
-      setSelectedIndents([]);
+      resetForm();
     } catch (err: any) {
-      console.error("Bulk Stage 4 Submit Error:", err);
-      setSubmitError(err.message || "Bulk submission failed");
-      toast.error(err.message || "Failed bulk submission");
+      console.error("Stage 4 Submit Error:", err);
+      setSubmitError(err.message || "Failed to submit Approved Vendor");
+      toast.error(err.message || "Failed submission");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Get active vendors for the currently viewed record
-  const currentRecordVendors = useMemo(() => {
-    if (!currentRecord) return [];
+  const resetForm = () => {
+    setOpen(false);
+    setCurrentGroup(null);
+    setApprovedVendor("vendor1");
+    setFormData({ remarks: "" });
+  };
+
+  const groupVendorOptions = useMemo(() => {
+    if (!currentGroup || currentGroup.records.length === 0) return [];
+    const firstRec = currentGroup.records[0];
     const list = [];
-    if (currentRecord.data.vendor1Name) {
-      list.push({ id: "vendor1", name: currentRecord.data.vendor1Name, rate: currentRecord.data.vendor1Rate, terms: currentRecord.data.vendor1Terms, delivery: currentRecord.data.vendor1Delivery, remarks: currentRecord.data.vendor1Remarks });
-    }
-    if (currentRecord.data.vendor2Name && currentRecord.data.vendor2Name !== "-") {
-      list.push({ id: "vendor2", name: currentRecord.data.vendor2Name, rate: currentRecord.data.vendor2Rate, terms: currentRecord.data.vendor2Terms, delivery: currentRecord.data.vendor2Delivery, remarks: currentRecord.data.vendor2Remarks });
-    }
-    if (currentRecord.data.vendor3Name && currentRecord.data.vendor3Name !== "-") {
-      list.push({ id: "vendor3", name: currentRecord.data.vendor3Name, rate: currentRecord.data.vendor3Rate, terms: currentRecord.data.vendor3Terms, delivery: currentRecord.data.vendor3Delivery, remarks: currentRecord.data.vendor3Remarks });
+    for (const num of [1, 2, 3]) {
+      const name = firstRec.data[`vendor${num}Name`];
+      if (name && name !== "-") {
+        const terms = firstRec.data[`vendor${num}Terms`];
+        const delivery = firstRec.data[`vendor${num}Delivery`];
+        
+        let totalValue = 0;
+        let hasRates = false;
+        currentGroup.records.forEach((rec: any) => {
+          const rateStr = rec.data[`vendor${num}Rate`];
+          const qty = parseFloat(rec.data.quantity) || 0;
+          if (rateStr && rateStr !== "-") {
+            totalValue += (parseFloat(rateStr) || 0) * qty;
+            hasRates = true;
+          }
+        });
+
+        list.push({
+          id: `vendor${num}`,
+          slotNum: num,
+          name,
+          terms,
+          delivery,
+          totalValue: hasRates ? totalValue : null,
+        });
+      }
     }
     return list;
-  }, [currentRecord]);
+  }, [currentGroup]);
 
   const generatedLinks = useMemo(() => {
-    if (!currentRecord) return [];
-    const links = [];
-    if (currentRecord.data.vendor1Name && currentRecord.data.vendor1Name !== "-") {
-      links.push({
-        name: currentRecord.data.vendor1Name,
-        link: `${window.location.origin}/quotation-form?id=${currentRecord.id}&v=1`,
+    if (!currentGroup || currentGroup.records.length === 0) return [];
+    const idsParam = currentGroup.records.map((r: any) => r.id).join(",");
+    const list = [];
+    const firstRec = currentGroup.records[0];
+    if (firstRec.data.vendor1Name && firstRec.data.vendor1Name !== "-") {
+      list.push({
+        name: firstRec.data.vendor1Name,
+        link: `${window.location.origin}/quotation-form?ids=${idsParam}&v=1`,
       });
     }
-    if (currentRecord.data.vendor2Name && currentRecord.data.vendor2Name !== "-") {
-      links.push({
-        name: currentRecord.data.vendor2Name,
-        link: `${window.location.origin}/quotation-form?id=${currentRecord.id}&v=2`,
+    if (firstRec.data.vendor2Name && firstRec.data.vendor2Name !== "-") {
+      list.push({
+        name: firstRec.data.vendor2Name,
+        link: `${window.location.origin}/quotation-form?ids=${idsParam}&v=2`,
       });
     }
-    if (currentRecord.data.vendor3Name && currentRecord.data.vendor3Name !== "-") {
-      links.push({
-        name: currentRecord.data.vendor3Name,
-        link: `${window.location.origin}/quotation-form?id=${currentRecord.id}&v=3`,
+    if (firstRec.data.vendor3Name && firstRec.data.vendor3Name !== "-") {
+      list.push({
+        name: firstRec.data.vendor3Name,
+        link: `${window.location.origin}/quotation-form?ids=${idsParam}&v=3`,
       });
     }
-    return links;
-  }, [currentRecord]);
+    return list;
+  }, [currentGroup]);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -454,14 +408,6 @@ export default function ApprovedVendor() {
           </div>
 
           <div className="flex-1 flex items-center justify-end gap-4 w-full md:w-auto">
-            {selectedIndents.length > 0 && (
-              <Button
-                onClick={handleOpenBulkModal}
-                className="bg-slate-900 text-white hover:bg-slate-800 transition-colors shadow-sm h-10 rounded-xl px-4"
-              >
-                Approve Bulk ({selectedIndents.length})
-              </Button>
-            )}
 
             <div className="relative w-full max-w-sm">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
@@ -516,50 +462,64 @@ export default function ApprovedVendor() {
               <table className="w-full caption-bottom text-sm border-collapse">
                 <TableHeader className="sticky top-0 z-30 bg-slate-200 shadow-sm border-none">
                   <TableRow className="bg-slate-200 hover:bg-slate-200 border-none">
-                    <TableHead className="w-[50px] sticky top-0 z-30 bg-slate-200 border-none px-4">
-                      <Checkbox
-                        checked={pending.length > 0 && selectedIndents.length === pending.length}
-                        onCheckedChange={toggleSelectAll}
-                      />
-                    </TableHead>
                     <TableHead className="sticky top-0 z-30 bg-slate-200 border-none px-4 py-3 text-slate-700 font-bold uppercase text-[13px] tracking-wider">
                       Actions
                     </TableHead>
-                    {baseColumns.filter((col) => selectedColumns.includes(col.key)).map((col) => (
-                      <TableHead key={col.key} className="sticky top-0 z-30 bg-slate-200 border-none px-4 py-3 text-slate-700 font-bold uppercase text-[13px] tracking-wider">
-                        {col.label}
+                    {selectedColumns.includes("indentNumber") && (
+                      <TableHead className="sticky top-0 z-30 bg-slate-200 border-none px-4 py-3 text-slate-700 font-bold uppercase text-[13px] tracking-wider">
+                        Indent IDs
                       </TableHead>
-                    ))}
+                    )}
+                    {selectedColumns.includes("itemName") && (
+                      <TableHead className="sticky top-0 z-30 bg-slate-200 border-none px-4 py-3 text-slate-700 font-bold uppercase text-[13px] tracking-wider">
+                        Items
+                      </TableHead>
+                    )}
+                    {selectedColumns.includes("quantity") && (
+                      <TableHead className="sticky top-0 z-30 bg-slate-200 border-none px-4 py-3 text-slate-700 font-bold uppercase text-[13px] tracking-wider">
+                        Qty
+                      </TableHead>
+                    )}
+                    {selectedColumns.includes("actual3") && (
+                      <TableHead className="sticky top-0 z-30 bg-slate-200 border-none px-4 py-3 text-slate-700 font-bold uppercase text-[13px] tracking-wider">
+                        Planned Date
+                      </TableHead>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pending.map((record) => (
-                    <TableRow key={record.id} className="hover:bg-muted/50 odd:bg-white even:bg-slate-50/80 group">
-                      <TableCell className="px-4">
-                        <div onClick={(e) => e.stopPropagation()}>
-                          <Checkbox
-                            checked={selectedIndents.includes(record.id)}
-                            onCheckedChange={() => toggleIndentSelection(record.id)}
-                          />
-                        </div>
-                      </TableCell>
+                  {pending.map((group) => (
+                    <TableRow key={group.id} className="hover:bg-muted/50 odd:bg-white even:bg-slate-50/80 group">
                       <TableCell className="px-4 py-3">
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleOpenForm(record.id)}
+                          onClick={() => handleOpenForm(group)}
                           className="h-8 text-xs font-semibold px-3 border-slate-200 hover:bg-slate-50 hover:text-slate-900 transition-colors"
                         >
                           Approve
                         </Button>
                       </TableCell>
-                      {baseColumns.filter((col) => selectedColumns.includes(col.key)).map((col) => (
-                        <TableCell key={col.key} className="text-sm text-slate-700 px-4">
-                          {col.key === "actual3"
-                            ? formatDateDash(record.data[col.key])
-                            : String(record.data[col.key] ?? "-")}
+                      {selectedColumns.includes("indentNumber") && (
+                        <TableCell className="text-sm font-semibold text-slate-900 font-mono px-4">
+                          {group.indentNumbers}
                         </TableCell>
-                      ))}
+                      )}
+                      {selectedColumns.includes("itemName") && (
+                        <TableCell className="text-sm text-slate-800 px-4 font-medium">
+                          {group.itemNames}
+                        </TableCell>
+                      )}
+                      {selectedColumns.includes("quantity") && (
+                        <TableCell className="text-sm text-slate-750 px-4 font-semibold">
+                          {group.records.map((r: any) => r.data.quantity).join(", ")}
+                        </TableCell>
+                      )}
+                      {selectedColumns.includes("actual3") && (
+                        <TableCell className="text-sm text-slate-700 px-4">
+                          {formatDateDash(group.actual3)}
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -641,32 +601,33 @@ export default function ApprovedVendor() {
       </Tabs>
 
       {/* APPROVED VENDOR SUBMIT MODAL */}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
-          <DialogHeader className="flex-shrink-0">
-            <DialogTitle>Approved Vendor Decision</DialogTitle>
+      <Dialog open={open} onOpenChange={(val) => { if (!val) resetForm(); else setOpen(val); }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-6 overflow-hidden">
+          <DialogHeader className="flex-shrink-0 border-b pb-4">
+            <DialogTitle className="text-xl font-bold text-slate-800">Approved Vendor Decision</DialogTitle>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto space-y-6 pr-2 py-2">
-            {/* Item Details */}
-            <div className="border rounded-lg p-3 bg-slate-50 text-sm grid grid-cols-3 gap-3">
-              <div>
-                <span className="font-semibold text-slate-500">Indent:</span>
-                <p className="font-medium text-slate-900">{currentRecord?.data?.indentNumber || "—"}</p>
-              </div>
-              <div>
-                <span className="font-semibold text-slate-500">Item:</span>
-                <p className="font-medium text-slate-900">{currentRecord?.data?.itemName || "—"}</p>
-              </div>
-              <div>
-                <span className="font-semibold text-slate-500">Qty:</span>
-                <p className="font-medium text-slate-900">{currentRecord?.data?.quantity || "—"}</p>
+          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto space-y-6 pr-2 py-4 scrollbar-thin">
+            {/* Group Context Information */}
+            <div className="bg-slate-50 border rounded-xl p-4 text-sm space-y-2">
+              <span className="font-bold text-xs text-slate-500 uppercase tracking-wider block border-b pb-2">
+                Enquiry Details
+              </span>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="text-slate-400 font-medium text-xs">Indent IDs:</span>
+                  <p className="font-bold text-slate-800 font-mono mt-0.5">{currentGroup?.indentNumbers}</p>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-medium text-xs">Items:</span>
+                  <p className="font-semibold text-slate-850 mt-0.5">{currentGroup?.itemNames}</p>
+                </div>
               </div>
             </div>
 
             {/* RFQ Links Display */}
             {generatedLinks.length > 0 && (
-              <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 space-y-3">
+              <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 space-y-3 shadow-sm">
                 <div className="flex items-center gap-2 text-emerald-800 font-bold text-sm">
                   <CheckCircle className="w-5 h-5 text-emerald-600" />
                   Details Dispatched! Quotation forms generated below:
@@ -708,161 +669,122 @@ export default function ApprovedVendor() {
             )}
 
             {/* Vendor Comparison Layout */}
-            <div className="space-y-2">
-              <Label className="text-xs uppercase font-extrabold text-slate-500 tracking-wider">Vendor Proposals Comparison</Label>
-              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
-                <table className="w-full text-xs text-left">
+            <div className="space-y-3">
+              <Label className="text-xs uppercase font-extrabold text-slate-500 tracking-wider block">
+                Vendor Proposals Comparison
+              </Label>
+              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                <table className="w-full text-xs text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-100 border-b border-slate-200">
-                      <th className="p-3 font-semibold text-slate-700">Proposal</th>
-                      <th className="p-3 font-semibold text-slate-700">Vendor Name</th>
-                      <th className="p-3 font-semibold text-slate-700">Rate Per Qty</th>
-                      <th className="p-3 font-semibold text-slate-700">Terms</th>
-                      <th className="p-3 font-semibold text-slate-700">Exp. Delivery</th>
-                      <th className="p-3 font-semibold text-slate-700">Status</th>
+                      <th className="p-3 font-semibold text-slate-700 w-1/4">Field / Item</th>
+                      {groupVendorOptions.map((v) => (
+                        <th key={v.id} className="p-3 font-semibold text-slate-700 text-center">
+                          Vendor Slot {v.slotNum} ({v.name})
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {currentRecordVendors.map((v, i) => {
-                      const hasSubmitted = v.rate && v.rate !== "-";
-                      return (
-                        <tr key={v.id} className="border-b last:border-0 hover:bg-slate-50/50">
-                          <td className="p-3 font-bold text-slate-600">Vendor #{i + 1}</td>
-                          <td className="p-3 font-semibold text-slate-900">{v.name}</td>
-                          <td className="p-3 text-slate-900 font-semibold">{hasSubmitted ? `₹${v.rate}` : "—"}</td>
-                          <td className="p-3 text-slate-700">{hasSubmitted ? (paymentTermsOptions.find(opt => opt.value === v.terms)?.label || v.terms) : "—"}</td>
-                          <td className="p-3 text-slate-600">{hasSubmitted ? formatDateDash(v.delivery) : "—"}</td>
-                          <td className="p-3">
-                            {hasSubmitted ? (
-                              <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50" variant="outline">
-                                Submitted
-                              </Badge>
-                            ) : (
-                              <Badge className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50" variant="outline">
-                                Awaiting Response
-                              </Badge>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {currentRecordVendors.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="p-6 text-center text-slate-400">No vendor quotations found.</td>
+                    {/* Payment Terms Row */}
+                    <tr className="border-b bg-slate-50/50">
+                      <td className="p-3 font-bold text-slate-600">Payment Terms</td>
+                      {groupVendorOptions.map((v) => (
+                        <td key={v.id} className="p-3 text-slate-800 text-center">
+                          {v.terms && v.terms !== "-" ? (paymentTermsOptions.find(opt => opt.value === v.terms)?.label || v.terms) : "—"}
+                        </td>
+                      ))}
+                    </tr>
+
+                    {/* Delivery Date Row */}
+                    <tr className="border-b bg-slate-50/50">
+                      <td className="p-3 font-bold text-slate-600">Expected Delivery</td>
+                      {groupVendorOptions.map((v) => (
+                        <td key={v.id} className="p-3 text-slate-800 text-center">
+                          {v.delivery && v.delivery !== "-" ? formatDateDash(v.delivery) : "—"}
+                        </td>
+                      ))}
+                    </tr>
+
+                    {/* Rates per Item Rows */}
+                    {currentGroup?.records.map((rec: any) => (
+                      <tr key={rec.id} className="border-b">
+                        <td className="p-3 font-medium text-slate-700">
+                          <div className="font-mono text-[10px] text-slate-500">Indent: {rec.data.indentNumber}</div>
+                          <div className="font-semibold text-slate-800">{rec.data.itemName}</div>
+                          <div className="text-[10px] text-slate-500">Qty: {rec.data.quantity}</div>
+                        </td>
+                        {groupVendorOptions.map((v) => {
+                          const rate = rec.data[`vendor${v.slotNum}Rate`];
+                          return (
+                            <td key={v.id} className="p-3 text-slate-900 font-semibold text-center">
+                              {rate && rate !== "-" ? `₹${rate}` : "—"}
+                            </td>
+                          );
+                        })}
                       </tr>
-                    )}
+                    ))}
+
+                    {/* Total Value Row */}
+                    <tr className="bg-emerald-50/30 font-bold border-t border-slate-350">
+                      <td className="p-3 text-emerald-800 uppercase tracking-wider text-xs">Total Estimate Value</td>
+                      {groupVendorOptions.map((v) => (
+                        <td key={v.id} className="p-3 text-emerald-900 text-center text-sm font-semibold">
+                          {v.totalValue !== null ? `₹${v.totalValue.toLocaleString()}` : "—"}
+                        </td>
+                      ))}
+                    </tr>
                   </tbody>
                 </table>
               </div>
             </div>
 
             {/* Approved Vendor Select */}
-            <div className="space-y-1.5 bg-green-50/50 p-4 border border-green-100 rounded-xl">
+            <div className="space-y-1.5 bg-green-50/50 p-4 border border-green-100 rounded-xl shadow-sm">
               <Label htmlFor="selVendor" className="text-green-800 font-bold text-xs uppercase tracking-wider block mb-1">Approved Vendor <span className="text-red-500">*</span></Label>
               <Select
                 value={approvedVendor}
                 onValueChange={(v) => setApprovedVendor(v)}
               >
-                <SelectTrigger id="selVendor" className="bg-white border-green-200">
-                  <SelectValue placeholder="Select approved vendor..." />
+                <SelectTrigger id="selVendor" className="bg-white border-green-250">
+                  <SelectValue placeholder="Select approved vendor slot..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {currentRecordVendors.map((v, i) => (
+                  {groupVendorOptions.map((v) => (
                     <SelectItem key={v.id} value={v.id}>
-                      Vendor #{i + 1} ({v.name}) — ₹{v.rate}
+                      Vendor Slot {v.slotNum} ({v.name}) {v.totalValue !== null ? `— Total: ₹${v.totalValue.toLocaleString()}` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-
             {/* Remarks */}
             <div className="space-y-1.5">
-              <Label htmlFor="remarks">Remarks</Label>
+              <Label htmlFor="remarks" className="text-xs font-bold text-slate-500 uppercase tracking-wider">Remarks</Label>
               <Textarea
                 id="remarks"
                 value={formData.remarks}
                 onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
                 placeholder="Negotiation or general approval comments..."
-                className="min-h-16"
+                className="min-h-[80px]"
               />
             </div>
 
             {submitError && (
               <p className="text-red-500 text-xs font-semibold">{submitError}</p>
             )}
-
-            <DialogFooter className="flex-shrink-0 border-t pt-4">
-              <Button type="button" variant="outline" onClick={resetForm} disabled={isSubmitting}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                Confirm & Approve
-              </Button>
-            </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
 
-      {/* BULK FORM MODAL */}
-      <Dialog open={bulkModalOpen} onOpenChange={setBulkModalOpen}>
-        <DialogContent className="max-w-xl max-h-[90vh] flex flex-col">
-          <DialogHeader className="flex-shrink-0">
-            <DialogTitle>Bulk Approved Vendor Decision</DialogTitle>
-          </DialogHeader>
-
-          <form onSubmit={handleBulkSubmit} className="flex-1 overflow-y-auto space-y-6 pr-2 py-2">
-            <div className="bg-slate-50 p-3 rounded-lg border text-sm text-slate-600 font-medium">
-              Applying selection to {bulkRecords.length} items.
-            </div>
-
-            {/* Approved Vendor Select */}
-            <div className="space-y-1.5 bg-green-50/50 p-4 border border-green-100 rounded-xl">
-              <Label htmlFor="bulkSelVendor" className="text-green-800 font-bold text-xs uppercase tracking-wider block mb-1">Approved Vendor Slot <span className="text-red-500">*</span></Label>
-              <Select
-                value={approvedVendor}
-                onValueChange={(v) => setApprovedVendor(v)}
-              >
-                <SelectTrigger id="bulkSelVendor" className="bg-white border-green-200">
-                  <SelectValue placeholder="Select approved vendor slot..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="vendor1">Vendor Slot 1 (Primary Vendor)</SelectItem>
-                  <SelectItem value="vendor2">Vendor Slot 2</SelectItem>
-                  <SelectItem value="vendor3">Vendor Slot 3</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-
-            {/* Remarks */}
-            <div className="space-y-1.5">
-              <Label htmlFor="bulkRemarks">Remarks</Label>
-              <Textarea
-                id="bulkRemarks"
-                value={formData.remarks}
-                onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                placeholder="Overall negotiation or general comments..."
-                className="min-h-16"
-              />
-            </div>
-
-            {submitError && (
-              <p className="text-red-500 text-xs font-semibold">{submitError}</p>
-            )}
-
-            <DialogFooter className="flex-shrink-0 border-t pt-4">
-              <Button type="button" variant="outline" onClick={() => setBulkModalOpen(false)} disabled={isSubmitting}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                Confirm & Approve
-              </Button>
-            </DialogFooter>
-          </form>
+          <DialogFooter className="flex-shrink-0 border-t pt-4">
+            <Button type="button" variant="outline" onClick={resetForm} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleSubmit} disabled={isSubmitting || groupVendorOptions.length === 0} className="bg-slate-900 text-white hover:bg-slate-800">
+              {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Confirm & Approve
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

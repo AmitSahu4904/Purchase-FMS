@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
 const paymentTermsOptions = [
@@ -26,6 +27,7 @@ const paymentTermsOptions = [
 export default function PublicQuotationForm() {
   const searchParams = useSearchParams();
   const idParam = searchParams.get("id"); // e.g. "IND-001_8"
+  const idsParam = searchParams.get("ids"); // e.g. "IND-001_8,IND-002_9"
   const vParam = searchParams.get("v");   // e.g. "1", "2", "3"
 
   const [isLoading, setIsLoading] = useState(true);
@@ -33,24 +35,25 @@ export default function PublicQuotationForm() {
   const [submitted, setSubmitted] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const [indentData, setIndentData] = useState<{
+  const [indentItems, setIndentItems] = useState<Array<{
+    id: string;
+    rowIndex: number;
     indentNumber: string;
     itemName: string;
     quantity: string;
     category: string;
     vendorName: string;
-  } | null>(null);
+  }>>([]);
 
-  const [formData, setFormData] = useState({
-    rate: "",
-    terms: "30",
-    expectedDeliveryDate: "",
-  });
+  const [formRates, setFormRates] = useState<string[]>([]);
+  const [commonTerms, setCommonTerms] = useState("30");
+  const [commonDeliveryDate, setCommonDeliveryDate] = useState("");
 
   const vendorSlot = parseInt(vParam || "1", 10);
 
   useEffect(() => {
-    if (!idParam) {
+    const rawIds = idsParam ? idsParam.split(",") : (idParam ? [idParam] : []);
+    if (rawIds.length === 0) {
       setErrorMsg("Missing indent ID or vendor parameter in link.");
       setIsLoading(false);
       return;
@@ -65,27 +68,33 @@ export default function PublicQuotationForm() {
           return;
         }
 
-        const parts = idParam.split("_");
-        const rowIndex = parseInt(parts[1] || "", 10);
-        if (isNaN(rowIndex)) {
-          setErrorMsg("Invalid link parameters.");
-          setIsLoading(false);
-          return;
-        }
-
         const res = await fetch(`${SHEET_API_URL}?sheet=INDENT-LIFT&action=getAll`);
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
-          const row = json.data[rowIndex - 1];
-          if (row) {
-            const vOffset = 21 + (vendorSlot - 1) * 8; // slot 1: 21, slot 2: 29, slot 3: 37
-            setIndentData({
-              indentNumber: row[1] || "",
-              itemName: row[4] || "",
-              quantity: row[14] || "",
-              category: row[3] || "",
-              vendorName: row[vOffset] || `Vendor #${vendorSlot}`,
-            });
+          const fetchedItems = [];
+          for (const rawId of rawIds) {
+            const parts = rawId.split("_");
+            const rowIndex = parseInt(parts[1] || "", 10);
+            if (isNaN(rowIndex)) continue;
+
+            const row = json.data[rowIndex - 1];
+            if (row) {
+              const vOffset = 21 + (vendorSlot - 1) * 8; // slot 1: 21, slot 2: 29, slot 3: 37
+              fetchedItems.push({
+                id: rawId,
+                rowIndex,
+                indentNumber: row[1] || "",
+                itemName: row[4] || "",
+                quantity: row[14] || "",
+                category: row[3] || "",
+                vendorName: row[vOffset] || `Vendor #${vendorSlot}`,
+              });
+            }
+          }
+
+          if (fetchedItems.length > 0) {
+            setIndentItems(fetchedItems);
+            setFormRates(fetchedItems.map(() => ""));
           } else {
             setErrorMsg("Indent details not found.");
           }
@@ -101,50 +110,60 @@ export default function PublicQuotationForm() {
     };
 
     fetchIndent();
-  }, [idParam, vendorSlot]);
+  }, [idParam, idsParam, vendorSlot]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.rate.trim() || !formData.expectedDeliveryDate) {
-      toast.error("Please fill in all mandatory fields.");
+    
+    // Validate
+    for (let i = 0; i < indentItems.length; i++) {
+      if (!formRates[i]?.trim()) {
+        toast.error(`Please fill in Rate Per Qty for ${indentItems[i].itemName}.`);
+        return;
+      }
+    }
+    if (!commonDeliveryDate) {
+      toast.error("Please select Expected Delivery Date.");
       return;
     }
 
     const SHEET_API_URL = process.env.NEXT_PUBLIC_API_URI;
-    if (!SHEET_API_URL || !idParam) return;
+    if (!SHEET_API_URL || indentItems.length === 0) return;
 
     setIsSubmitting(true);
     try {
-      const parts = idParam.split("_");
-      const rowIndex = parseInt(parts[1] || "", 10);
+      const updatePromises = indentItems.map(async (item, index) => {
+        const rowArray = new Array(60).fill("");
+        const vOffset = 21 + (vendorSlot - 1) * 8; // slot 1: 21, slot 2: 29, slot 3: 37
 
-      const rowArray = new Array(60).fill("");
-      const vOffset = 21 + (vendorSlot - 1) * 8; // slot 1: 21, slot 2: 29, slot 3: 37
+        // Update the vendor quote details in the spreadsheet
+        rowArray[vOffset + 1] = formRates[index];                          // Rate Per Qty
+        rowArray[vOffset + 2] = commonTerms;                               // Payment Terms
+        rowArray[vOffset + 3] = commonDeliveryDate;                        // Expected Delivery Date
+        rowArray[vOffset + 4] = "No";                                      // Approved status
 
-      // Update the vendor quote details in the spreadsheet
-      rowArray[vOffset + 1] = formData.rate;                     // Rate Per Qty
-      rowArray[vOffset + 2] = formData.terms;                    // Payment Terms
-      rowArray[vOffset + 3] = formData.expectedDeliveryDate;     // Expected Delivery Date
-      rowArray[vOffset + 4] = "No";                              // Approved/Selected status (default No)
+        const params = new URLSearchParams();
+        params.append("action", "update");
+        params.append("sheetName", "INDENT-LIFT");
+        params.append("rowIndex", item.rowIndex.toString());
+        params.append("rowData", JSON.stringify(rowArray));
 
-      const params = new URLSearchParams();
-      params.append("action", "update");
-      params.append("sheetName", "INDENT-LIFT");
-      params.append("rowIndex", rowIndex.toString());
-      params.append("rowData", JSON.stringify(rowArray));
+        const res = await fetch(SHEET_API_URL, {
+          method: "POST",
+          body: params,
+        });
 
-      const res = await fetch(SHEET_API_URL, {
-        method: "POST",
-        body: params,
+        if (!res.ok) throw new Error(`Update failed for ${item.indentNumber}`);
+        const result = await res.json();
+        if (!result.success) {
+          throw new Error(result.error || `Update failed for ${item.indentNumber}`);
+        }
+        return result;
       });
 
-      const result = await res.json();
-      if (result.success) {
-        setSubmitted(true);
-        toast.success("Quotation submitted successfully!");
-      } else {
-        throw new Error(result.error || "Unknown server error");
-      }
+      await Promise.all(updatePromises);
+      setSubmitted(true);
+      toast.success("All quotations submitted successfully!");
     } catch (err: any) {
       console.error("Quotation submit error:", err);
       toast.error(err.message || "Failed to submit quotation.");
@@ -181,7 +200,7 @@ export default function PublicQuotationForm() {
   if (submitted) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-        <Card className="max-w-md w-full border-green-150 bg-white shadow-xl rounded-2xl">
+        <Card className="max-w-2xl w-full border-green-150 bg-white shadow-xl rounded-2xl">
           <CardHeader className="flex flex-col items-center gap-3 pt-8">
             <div className="w-16 h-16 bg-emerald-100 flex items-center justify-center rounded-full text-emerald-600">
               <CheckCircle2 className="w-8 h-8" />
@@ -191,12 +210,42 @@ export default function PublicQuotationForm() {
               Thank you for submitting your quotation. The purchasing department has been notified.
             </CardDescription>
           </CardHeader>
-          <CardContent className="pb-8 px-8">
-            <div className="border border-slate-100 rounded-xl p-4 bg-slate-50 text-xs text-slate-600 space-y-2">
-              <div className="flex justify-between"><span className="font-semibold">Vendor:</span><span>{indentData?.vendorName}</span></div>
-              <div className="flex justify-between"><span className="font-semibold">Indent:</span><span>{indentData?.indentNumber}</span></div>
-              <div className="flex justify-between"><span className="font-semibold">Item:</span><span>{indentData?.itemName}</span></div>
-              <div className="flex justify-between"><span className="font-semibold">Rate Submitted:</span><span>₹{formData.rate} / unit</span></div>
+          <CardContent className="pb-8 px-8 space-y-4">
+            <div className="font-semibold text-sm text-slate-700">Submitted Items Summary (Vendor: {indentItems[0]?.vendorName}):</div>
+            <div className="border border-slate-100 rounded-xl overflow-hidden bg-slate-50">
+              <table className="w-full text-xs text-left text-slate-600">
+                <thead className="bg-slate-100 text-slate-700 font-bold border-b">
+                  <tr>
+                    <th className="p-3">Indent</th>
+                    <th className="p-3">Item</th>
+                    <th className="p-3">Category</th>
+                    <th className="p-3 text-right">Qty</th>
+                    <th className="p-3 text-right text-slate-900">Rate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {indentItems.map((item, index) => (
+                    <tr key={item.id} className="border-b last:border-0 hover:bg-slate-100/30">
+                      <td className="p-3 font-mono font-semibold">{item.indentNumber}</td>
+                      <td className="p-3">{item.itemName}</td>
+                      <td className="p-3">{item.category}</td>
+                      <td className="p-3 text-right">{item.quantity}</td>
+                      <td className="p-3 text-right font-bold text-slate-900">₹{formRates[index]}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="border border-slate-100 rounded-xl p-4 bg-slate-50 text-xs text-slate-600 space-y-2 mt-4 shadow-sm">
+              <div className="flex justify-between">
+                <span className="font-semibold text-slate-500">Payment Terms:</span>
+                <span className="font-semibold text-slate-800">{paymentTermsOptions.find(o => o.value === commonTerms)?.label || commonTerms}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-semibold text-slate-500">Expected Delivery Date:</span>
+                <span className="font-semibold text-slate-800">{commonDeliveryDate}</span>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -206,7 +255,7 @@ export default function PublicQuotationForm() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 md:p-8">
-      <Card className="max-w-lg w-full bg-white shadow-xl rounded-2xl border border-slate-200 overflow-hidden">
+      <Card className="max-w-3xl w-full bg-white shadow-xl rounded-2xl border border-slate-200 overflow-hidden">
         <div className="bg-slate-900 text-white p-6 md:p-8 space-y-2">
           <CardTitle className="text-xl md:text-2xl font-bold tracking-tight">Vendor Quotation Submission</CardTitle>
           <CardDescription className="text-slate-300 text-sm">
@@ -215,77 +264,89 @@ export default function PublicQuotationForm() {
         </div>
 
         <CardContent className="p-6 md:p-8 space-y-6">
-          {/* Indent Context */}
-          <div className="border border-slate-100 bg-slate-50/70 rounded-xl p-4 text-sm space-y-3">
-            <div className="flex justify-between border-b border-slate-100 pb-2">
-              <span className="text-slate-500 font-medium">Requesting Vendor:</span>
-              <span className="font-bold text-slate-800">{indentData?.vendorName}</span>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <span className="text-slate-500 text-xs block">Indent ID</span>
-                <span className="font-semibold text-slate-800">{indentData?.indentNumber}</span>
-              </div>
-              <div>
-                <span className="text-slate-500 text-xs block">Item Category</span>
-                <span className="font-semibold text-slate-800">{indentData?.category}</span>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4 pt-1">
-              <div>
-                <span className="text-slate-500 text-xs block">Item Name / Description</span>
-                <span className="font-semibold text-slate-800">{indentData?.itemName}</span>
-              </div>
-              <div>
-                <span className="text-slate-500 text-xs block">Required Quantity</span>
-                <span className="font-bold text-slate-800">{indentData?.quantity} units</span>
-              </div>
-            </div>
+          {/* Indent Context Header */}
+          <div className="border border-slate-100 bg-slate-50/70 rounded-xl p-4 text-sm flex justify-between items-center shadow-sm">
+            <span className="text-slate-500 font-medium">Requesting Vendor:</span>
+            <span className="font-bold text-slate-800">{indentItems[0]?.vendorName}</span>
           </div>
 
           {/* Quotation Inputs Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Rate Per Qty */}
-            <div className="space-y-1.5">
-              <Label htmlFor="rate">Rate Per Qty (₹) <span className="text-red-500">*</span></Label>
-              <Input
-                id="rate"
-                type="number"
-                value={formData.rate}
-                onChange={(e) => setFormData({ ...formData, rate: e.target.value })}
-                placeholder="Enter rate per unit in INR"
-                required
-              />
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-4">
+              <Label className="text-xs uppercase font-extrabold text-slate-500 tracking-wider block">
+                Item-wise Rates (Enter rate per unit for each item)
+              </Label>
+              {indentItems.map((item, index) => (
+                <div key={item.id} className="border border-slate-200 rounded-xl p-4 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <span className="text-slate-500 text-xs font-semibold">Indent: {item.indentNumber}</span>
+                    <h4 className="font-bold text-slate-800 text-sm mt-0.5">{item.itemName}</h4>
+                    <span className="text-xs text-slate-500">Category: {item.category}</span>
+                  </div>
+                  
+                  <div className="flex items-center gap-4 shrink-0">
+                    <Badge className="bg-slate-200 text-slate-800 text-xs font-bold px-2.5 py-1 rounded-full shrink-0">
+                      Qty: {item.quantity}
+                    </Badge>
+                    
+                    <div className="space-y-1">
+                      <Label htmlFor={`rate-${index}`} className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Rate Per Qty (₹) *</Label>
+                      <Input
+                        id={`rate-${index}`}
+                        type="number"
+                        value={formRates[index] || ""}
+                        onChange={(e) => {
+                          const updated = [...formRates];
+                          updated[index] = e.target.value;
+                          setFormRates(updated);
+                        }}
+                        placeholder="Rate in INR"
+                        required
+                        className="bg-white w-36 h-9"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
 
-            {/* Payment Terms */}
-            <div className="space-y-1.5">
-              <Label htmlFor="terms">Payment Terms <span className="text-red-500">*</span></Label>
-              <Select
-                value={formData.terms}
-                onValueChange={(v) => setFormData({ ...formData, terms: v })}
-              >
-                <SelectTrigger id="terms">
-                  <SelectValue placeholder="Select terms" />
-                </SelectTrigger>
-                <SelectContent>
-                  {paymentTermsOptions.map(t => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Common Commercial Terms Section */}
+            <div className="border border-slate-250 rounded-xl p-4 bg-white space-y-4 shadow-sm">
+              <Label className="text-xs uppercase font-extrabold text-slate-800 tracking-wider block border-b pb-2">
+                Common Commercial Details (Applies to all items)
+              </Label>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Common Payment Terms */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="commonTerms" className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payment Terms <span className="text-red-500">*</span></Label>
+                  <Select
+                    value={commonTerms}
+                    onValueChange={(v) => setCommonTerms(v)}
+                  >
+                    <SelectTrigger id="commonTerms">
+                      <SelectValue placeholder="Select terms" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {paymentTermsOptions.map(t => (
+                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            {/* Expected Delivery Date */}
-            <div className="space-y-1.5">
-              <Label htmlFor="deliveryDate">Expected Delivery Date <span className="text-red-500">*</span></Label>
-              <Input
-                id="deliveryDate"
-                type="date"
-                value={formData.expectedDeliveryDate}
-                onChange={(e) => setFormData({ ...formData, expectedDeliveryDate: e.target.value })}
-                required
-              />
+                {/* Common Expected Delivery Date */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="commonDeliveryDate" className="text-xs font-bold text-slate-500 uppercase tracking-wider">Expected Delivery Date <span className="text-red-500">*</span></Label>
+                  <Input
+                    id="commonDeliveryDate"
+                    type="date"
+                    value={commonDeliveryDate}
+                    onChange={(e) => setCommonDeliveryDate(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
             </div>
 
             <Button
@@ -296,10 +357,10 @@ export default function PublicQuotationForm() {
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Submitting quotation...
+                  Submitting quotations...
                 </>
               ) : (
-                "Submit Quotation"
+                "Submit Quotations"
               )}
             </Button>
           </form>
