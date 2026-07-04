@@ -73,8 +73,8 @@ const purchaseStages = [
   { id: 7, name: "Follow UP / Lifting", color: "bg-emerald-500" },
   { id: 8, name: "Transporter Follow-Up", color: "bg-green-500" },
   { id: 9, name: "Material Received", color: "bg-lime-500" },
-  { id: 10, name: "Billing", color: "bg-orange-500" },
   { id: 11, name: "Purchase Return", color: "bg-violet-500" },
+  { id: 10, name: "Billing", color: "bg-orange-550" }, // Keep it near original values
   { id: 12, name: "Vendor Payment", color: "bg-slate-500" },
   { id: 13, name: "Freight Payments", color: "bg-zinc-500" },
   { id: 14, name: "Order Cancel", color: "bg-red-500" },
@@ -430,7 +430,7 @@ export default function PurchaseDashboard() {
           setTopReceivedOrders(processedOrders.slice(0, 10));
 
           // Calculate Pending Items by Stage (Only RA Stages)
-          const raStages = ["Transporter Follow-Up", "Material Received", "Billing", "Purchase Return"];
+          const raStages = ["Transporter Follow-Up", "Material Received", "Purchase Return", "Billing"];
           const recCounts: Record<string, number> = {};
           const overdueRecCounts: Record<string, number> = {};
           raStages.forEach(name => {
@@ -971,7 +971,7 @@ export default function PurchaseDashboard() {
       }
 
       // Filter summary to only stages with overdueCount > 0 and only the 4 requested stages
-      const allowedStages = ["Indent Approval", "Quotation", "Approved Vendor", "Make PO", "Payment", "Follow UP / Lifting", "Transporter Follow-Up", "Material Received", "Billing", "Purchase Return"];
+      const allowedStages = ["Indent Approval", "Quotation", "Approved Vendor", "Make PO", "Payment", "Follow UP / Lifting", "Transporter Follow-Up", "Material Received", "Purchase Return", "Billing"];
       const summaryData = purchaseStages
         .filter(s => allowedStages.includes(s.name) && overdueCounts[s.name] > 0)
         .map(s => ({

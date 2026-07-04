@@ -21,7 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Upload, X, Shield, ShieldCheck, Loader2, ClipboardList, History, Search, Plus, Trash2, Eye, Save, Edit2, FileEdit, Mail, Send, Check, CheckCircle } from "lucide-react";
+import { FileText, Upload, X, Shield, ShieldCheck, Loader2, ClipboardList, History, Search, Plus, Trash2, Eye, Save, Edit2, FileEdit, Mail, Send, Check, CheckCircle, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Popover,
@@ -119,8 +119,9 @@ export default function Stage5() {
   }, [emailSimOpen, emailSimSteps]);
 
   // Shared fields for bulk PO
+  const [poMode, setPoMode] = useState<"create" | "revise">("create");
   const [commonPONumber, setCommonPONumber] = useState("");
-  const [commonPOCopy, setCommonPOCopy] = useState<File | null>(null);
+  const [commonPOCopy, setCommonPOCopy] = useState<File | string | null>(null);
 
   // Shared Packaging/Forwarding fields
   const [commonPkgAmount, setCommonPkgAmount] = useState("");
@@ -229,6 +230,8 @@ export default function Stage5() {
                 hsn: row[57],           // BF (Index 57)
                 poCopy: row[58],        // BG (Index 58)
                 gst: row[59],           // BH (Index 59)
+                pkgAmount: row[70],     // BS (Index 70)
+                pkgGst: row[71],        // BT (Index 71)
               }
             };
           });
@@ -361,6 +364,69 @@ export default function Stage5() {
       .filter(Boolean);
   }, [selectedRecordIds, sheetRecords]);
 
+  const completedPONumbers = useMemo(() => {
+    const set = new Set<string>();
+    completed.forEach((r) => {
+      if (r.data.poNumber && r.data.poNumber !== "-") {
+        set.add(r.data.poNumber);
+      }
+    });
+    return Array.from(set).sort();
+  }, [completed]);
+
+  const handleRevisePONumberChange = (poNum: string) => {
+    setCommonPONumber(poNum);
+    if (!poNum.trim()) return;
+
+    const matching = completed.filter((r) => r.data.poNumber === poNum);
+    if (matching.length === 0) return;
+
+    const matchedIds = matching.map((r) => r.id);
+    setSelectedRecordIds(matchedIds);
+
+    const firstRec = matching[0];
+    const v = getVendorData(firstRec);
+
+    setPoForm({
+      firmName: "Divine Empire",
+      supplierName: v.name !== "-" ? v.name : "",
+      supplierEmail: v.name ? (VENDOR_EMAILS[v.name] || "") : "",
+      supplierAddress: v.name ? (VENDOR_ADDRESSES[v.name] || "") : "",
+      poDate: formatInputDate(firstRec.data.actual4),
+      deliveryDate: v.delivery ? formatInputDate(v.delivery) : "",
+      gstin: "",
+      quotationNumber: "", 
+      quotationDate: new Date().toISOString().split("T")[0],
+      enquiryNumber: "",
+      enquiryDate: "",
+      remarks: "",
+      companyGstin: "27ABCDE1234A1Z5",
+      companyPan: "ABCDE1234A",
+      billingName: "M/S Divine Empire",
+      billingAddress: "Gateway Park, HQ, Mumbai",
+      destinationName: "M/S Divine Empire",
+      destinationAddress: "Warehouse 1, Mumbai",
+    });
+
+    const matchedFormData: Record<string, any> = {};
+    matching.forEach((r) => {
+      matchedFormData[r.id] = {
+        basicValue: r.data.basicValue || "0",
+        totalWithTax: r.data.totalWithTax || "0",
+        hsn: r.data.hsn || "",
+        gst: r.data.gst || "",
+      };
+    });
+    setBulkFormData(matchedFormData);
+
+    const individualPkg = parseFloat(firstRec.data.pkgAmount) || 0;
+    const totalPkgAmount = (individualPkg * matching.length).toFixed(2);
+    setCommonPkgAmount(individualPkg > 0 ? totalPkgAmount : "");
+    setCommonPkgGST(firstRec.data.pkgGst || "");
+
+    setCommonPOCopy(firstRec.data.poCopy || null);
+  };
+
   const gstRateFor = (gst: string) => {
     if (gst === "5%") return 0.05;
     if (gst === "12%") return 0.12;
@@ -445,6 +511,7 @@ export default function Stage5() {
     const nextPoNumber = `PO-${maxPoNum + 1}`;
 
     setBulkFormData(initialData);
+    setPoMode("create");
     setCommonPONumber(nextPoNumber);
     setCommonPOCopy(null);
     setCommonPkgAmount("");
@@ -505,7 +572,9 @@ export default function Stage5() {
         let finalFileUrl = "";
 
         // Upload shared PO Copy ONCE before processing all records, when provided.
-        if (commonPOCopy instanceof File) {
+        if (typeof commonPOCopy === "string") {
+          finalFileUrl = commonPOCopy;
+        } else if (commonPOCopy instanceof File) {
           const toBase64 = (file: File) => new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.readAsDataURL(file);
@@ -560,13 +629,13 @@ export default function Stage5() {
             const finalTotalWithTax = (basicVal + existingTax + perItemPkgTotal).toFixed(2);
 
             // Only update the required columns
-            rowArray[52] = timestamp;                              // BA: Current Date (Actual 4)
+            rowArray[52] = poMode === "revise" ? (record.data.actual4 || timestamp) : timestamp;                              // BA: Current Date (Actual 4)
             // BB (Index 53) - User requested skip
             rowArray[54] = commonPONumber;                         // BC: PO Number (shared)
             rowArray[55] = data.basicValue;                        // BD: Basic Value
             rowArray[56] = finalTotalWithTax;                      // BE: Total with Tax (incl. packaging)
             rowArray[57] = data.hsn;                               // BF: HSN
-            rowArray[58] = finalFileUrl;                           // BG: PO Copy URL (shared)
+            rowArray[58] = finalFileUrl || record.data.poCopy || ""; // BG: PO Copy URL (shared)
             rowArray[59] = data.gst || "";                         // BH: GST
             rowArray[70] = perItemPkgBase > 0 ? perItemPkgBase.toFixed(2) : ""; // BS: Pkg/Fwd Amount per item
             rowArray[71] = commonPkgGST || "";                     // BT: Pkg/Fwd GST%
@@ -938,6 +1007,7 @@ export default function Stage5() {
                     <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase">PO Details (Incl. HSN)</TableHead>
                     <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase">Financials (Incl. GST%)</TableHead>
                     <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase whitespace-nowrap">Total Amount</TableHead>
+                    <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase whitespace-nowrap">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1033,6 +1103,21 @@ export default function Stage5() {
                             ₹{poTotalMap.get(record.data.poNumber)?.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || "-"}
                           </div>
                         </TableCell>
+                        <TableCell className="bg-white/50 border-l">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setPoMode("revise");
+                              setOpen(true);
+                              handleRevisePONumberChange(record.data.poNumber);
+                            }}
+                            className="h-8 text-xs font-semibold px-2 bg-white border-slate-200 hover:bg-indigo-50 hover:text-indigo-750 transition-colors"
+                          >
+                            <FileEdit className="w-3.5 h-3.5 mr-1" />
+                            Revise
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -1051,8 +1136,26 @@ export default function Stage5() {
           </DialogHeader>
 
           <div className="grid grid-cols-2 border-b bg-white text-sm font-semibold text-slate-600">
-            <button type="button" className="h-11 bg-indigo-50 text-indigo-700">Create</button>
-            <button type="button" className="h-11">Revise</button>
+            <button
+              type="button"
+              onClick={() => {
+                setPoMode("create");
+                resetPOForm();
+              }}
+              className={`h-11 transition-colors ${poMode === "create" ? "bg-indigo-50 text-indigo-700 font-bold" : "hover:bg-slate-50"}`}
+            >
+              Create New PO
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPoMode("revise");
+                resetPOForm();
+              }}
+              className={`h-11 transition-colors ${poMode === "revise" ? "bg-indigo-50 text-indigo-700 font-bold" : "hover:bg-slate-50"}`}
+            >
+              Revise Existing PO
+            </button>
           </div>
 
           <form onSubmit={handleBulkSubmit} className="flex-1 overflow-y-auto">
@@ -1113,9 +1216,33 @@ export default function Stage5() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-1.5">
+                  {poMode === "revise" && (
+                    <div className="space-y-1.5 col-span-2 bg-indigo-50/50 p-3 border border-indigo-100 rounded-xl">
+                      <Label className="text-xs font-bold uppercase tracking-wide text-indigo-700">Select Existing PO Number</Label>
+                      <Select value={commonPONumber} onValueChange={handleRevisePONumberChange}>
+                        <SelectTrigger className="bg-white border-indigo-200 h-9"><SelectValue placeholder="Choose PO from history..." /></SelectTrigger>
+                        <SelectContent>
+                          {completedPONumbers.map((poNum) => (
+                            <SelectItem key={poNum} value={poNum}>{poNum}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  <div className={poMode === "revise" ? "space-y-1.5" : "space-y-1.5 col-span-2"}>
                     <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">PO Number</Label>
-                    <Input value={commonPONumber} onChange={(e) => setCommonPONumber(e.target.value)} placeholder="Divine/Store/26-27/21" required />
+                    <Input 
+                      value={commonPONumber} 
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCommonPONumber(val);
+                        if (completedPONumbers.includes(val)) {
+                          handleRevisePONumberChange(val);
+                        }
+                      }} 
+                      placeholder="Divine/Store/26-27/21" 
+                      required 
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">PO Date</Label>
@@ -1153,6 +1280,65 @@ export default function Stage5() {
                       onChange={(e) => setPoForm((prev) => ({ ...prev, remarks: e.target.value }))}
                       className="min-h-14 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     />
+                  </div>
+
+                  {/* PO Copy Upload */}
+                  <div className="space-y-1.5 md:col-span-2 bg-slate-50 p-4 border rounded-lg">
+                    <Label className="text-xs font-bold uppercase tracking-wide text-slate-700 block mb-1">PO Copy (PDF/Image)</Label>
+                    <div className="flex items-center gap-4">
+                      <Input
+                        type="file"
+                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                        onChange={(e) => handleCommonFileChange(e.target.files?.[0] || null)}
+                        className="bg-white max-w-sm h-9"
+                      />
+                      {commonPOCopy && (
+                        <div className="flex items-center gap-2 text-xs bg-white border px-3 py-1.5 rounded shadow-sm">
+                          <FileText className="w-4 h-4 text-indigo-500" />
+                          {commonPOCopy instanceof File ? (
+                            <span className="font-semibold text-slate-800">{commonPOCopy.name}</span>
+                          ) : (
+                            <a href={commonPOCopy} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-semibold flex items-center gap-1">
+                              <span>View Existing PO Copy</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
+                          <Button type="button" variant="ghost" size="icon" className="h-5 w-5 text-red-500 hover:text-red-750 hover:bg-slate-50" onClick={handleCommonFileRemove}>
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Packaging / Forwarding */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:col-span-2 bg-amber-50/50 p-4 border border-amber-100 rounded-lg">
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Pkg/Fwd Amount</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={commonPkgAmount}
+                        onChange={(e) => setCommonPkgAmount(e.target.value)}
+                        placeholder="0.00"
+                        className="bg-white"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Pkg/Fwd GST</Label>
+                      <Select value={commonPkgGST} onValueChange={setCommonPkgGST}>
+                        <SelectTrigger className="bg-white">
+                          <SelectValue placeholder="Select GST" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0%">0%</SelectItem>
+                          <SelectItem value="5%">5%</SelectItem>
+                          <SelectItem value="12%">12%</SelectItem>
+                          <SelectItem value="18%">18%</SelectItem>
+                          <SelectItem value="28%">28%</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </div>
               </section>
@@ -1315,12 +1501,12 @@ export default function Stage5() {
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Sending PO...
+                  {poMode === "revise" ? "Updating PO..." : "Sending PO..."}
                 </>
               ) : (
                 <>
                   <Send className="mr-2 h-4 w-4" />
-                  Send PO
+                  {poMode === "revise" ? "Update PO" : "Send PO"}
                 </>
               )}
             </Button>
@@ -1573,11 +1759,25 @@ export default function Stage5() {
                     {commonPOCopy && (
                       <div className="mt-2 p-2 bg-white border rounded flex items-center justify-between text-sm">
                         <div className="flex items-center gap-2">
-                          <FileText className="w-4 h-4" />
-                          <span>{commonPOCopy?.name}</span>
-                          <span className="text-gray-500">
-                            ({commonPOCopy ? (commonPOCopy.size / 1024).toFixed(1) : 0} KB)
-                          </span>
+                          <FileText className="w-4 h-4 text-slate-500" />
+                          {commonPOCopy instanceof File ? (
+                            <>
+                              <span className="font-medium text-slate-800">{commonPOCopy.name}</span>
+                              <span className="text-xs text-gray-500">
+                                ({(commonPOCopy.size / 1024).toFixed(1)} KB)
+                              </span>
+                            </>
+                          ) : (
+                            <a
+                              href={commonPOCopy}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-medium text-blue-600 hover:underline flex items-center gap-1"
+                            >
+                              <span>Existing PO Copy Link</span>
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          )}
                         </div>
                         <button
                           type="button"

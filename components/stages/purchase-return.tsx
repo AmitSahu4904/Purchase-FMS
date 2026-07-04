@@ -440,7 +440,7 @@ export default function Stage12() {
                     <CornerUpLeft className="w-6 h-6" />
                   </div>
                   <div>
-                    <span>Stage 11: Purchase Return</span>
+                    <span>Stage 10: Purchase Return</span>
                     <p className="text-slate-500 text-sm font-normal mt-0.5">Process and track returns for rejected QC items</p>
                   </div>
                 </h1>

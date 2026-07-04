@@ -227,16 +227,39 @@ export default function FollowUpLifting() {
   } | null>(null);
   const [unifiedLiftingQtys, setUnifiedLiftingQtys] = useState<Record<string, string>>({});
   const [processMode, setProcessMode] = useState<"follow-up" | "lift-material">("follow-up");
+  const [commonBillCopy, setCommonBillCopy] = useState<File | string | null>(null);
+
+  const handleCommonBillFileChange = (file: File | null) => {
+    setCommonBillCopy(file);
+  };
+  const handleCommonBillFileRemove = () => {
+    setCommonBillCopy(null);
+  };
+
+  const handleRemoveIndentFromLift = (recordId: string) => {
+    const updatedIds = selectedRecordIds.filter(id => id !== recordId);
+    if (updatedIds.length === 0) {
+      resetBulk();
+      return;
+    }
+    setSelectedRecordIds(updatedIds);
+    setBulkFormData(prev => prev.filter(item => item.recordId !== recordId));
+    setUnifiedLiftingQtys(prev => {
+      const copy = { ...prev };
+      delete copy[recordId];
+      return copy;
+    });
+  };
 
   const baseColumns = [
     { key: "indentNumber", label: "Indent No.", icon: null },
     { key: "itemName", label: "Item", icon: null },
     { key: "quantity", label: "Qty", icon: null },
-    { key: "planned5", label: "Planned", icon: null },
+    { key: "lastFollowUpDate", label: "Last Follow Up Date", icon: null },
     { key: "totalLifted", label: "Total Dispatch Qty", icon: null },
     { key: "pendingLifted", label: "Pending Dispatch Qty", icon: null },
-    { key: "estimatedDate", label: "Estimated Date", icon: null },
-    { key: "remarksFollowUp", label: "Remark", icon: null },
+    { key: "estimatedDate", label: "Next Follow Up Date", icon: null },
+    { key: "remarksFollowUp", label: "Last Follow Up Remark", icon: null },
   ];
 
   const [selectedColumns, setSelectedColumns] = useState<string[]>(
@@ -316,6 +339,18 @@ export default function FollowUpLifting() {
       }
       const completedIndentIds = new Set<string>();
 
+      // Build a map of total lifted quantity per indent from receiving accounts history
+      const liftingQtyMap = new Map<string, number>();
+      if (jsonReceiving.success && Array.isArray(jsonReceiving.data)) {
+        jsonReceiving.data.slice(6).forEach((row: any) => {
+          if (row && row[1]) {
+            const indentNum = String(row[1]).trim();
+            const liftQty = parseFloat(String(row[8] || "0").replace(/,/g, "")) || 0;
+            liftingQtyMap.set(indentNum, (liftingQtyMap.get(indentNum) || 0) + liftQty);
+          }
+        });
+      }
+
       if (jsonFMS.success && Array.isArray(jsonFMS.data)) {
         const rows = jsonFMS.data.slice(6)
           .map((row: any, i: number) => ({ row, originalIndex: i + 7 }))
@@ -371,6 +406,9 @@ export default function FollowUpLifting() {
                 finalVendorName: row[48],
                 estimatedDate: row[76],
                 remarksFollowUp: row[77],
+                lastFollowUpDate: row[78],
+                totalLifted: (liftingQtyMap.get(String(indentId).trim()) || 0).toString(),
+                pendingLifted: Math.max(0, (parseFloat(String(row[14] || "0").replace(/,/g, "")) || 0) - (liftingQtyMap.get(String(indentId).trim()) || 0)).toString(),
                 liftingData: {
                   liftNumber: `LIFT-${originalIndex}`,
                   liftingQty: row[64],
@@ -405,7 +443,7 @@ export default function FollowUpLifting() {
     if (!record) return { name: "", poNumber: "" };
     const sel = String(record.data.selectedVendor || "").trim();
     const po = record.data.vendor1PoNumber || record.data.vendor2PoNumber || record.data.vendor3PoNumber || "-";
-    
+
     // Resolve vendor name by checking finalVendorName first, then falls back to vendor indices
     let name = String(record.data.finalVendorName || "").trim();
     if (!name || name === "-") {
@@ -417,7 +455,7 @@ export default function FollowUpLifting() {
         name = record.data.vendor3Name || "";
       }
     }
-    
+
     return { name: name || "-", poNumber: po };
   };
 
@@ -525,7 +563,10 @@ export default function FollowUpLifting() {
         setIsUnifiedMode(true);
         setCommonVendorPO({ vendor: matchResult.vendor, poNumber: matchResult.poNumber });
       } else {
-        setIsUnifiedMode(false);
+        const record = sheetRecords.find(r => r.id === selectedRecordIds[0]);
+        const vInfo = getVendorData(record);
+        setIsUnifiedMode(true);
+        setCommonVendorPO({ vendor: vInfo.name, poNumber: vInfo.poNumber });
       }
 
       setVendorPOMismatchError(null);
@@ -538,9 +579,7 @@ export default function FollowUpLifting() {
 
       const qtys: Record<string, string> = {};
       selectedRecordIds.forEach(id => {
-        const record = sheetRecords.find(r => r.id === id);
-        const existLift = record?.data.liftingData || {};
-        qtys[id] = existLift.liftingQty || String(record?.data.quantity || 0);
+        qtys[id] = "";
       });
       setUnifiedLiftingQtys(qtys);
 
@@ -550,7 +589,10 @@ export default function FollowUpLifting() {
         return {
           ...item,
           status: "lift-material",
-          liftingData: defaultLiftingData(existLift, String(record.data.quantity || 0)),
+          liftingData: {
+            ...defaultLiftingData(existLift, ""),
+            liftingQty: ""
+          },
         };
       }));
     }
@@ -597,6 +639,44 @@ export default function FollowUpLifting() {
         fileToUpload = unifiedFormData.liftingData.biltyCopy;
       } else if (!isUnifiedMode && bulkFormData.length === 1 && bulkFormData[0].status === "lift-material" && bulkFormData[0].liftingData.biltyCopy instanceof File) {
         fileToUpload = bulkFormData[0].liftingData.biltyCopy;
+      }
+
+      let commonBillFileUrl = "";
+      let billToUpload: File | null = null;
+      if (commonBillCopy instanceof File) {
+        billToUpload = commonBillCopy;
+      }
+
+      if (billToUpload) {
+        try {
+          const fileBase64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve((reader.result as string).split(",")[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(billToUpload!);
+          });
+
+          const uploadParams = new URLSearchParams();
+          uploadParams.append("action", "uploadFile");
+          uploadParams.append("base64Data", fileBase64);
+          uploadParams.append("fileName", billToUpload!.name);
+          uploadParams.append("mimeType", billToUpload!.type);
+          const folderId = process.env.NEXT_PUBLIC_IMAGE_FOLDER_ID || "1SihRrPrgbuPGm-09fuB180QJhdxq5Nxy";
+          uploadParams.append("folderId", folderId);
+
+          const uploadRes = await fetch(API_URL, {
+            method: "POST",
+            body: uploadParams,
+          });
+          const uploadResult = await uploadRes.json();
+          if (uploadResult.success) {
+            commonBillFileUrl = uploadResult.fileUrl;
+          } else {
+            toast.warning(`Bill image upload failed, proceeding without it.`);
+          }
+        } catch (e) {
+          console.error("Bill upload error", e);
+        }
       }
 
       if (fileToUpload) {
@@ -673,8 +753,14 @@ export default function FollowUpLifting() {
         const paymentDateFormatted = toYMD(lift.paymentDate || "");
         const expectedDeliveryDateFormatted = toYMD(lift.expectedDeliveryDate || "");
 
+        const totalQty = parseFloat(String(sheetRecord.data.quantity || 0).replace(/,/g, "")) || 0;
+        const totalLiftedQtyBefore = parseFloat(String(sheetRecord.data.totalLifted || 0).replace(/,/g, "")) || 0;
+        const currentLiftQty = parseFloat(String(lift.liftingQty || 0)) || 0;
+        const totalLiftedQtyAfter = totalLiftedQtyBefore + currentLiftQty;
+        const pendingQtyAfter = Math.max(0, totalQty - totalLiftedQtyAfter);
+
         if (record.status === "lift-material") {
-          const receivingAccountRow = new Array(76).fill("");
+          const receivingAccountRow = new Array(92).fill("");
 
           receivingAccountRow[0] = currentTimestamp;                            // 0/A: Timestamp
           receivingAccountRow[1] = sheetRecord.data.indentNumber || "";         // 1/B: Indent Number
@@ -702,9 +788,26 @@ export default function FollowUpLifting() {
           receivingAccountRow[22] = lift.transportRateType || "";               // 22/W: Type of Transporting Rate
           receivingAccountRow[23] = lift.billDate ? toYMD(lift.billDate) : "";  // 23/X: Bill Date
           receivingAccountRow[24] = lift.billNo || "";                          // 24/Y: Bill No
+          receivingAccountRow[29] = commonBillFileUrl || (typeof commonBillCopy === "string" ? commonBillCopy : ""); // AD: Bill Image
           receivingAccountRow[30] = lift.hasBilty || "No";                      // 30/AE: Has Bilty (Yes/No)
-
           receivingAccountRow[34] = expectedDeliveryDateFormatted;              // 34/AI: Expected Delivery Date
+
+          receivingAccountRow[88] = expectedDeliveryDateFormatted;              // 88/CK: Transporter Follow-Up Planned Date
+
+          rowsToInsert.push(receivingAccountRow);
+        } else if (record.status === "follow-up") {
+          const receivingAccountRow = new Array(92).fill("");
+
+          receivingAccountRow[0] = currentTimestamp;                            // 0/A: Timestamp
+          receivingAccountRow[1] = sheetRecord.data.indentNumber || "";         // 1/B: Indent Number
+          receivingAccountRow[2] = "FOLLOW-UP";                                 // 2/C: Unit Tracking No.
+          receivingAccountRow[3] = v.name || "";                                // 3/D: Vendor Name
+          receivingAccountRow[4] = v.poNumber || "";                            // 4/E: PO Number
+          receivingAccountRow[5] = followUpDateFormatted;                       // 5/F: Next Flw-Up Date (YYYY-MM-DD)
+          receivingAccountRow[6] = record.remarks || "";                        // 6/G: Remarks
+          receivingAccountRow[7] = sheetRecord.data.itemName || "";             // 7/H: Item Name
+          receivingAccountRow[8] = "";                                          // 8/I: Lifting Qty
+          receivingAccountRow[30] = "No";                                       // 30/AE: Has Bilty (No)
 
           rowsToInsert.push(receivingAccountRow);
         }
@@ -714,15 +817,23 @@ export default function FollowUpLifting() {
           continue;
         }
 
-        const fmsRow = new Array(78).fill("");
+        const fmsRow = new Array(80).fill("");
 
         if (record.status === "lift-material") {
           fmsRow[61] = timestamp; // BJ: Actual Date
+          if (pendingQtyAfter === 0) {
+            fmsRow[67] = "Complete"; // BP: Status becomes Complete
+          } else {
+            fmsRow[67] = "Pending";  // BP: Status remains Pending
+          }
         } else if (record.status === "follow-up") {
           fmsRow[76] = followUpDateFormatted; // BY
           fmsRow[77] = record.remarks || "";  // BZ
+          fmsRow[78] = timestamp.split(" ")[0]; // CA: Last Follow Up Date
+          fmsRow[67] = "Pending";  // BP: Status remains Pending
         } else {
           fmsRow[61] = timestamp;
+          fmsRow[67] = "Pending";
         }
 
         updatesToFMS.push({
@@ -775,6 +886,7 @@ export default function FollowUpLifting() {
     setVendorPOMismatchError(null);
     setUnifiedFormData(null);
     setUnifiedLiftingQtys({});
+    setCommonBillCopy(null);
   };
 
   const toggleSelect = (id: string) => {
@@ -805,9 +917,13 @@ export default function FollowUpLifting() {
       if (!unifiedFormData.status) return false;
       if (unifiedFormData.status === "lift-material") {
         const e = unifiedFormData.liftingData;
-        const allQtysFilled = selectedRecordIds.every(id => {
-          const val = unifiedLiftingQtys[id];
-          return val !== undefined && val !== null && String(val).trim() !== "";
+        const allQtysValid = selectedRecordIds.every(id => {
+          const val = parseFloat(unifiedLiftingQtys[id]) || 0;
+          const record = sheetRecords.find(r => r.id === id);
+          const totalQty = parseFloat(String(record?.data.quantity || 0)) || 0;
+          const totalLiftedQty = parseFloat(String(record?.data.totalLifted || 0)) || 0;
+          const pendingQty = Math.max(0, totalQty - totalLiftedQty);
+          return val > 0 && val <= pendingQty;
         });
 
         return !!(
@@ -816,10 +932,11 @@ export default function FollowUpLifting() {
           e.contactNumber &&
           e.billNo &&
           e.billDate &&
+          e.expectedDeliveryDate &&
           e.areaLifting &&
           e.freightAmount &&
           (e.hasBilty === "No" || (e.hasBilty === "Yes" && e.biltyNumber && e.biltyCopy)) &&
-          allQtysFilled
+          allQtysValid
         );
       }
       return false;
@@ -863,7 +980,7 @@ export default function FollowUpLifting() {
             .filter((c) => selectedColumns.includes(c.key))
             .map((col) => {
               const val = record.data[col.key];
-              if (col.key === "planned5" || col.key === "estimatedDate") {
+              if (col.key === "lastFollowUpDate" || col.key === "estimatedDate") {
                 return formatDateDash(val);
               }
               return val || "-";
@@ -907,7 +1024,7 @@ export default function FollowUpLifting() {
           r.data.indentNumber?.toLowerCase().includes(term) ||
           r.data.itemName?.toLowerCase().includes(term) ||
           r.data.quantity?.toString().includes(term) ||
-          r.data.planned5?.toLowerCase().includes(term) ||
+          r.data.lastFollowUpDate?.toLowerCase().includes(term) ||
           v.name?.toLowerCase().includes(term) ||
           v.poNumber?.toLowerCase().includes(term)
         );
@@ -938,21 +1055,25 @@ export default function FollowUpLifting() {
     if (isUnifiedMode) {
       return (
         <div className="bg-gradient-to-r from-slate-50 to-slate-100/50 border border-slate-200 rounded-xl p-5 mb-6 shadow-sm shrink-0">
-          <h4 className="font-bold text-slate-900 text-xs mb-3 flex items-center gap-2">
-            <span className="p-1.5 bg-slate-900 text-white rounded text-[10px] font-bold">Selected Items</span>
-            <span>Batch Details ({bulkFormData.length} Indents)</span>
-          </h4>
-          <div className="flex flex-wrap gap-2 mb-4">
-            {bulkFormData.map((item) => {
-              const record = sheetRecords.find((r) => r.id === item.recordId);
-              return (
-                <Badge key={item.recordId} variant="secondary" className="bg-white border-slate-200 px-3 py-1 font-semibold text-slate-700 text-xs">
-                  {record?.data.indentNumber} - {record?.data.itemName} (Qty: {record?.data.quantity})
-                </Badge>
-              );
-            })}
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs pt-3 border-t border-slate-200/60">
+          {processMode === "follow-up" && (
+            <>
+              <h4 className="font-bold text-slate-900 text-xs mb-3 flex items-center gap-2">
+                <span className="p-1.5 bg-slate-900 text-white rounded text-[10px] font-bold">Selected Items</span>
+                <span>Batch Details ({bulkFormData.length} Indents)</span>
+              </h4>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {bulkFormData.map((item) => {
+                  const record = sheetRecords.find((r) => r.id === item.recordId);
+                  return (
+                    <Badge key={item.recordId} variant="secondary" className="bg-white border-slate-200 px-3 py-1 font-semibold text-slate-700 text-xs">
+                      {record?.data.indentNumber} - {record?.data.itemName} (Qty: {record?.data.quantity})
+                    </Badge>
+                  );
+                })}
+              </div>
+            </>
+          )}
+          <div className={cn("grid grid-cols-2 md:grid-cols-4 gap-4 text-xs", processMode === "follow-up" && "pt-3 border-t border-slate-200/60")}>
             <div>
               <span className="block text-[10px] uppercase font-bold text-slate-400">Vendor</span>
               <span className="font-semibold text-slate-800">
@@ -961,7 +1082,7 @@ export default function FollowUpLifting() {
             </div>
             <div>
               <span className="block text-[10px] uppercase font-bold text-slate-400">PO Number</span>
-              <span className="font-semibold text-slate-800">
+              <span className="font-semibold text-slate-800 font-mono">
                 {commonVendorPO?.poNumber || getVendorData(sheetRecords.find(r => r.id === bulkFormData[0]?.recordId)).poNumber}
               </span>
             </div>
@@ -999,16 +1120,16 @@ export default function FollowUpLifting() {
   };
 
   return (
-    <div className="p-4 md:p-6 md:h-[calc(100vh-2rem)] flex flex-col md:overflow-hidden min-h-screen md:min-h-0 bg-[#f8fafc]">
-      {/* Header */}
-      <div className="mb-4 md:mb-6 p-4 md:p-6 bg-gradient-to-br from-slate-50 to-white border border-slate-200 rounded-xl shadow-sm shrink-0">
+    <div className="p-6 h-[calc(100vh-4.5rem)] flex flex-col overflow-hidden">
+      {/* Header Card */}
+      <div className="mb-6 p-6 bg-gradient-to-br from-slate-50 to-white border border-slate-200 rounded-xl shadow-sm shrink-0">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-slate-900 rounded-lg shadow-slate-100 shadow-xl text-white">
               <Phone className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage 7: Follow UP / Lifting</h2>
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage 7: Follow UP & Lifting</h2>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -1159,7 +1280,7 @@ export default function FollowUpLifting() {
                             .filter((c) => selectedColumns.includes(c.key))
                             .map((col) => (
                               <TableCell key={col.key} className={cn((col.key === "totalLifted" || col.key === "pendingLifted") && "text-center")}>
-                                {col.key === "planned5" || col.key === "estimatedDate"
+                                {col.key === "lastFollowUpDate" || col.key === "estimatedDate"
                                   ? formatDateDash(record.data[col.key])
                                   : record.data[col.key] || "-"}
                               </TableCell>
@@ -1383,9 +1504,112 @@ export default function FollowUpLifting() {
                       </Button>
                     </DialogFooter>
                   </form>
-                ) : isUnifiedMode && unifiedFormData ? (
-                  /* Unified Material Lifting Form (Multiple Items with Matching Vendor/PO) */
+                ) : unifiedFormData ? (
+                  /* Unified Material Lifting Form */
                   <form onSubmit={handleBulkSubmit} className="space-y-6">
+                    {/* Products To Lift Table */}
+                    <div className="border border-slate-200 rounded-2xl p-6 bg-slate-50/30 shadow-sm space-y-4">
+                      <div className="flex justify-between items-center">
+                        <h4 className="font-semibold text-xs text-green-800 uppercase tracking-wider">Products To Lift</h4>
+                        <span className="text-xs text-slate-500">
+                          Edit quantities per product. Removed products will not be included in this lift.
+                        </span>
+                      </div>
+
+                      <div className="border rounded-xl overflow-hidden bg-white shadow-sm">
+                        <Table className="text-xs">
+                          <TableHeader className="bg-slate-50">
+                            <TableRow>
+                              <TableHead className="font-bold text-slate-700">INDENT NO.</TableHead>
+                              <TableHead className="font-bold text-slate-700">INDENT NAME</TableHead>
+                              <TableHead className="text-center font-bold text-slate-700">TOTAL QTY</TableHead>
+                              <TableHead className="text-center font-bold text-slate-700">LIFTED QTY</TableHead>
+                              <TableHead className="text-center font-bold text-slate-700">PENDING QTY</TableHead>
+                              <TableHead className="text-center font-bold text-slate-700 w-32">LIFT QTY</TableHead>
+                              <TableHead className="text-center font-bold text-slate-700 w-20">REMOVE</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {bulkFormData.map((item) => {
+                              const record = sheetRecords.find((r) => r.id === item.recordId);
+                              if (!record) return null;
+
+                              const totalQty = parseFloat(String(record.data.quantity || 0).replace(/,/g, "")) || 0;
+                              const totalLiftedQty = parseFloat(String(record.data.totalLifted || 0).replace(/,/g, "")) || 0;
+                              const pendingQty = Math.max(0, totalQty - totalLiftedQty);
+                              const liftQtyVal = unifiedLiftingQtys[item.recordId] || "";
+
+                              return (
+                                <TableRow key={item.recordId} className="hover:bg-slate-50/50">
+                                  <TableCell className="font-mono font-semibold text-slate-800">{record.data.indentNumber}</TableCell>
+                                  <TableCell className="font-medium text-slate-700">{record.data.itemName}</TableCell>
+                                  <TableCell className="text-center font-semibold text-slate-800">{totalQty}</TableCell>
+                                  <TableCell className="text-center text-slate-500">{totalLiftedQty}</TableCell>
+                                  <TableCell className="text-center font-semibold text-amber-600">{pendingQty}</TableCell>
+                                  <TableCell className="text-center">
+                                    <Input
+                                      type="number"
+                                      step="any"
+                                      min="0"
+                                      max={pendingQty}
+                                      value={liftQtyVal}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        const numVal = parseFloat(val) || 0;
+                                        let finalVal = val;
+                                        if (val !== "") {
+                                          if (numVal > pendingQty) {
+                                            finalVal = pendingQty.toString();
+                                          } else if (numVal < 0) {
+                                            finalVal = "0";
+                                          }
+                                        }
+
+                                        // Update bulkFormData
+                                        setBulkFormData((prev) => {
+                                          return prev.map((bf) => {
+                                            if (bf.recordId === item.recordId) {
+                                              return {
+                                                ...bf,
+                                                liftingData: {
+                                                  ...bf.liftingData,
+                                                  liftingQty: finalVal,
+                                                },
+                                              };
+                                            }
+                                            return bf;
+                                          });
+                                        });
+
+                                        // Update unifiedLiftingQtys
+                                        setUnifiedLiftingQtys((prev) => ({
+                                          ...prev,
+                                          [item.recordId]: finalVal,
+                                        }));
+                                      }}
+                                      className="w-24 mx-auto bg-white border-slate-200 h-8 text-center text-xs"
+                                      required
+                                    />
+                                  </TableCell>
+                                  <TableCell className="text-center">
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => handleRemoveIndentFromLift(item.recordId)}
+                                      className="h-7 w-7 text-red-500 hover:text-red-750 hover:bg-red-50"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+
                     <div className="border border-slate-200 rounded-2xl p-6 bg-slate-50/30 shadow-sm space-y-6">
                       <h4 className="font-semibold text-xs text-green-800 uppercase tracking-wider">Lifting Dispatch details</h4>
 
@@ -1483,6 +1707,21 @@ export default function FollowUpLifting() {
                           />
                         </div>
                         <div className="space-y-1.5">
+                          <Label className="text-xs font-semibold uppercase tracking-wider text-slate-650">EXPECTED DELIVERY DATE *</Label>
+                          <Input
+                            type="date"
+                            className="bg-white border-green-200 h-10 shadow-sm w-full"
+                            value={unifiedFormData.liftingData.expectedDeliveryDate || ""}
+                            onChange={(e) =>
+                              setUnifiedFormData((prev) => prev ? {
+                                ...prev,
+                                liftingData: { ...prev.liftingData, expectedDeliveryDate: e.target.value }
+                              } : null)
+                            }
+                            required
+                          />
+                        </div>
+                        <div className="space-y-1.5">
                           <Label className="text-xs font-semibold uppercase tracking-wider text-slate-650">TYPE OF TRANSPORTING RATE *</Label>
                           <Input
                             className="bg-white border-green-200 h-10 shadow-sm w-full"
@@ -1555,7 +1794,7 @@ export default function FollowUpLifting() {
                             <Label className="text-xs font-semibold uppercase tracking-wider text-slate-650">BILTY IMAGE *</Label>
                             <input
                               type="file"
-                              accept=".pdf,.jpg,.png"
+                              accept=".pdf,.jpg,.jpeg,.png"
                               onChange={(e) =>
                                 setUnifiedFormData((prev) => prev ? {
                                   ...prev,
@@ -1571,43 +1810,34 @@ export default function FollowUpLifting() {
                             >
                               <span className="truncate">
                                 {unifiedFormData.liftingData.biltyCopy
-                                  ? unifiedFormData.liftingData.biltyCopy.name
+                                  ? (unifiedFormData.liftingData.biltyCopy instanceof File ? unifiedFormData.liftingData.biltyCopy.name : "View Bilty Image")
                                   : "Choose Bilty Image..."}
                               </span>
                               <Upload className="w-4 h-4 text-slate-400 shrink-0" />
                             </label>
                           </div>
                         )}
-                      </div>
 
-                      <div className="space-y-3 pt-4 border-t border-slate-200">
-                        <h5 className="font-semibold text-xs text-slate-500 uppercase tracking-wider">Per-Indent Quantities</h5>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                          {bulkFormData.map((item) => {
-                            const record = sheetRecords.find(r => r.id === item.recordId);
-                            return (
-                              <div key={item.recordId} className="flex flex-col gap-2 p-3 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-slate-300 transition-colors">
-                                <div className="flex justify-between items-center text-xs">
-                                  <span className="font-bold text-slate-800">{record?.data.indentNumber}</span>
-                                  <span className="text-slate-400 truncate max-w-[120px] font-medium" title={record?.data.itemName}>
-                                    {record?.data.itemName}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Label className="text-xs text-slate-500 whitespace-nowrap">Lifting Qty *</Label>
-                                  <Input
-                                    type="number"
-                                    min="0.01"
-                                    step="0.01"
-                                    className="h-8 text-xs bg-white border-slate-200 shadow-sm"
-                                    value={unifiedLiftingQtys[item.recordId] || ""}
-                                    onChange={(e) => handleUnifiedQtyChange(item.recordId, e.target.value)}
-                                    required
-                                  />
-                                </div>
-                              </div>
-                            );
-                          })}
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-semibold uppercase tracking-wider text-slate-650">BILL IMAGE</Label>
+                          <input
+                            type="file"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            onChange={(e) => handleCommonBillFileChange(e.target.files?.[0] || null)}
+                            className="hidden"
+                            id="unified-bill-file"
+                          />
+                          <label
+                            htmlFor="unified-bill-file"
+                            className="flex h-10 items-center justify-between w-full border border-green-200 rounded-lg cursor-pointer bg-white px-3 hover:bg-slate-50 transition-colors shadow-sm text-xs font-medium text-slate-700"
+                          >
+                            <span className="truncate">
+                              {commonBillCopy
+                                ? (commonBillCopy instanceof File ? commonBillCopy.name : "View Uploaded Bill")
+                                : "Choose Bill Image..."}
+                            </span>
+                            <Upload className="w-4 h-4 text-slate-400 shrink-0" />
+                          </label>
                         </div>
                       </div>
 
@@ -1636,173 +1866,7 @@ export default function FollowUpLifting() {
                       </Button>
                     </DialogFooter>
                   </form>
-                ) : (
-                  /* Original Individual Forms for Single Item (Mode = Material Lifting) */
-                  <form onSubmit={handleBulkSubmit} className="space-y-6">
-                    {bulkFormData.map((item, recordIdx) => {
-                      return (
-                        <div key={item.recordId} className="border border-slate-200 rounded-2xl p-6 bg-slate-50/30 shadow-sm space-y-6">
-                          <h4 className="font-semibold text-xs text-green-800 uppercase tracking-wider">Lifting Dispatch details</h4>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                            <div className="space-y-1.5">
-                              <Label className="text-xs font-semibold uppercase tracking-wider text-slate-650">Lifting Qty *</Label>
-                              <Input
-                                type="number"
-                                className="bg-white border-green-200 h-10 shadow-sm w-full"
-                                value={item.liftingData.liftingQty}
-                                onChange={(e) => updateLiftingEntry(recordIdx, "liftingQty", e.target.value)}
-                                required
-                              />
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label className="text-xs font-semibold uppercase tracking-wider text-slate-650">Transporter *</Label>
-                              <TransporterCombobox
-                                value={item.liftingData.transporterName}
-                                onChange={(val) => updateLiftingEntry(recordIdx, "transporterName", val)}
-                                options={transporterList}
-                              />
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label className="text-xs font-semibold uppercase tracking-wider text-slate-650">Vehicle No *</Label>
-                              <Input
-                                className="bg-white border-green-200 h-10 shadow-sm uppercase w-full"
-                                value={item.liftingData.vehicleNumber}
-                                onChange={(e) => updateLiftingEntry(recordIdx, "vehicleNumber", e.target.value.toUpperCase())}
-                                required
-                              />
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label className="text-xs font-semibold uppercase tracking-wider text-slate-650">Contact No *</Label>
-                              <Input
-                                className="bg-white border-green-200 h-10 shadow-sm w-full"
-                                value={item.liftingData.contactNumber}
-                                onChange={(e) => updateLiftingEntry(recordIdx, "contactNumber", e.target.value)}
-                                required
-                                placeholder="Driver contact info"
-                              />
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label className="text-xs font-semibold uppercase tracking-wider text-slate-650">AREA LIFTING *</Label>
-                              <Select
-                                value={item.liftingData.areaLifting || ""}
-                                onValueChange={(val) => updateLiftingEntry(recordIdx, "areaLifting", val)}
-                              >
-                                <SelectTrigger className="bg-white border-green-200 h-10 shadow-sm w-full">
-                                  <SelectValue placeholder="Select area..." />
-                                </SelectTrigger>
-                                <SelectContent className="bg-white border">
-                                  {areaList.map(area => (
-                                    <SelectItem key={area} value={area}>{area}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label className="text-xs font-semibold uppercase tracking-wider text-slate-650">TYPE OF TRANSPORTING RATE *</Label>
-                              <Input
-                                className="bg-white border-green-200 h-10 shadow-sm w-full"
-                                value={item.liftingData.transportRateType || ""}
-                                onChange={(e) => updateLiftingEntry(recordIdx, "transportRateType", e.target.value)}
-                                required
-                              />
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label className="text-xs font-semibold uppercase tracking-wider text-slate-650">BILL NO. *</Label>
-                              <Input
-                                className="bg-white border-green-200 h-10 shadow-sm w-full"
-                                value={item.liftingData.billNo || ""}
-                                onChange={(e) => updateLiftingEntry(recordIdx, "billNo", e.target.value)}
-                                required
-                              />
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label className="text-xs font-semibold uppercase tracking-wider text-slate-650">BILL DATE *</Label>
-                              <Input
-                                type="date"
-                                className="bg-white border-green-200 h-10 shadow-sm w-full"
-                                value={item.liftingData.billDate || ""}
-                                onChange={(e) => updateLiftingEntry(recordIdx, "billDate", e.target.value)}
-                                required
-                              />
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label className="text-xs font-semibold uppercase tracking-wider text-slate-650">TOTAL TRANSPORTING AMOUNT *</Label>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                className="bg-white border-green-200 h-10 shadow-sm w-full"
-                                value={item.liftingData.freightAmount}
-                                onChange={(e) => updateLiftingEntry(recordIdx, "freightAmount", e.target.value)}
-                                required
-                              />
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label className="text-xs font-semibold uppercase tracking-wider text-slate-650">BILTY *</Label>
-                              <Select
-                                value={item.liftingData.hasBilty || "No"}
-                                onValueChange={(val) => updateLiftingEntry(recordIdx, "hasBilty", val)}
-                              >
-                                <SelectTrigger className="bg-white border-green-200 h-10 shadow-sm w-full">
-                                  <SelectValue placeholder="Bilty Status" />
-                                </SelectTrigger>
-                                <SelectContent className="bg-white border">
-                                  <SelectItem value="Yes">Yes</SelectItem>
-                                  <SelectItem value="No">No</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-
-                            {item.liftingData.hasBilty === "Yes" && (
-                              <div className="space-y-1.5">
-                                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-650">BILTY NUMBER *</Label>
-                                <Input
-                                  className="bg-white border-green-200 h-10 shadow-sm w-full"
-                                  value={item.liftingData.biltyNumber || ""}
-                                  onChange={(e) => updateLiftingEntry(recordIdx, "biltyNumber", e.target.value)}
-                                  required
-                                />
-                              </div>
-                            )}
-
-                            {item.liftingData.hasBilty === "Yes" && (
-                              <div className="space-y-1.5">
-                                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-650">BILTY IMAGE *</Label>
-                                <input
-                                  type="file"
-                                  accept=".pdf,.jpg,.png"
-                                  onChange={(e) => updateLiftingEntry(recordIdx, "biltyCopy", e.target.files?.[0] || null)}
-                                  className="hidden"
-                                  id={`file-${recordIdx}`}
-                                />
-                                <label
-                                  htmlFor={`file-${recordIdx}`}
-                                  className="flex h-10 items-center justify-between w-full border border-green-200 rounded-lg cursor-pointer bg-white px-3 hover:bg-slate-50 transition-colors shadow-sm text-xs font-medium text-slate-700 animate-in fade-in zoom-in-95 duration-255"
-                                >
-                                  <span className="truncate">
-                                    {item.liftingData.biltyCopy
-                                      ? item.liftingData.biltyCopy.name
-                                      : "Choose Bilty Image..."}
-                                  </span>
-                                  <Upload className="w-4 h-4 text-slate-400 shrink-0" />
-                                </label>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    <DialogFooter className="pt-6 border-t mt-6 bg-white gap-2">
-                      <Button type="button" variant="outline" onClick={resetBulk} disabled={isSubmitting} className="h-10 px-5 rounded-lg border-slate-200">
-                        Cancel
-                      </Button>
-                      <Button type="submit" disabled={isSubmitting || !isBulkValid} className="h-10 bg-slate-950 text-white hover:bg-slate-800 font-semibold px-6 shadow-sm rounded-lg">
-                        {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : "Dispatch Material"}
-                      </Button>
-                    </DialogFooter>
-                  </form>
-                )}
+                ) : null}
               </>
             )}
           </div>

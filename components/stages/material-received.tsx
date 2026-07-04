@@ -410,6 +410,9 @@ export default function Stage7() {
 
             // Parallelize processing of all bulk items
             await Promise.all(bulkItems.map(async (item) => {
+                const rec = recordMap.get(item.recordId);
+                if (!rec) return;
+
                 // For each item, upload its specific image and handle QR concurrently
                 const itemImgUrl = item.receivedItemImage
                     ? await uploadFileToDrive(item.receivedItemImage, SHEET_API_URL, folderId)
@@ -446,6 +449,30 @@ export default function Stage7() {
                 rowArray[116] = item.damagedQty || "";   // DM
                 rowArray[117] = item.damageReason || ""; // DN
                 rowArray[118] = damageImageUrl;          // DO
+
+                const isDamaged = item.damageReceived === "yes";
+                if (isDamaged) {
+                    // Insert a row in Material-Testing
+                    const mtRow = new Array(24).fill("");
+                    mtRow[0] = timestamp;                                               // A: Timestamp
+                    mtRow[1] = rec.data.indentNumber || "";                             // B: Indent Number
+                    mtRow[2] = rec.data.liftNo || "";                                   // C: Unit Tracking No.
+                    mtRow[8] = "-";                                                     // I: Serial-No
+                    mtRow[9] = damageImageUrl;                                          // J: Image (serialPhoto)
+                    mtRow[11] = rec.data.itemName || "";                                // L: Part Name
+                    mtRow[12] = item.damagedQty || "";                                  // M: Reject Qty
+                    mtRow[13] = item.damageReason || "";                                // N: Remarks
+                    mtRow[14] = timestamp;                                              // O: Planned7
+
+                    const mtParams = new URLSearchParams();
+                    mtParams.append("action", "insert");
+                    mtParams.append("sheetName", "Material-Testing");
+                    mtParams.append("rowData", JSON.stringify(mtRow));
+
+                    await fetch(SHEET_API_URL, { method: "POST", body: mtParams });
+                } else {
+                    rowArray[35] = timestamp; // AJ: Planned8 (Billing)
+                }
 
                 const params = new URLSearchParams();
                 params.append("action", "update");
@@ -558,6 +585,30 @@ export default function Stage7() {
             rowArray[116] = form.damagedQty || "";  // DM
             rowArray[117] = form.damageReason || ""; // DN
             rowArray[118] = damageImageUrl;          // DO
+
+            const isDamaged = form.damageReceived === "yes";
+            if (isDamaged) {
+                // Insert a row in Material-Testing
+                const mtRow = new Array(24).fill("");
+                mtRow[0] = timestamp;                                               // A: Timestamp
+                mtRow[1] = rec.data.indentNumber || "";                             // B: Indent Number
+                mtRow[2] = rec.data.liftNo || "";                                   // C: Unit Tracking No.
+                mtRow[8] = "-";                                                     // I: Serial-No
+                mtRow[9] = damageImageUrl;                                          // J: Image (serialPhoto)
+                mtRow[11] = rec.data.itemName || "";                                // L: Part Name
+                mtRow[12] = form.damagedQty || "";                                  // M: Reject Qty
+                mtRow[13] = form.damageReason || "";                                // N: Remarks
+                mtRow[14] = timestamp;                                              // O: Planned7
+
+                const mtParams = new URLSearchParams();
+                mtParams.append("action", "insert");
+                mtParams.append("sheetName", "Material-Testing");
+                mtParams.append("rowData", JSON.stringify(mtRow));
+
+                await fetch(SHEET_API_URL, { method: "POST", body: mtParams });
+            } else {
+                rowArray[35] = timestamp; // AJ: Planned8 (Billing)
+            }
 
             const params = new URLSearchParams();
             params.append("action", "update");

@@ -734,7 +734,7 @@ export default function Stage9() {
                 </div>
                 <div>
                   <h2 className="text-2xl font-bold text-slate-900">
-                    Stage 10: Billing
+                    Stage 11: Billing
                   </h2>
                 </div>
               </div>

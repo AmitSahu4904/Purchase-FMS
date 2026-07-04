@@ -14,8 +14,8 @@ export const STAGES = [
     { num: 7, name: "Follow UP / Lifting", slug: "follow-up-vendor", icon: Phone },
     { num: 8, name: "Transporter Follow-Up", slug: "transporter-follow-up", icon: TruckIcon },
     { num: 9, name: "Material Received", slug: "material-received", icon: Package },
-    { num: 10, name: "Billing", slug: "receipt-in-tally", icon: FileText },
-    { num: 11, name: "Purchase Return", slug: "purchase-return", icon: CornerUpLeft },
+    { num: 10, name: "Purchase Return", slug: "purchase-return", icon: CornerUpLeft },
+    { num: 11, name: "Billing", slug: "receipt-in-tally", icon: FileText },
     { num: 12, name: "Order Cancel", slug: "order-cancel", icon: XCircle },
     { num: 13, name: "Master", slug: "master", icon: LayoutGrid },
 ];

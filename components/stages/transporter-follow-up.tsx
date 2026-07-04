@@ -115,17 +115,33 @@ export default function TransporterFollowUp() {
             const json = await res.json();
 
             if (json.success && Array.isArray(json.data)) {
+                console.log("RECEIVING-ACCOUNTS raw data:", json.data.slice(6));
+                const allMapped = json.data.slice(6).map((row: any, i: number) => {
+                    const plannedDate = row[88] || row[34];
+                    const actualDate = row[89];
+                    return {
+                        rowNum: i + 7,
+                        indentNumber: row[1],
+                        liftNo: row[2],
+                        plannedDate,
+                        actualDate,
+                        hasPlanned: !!plannedDate && String(plannedDate).trim() !== "" && String(plannedDate).trim() !== "-",
+                        hasActual: !!actualDate && String(actualDate).trim() !== "" && String(actualDate).trim() !== "-",
+                    };
+                });
+                console.log("All Mapped Rows for Transporter Follow-Up:", allMapped);
+
                 // Data starts from row 7 (index 6) - skip 6 header rows
                 const rows = json.data.slice(6)
                     .map((row: any, i: number) => ({ row, originalIndex: i + 7 }))
                     .filter(({ row }: any) => {
                         // Filter: Only include rows where Column CK (Planned) has a value
-                        const plannedDate = row[88]; // Column CK (index 88)
+                        const plannedDate = row[88] || row[34]; // Column CK (index 88) fallback to Column AI (index 34)
                         return plannedDate && String(plannedDate).trim() !== "" && String(plannedDate).trim() !== "-";
                     })
                     .map(({ row, originalIndex }: any) => {
                         // Status Logic
-                        const plannedDate = row[88]; // Column CK
+                        const plannedDate = row[88] || row[34]; // Column CK fallback to Column AI
                         const actualDate = row[89];  // Column CL
 
                         const hasPlanned = !!plannedDate && String(plannedDate).trim() !== "" && String(plannedDate).trim() !== "-";
@@ -159,7 +175,7 @@ export default function TransporterFollowUp() {
                                 vehicleNo: row[10],        // Column K
                                 contactNo: row[11],        // Column L
                                 freightAmt: row[14],       // Column O
-                                plannedDate: row[88],      // Column CK (Index 88)
+                                plannedDate: row[88] || row[34],      // Column CK (Index 88) fallback to Column AI (Index 34)
                                 actualDate: row[89],       // Column CL (Index 89)
                                 expectedDate: expectedDate, // From Transport Flw-Up
                                 remarks: latestRemarks,      // From Transport Flw-Up
@@ -416,6 +432,7 @@ export default function TransporterFollowUp() {
 
                     if (formData.status === "Received") {
                         updateRow[89] = timestamp; // Column CL (Actual Date)
+                        updateRow[19] = timestamp; // Column T (Planned Date for Material Received)
                     }
 
                     const updateParams = new URLSearchParams();
