@@ -105,12 +105,12 @@ export default function Quotation() {
   const [gstin, setGstin] = useState("27ABCDE1234A1Z5");
   const [pan, setPan] = useState("ABCDE1234A");
 
-  const [billingCompany, setBillingCompany] = useState("M/S Divine Empire");
-  const [billingAddress, setBillingAddress] = useState("Gateway Park, HQ, Mumbai");
+  const [billingCompany, setBillingCompany] = useState("M/S Botivate Pvt. Ltd.");
+  const [billingAddress, setBillingAddress] = useState("401-402, Gateway Park, HQ, Mumbai");
   const [isEditingBilling, setIsEditingBilling] = useState(false);
 
-  const [destCompany, setDestCompany] = useState("M/S Divine Empire");
-  const [destAddress, setDestAddress] = useState("Warehouse 1, Mumbai");
+  const [destCompany, setDestCompany] = useState("M/S Botivate Pvt. Ltd.");
+  const [destAddress, setDestAddress] = useState("Division 1, Mumbai");
   const [isEditingDest, setIsEditingDest] = useState(false);
 
   // Description / Letter Note
@@ -667,10 +667,10 @@ export default function Quotation() {
     setSelectedVendors([]);
     setGstin("27ABCDE1234A1Z5");
     setPan("ABCDE1234A");
-    setBillingCompany("M/S Divine Empire");
+    setBillingCompany("M/S Botivate");
     setBillingAddress("Gateway Park, HQ, Mumbai");
     setIsEditingBilling(false);
-    setDestCompany("M/S Divine Empire");
+    setDestCompany("M/S Botivate");
     setDestAddress("Warehouse 1, Mumbai");
     setIsEditingDest(false);
     setDescriptionNote("");
@@ -886,9 +886,9 @@ export default function Quotation() {
               <div className="space-y-6">
                 {/* BOTIVATE SERVICES header card */}
                 <div className="flex items-center justify-center gap-8 bg-slate-50 px-6 py-6 border rounded-xl shadow-sm">
-                  <img src="/divine-logo.svg" alt="Logo" className="h-10 w-10 object-contain" />
+                  <img src="/Botivate-logo.svg" alt="Logo" className="h-10 w-10 object-contain" />
                   <div>
-                    <h2 className="text-xl font-bold text-slate-900">Divine Empire</h2>
+                    <h2 className="text-xl font-bold text-slate-900">Botivate</h2>
                     <p className="text-sm text-slate-600">Gateway Park, Mumbai, Maharashtra</p>
                     <p className="text-sm text-slate-600">Phone No: +9820012345</p>
                   </div>
@@ -1112,7 +1112,7 @@ export default function Quotation() {
                             <TableCell className="p-3 font-semibold text-slate-900 font-mono">
                               {record?.data?.indentNumber || "—"}
                             </TableCell>
-                            <TableCell className="p-3 text-slate-700">Divine Empire</TableCell>
+                            <TableCell className="p-3 text-slate-700">Botivate</TableCell>
                             <TableCell className="p-3 text-slate-800 font-medium">
                               {record?.data?.itemName || "—"}
                             </TableCell>

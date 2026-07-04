@@ -335,7 +335,7 @@ export default function Stage5() {
   ];
 
   const defaultPOForm = {
-    firmName: "Divine Empire",
+    firmName: "Botivate",
     supplierName: "",
     poDate: new Date().toISOString().split("T")[0],
     deliveryDate: "",
@@ -349,10 +349,10 @@ export default function Stage5() {
     remarks: "",
     companyGstin: "27ABCDE1234A1Z5",
     companyPan: "ABCDE1234A",
-    billingName: "M/S Divine Empire",
-    billingAddress: "Gateway Park, HQ, Mumbai",
-    destinationName: "M/S Divine Empire",
-    destinationAddress: "Warehouse 1, Mumbai",
+    billingName: "M/S Botivate Pvt. Ltd.",
+    billingAddress: "401-402, Gateway Park, HQ, Mumbai",
+    destinationName: "M/S Botivate Pvt. Ltd.",
+    destinationAddress: "Division 1, Mumbai",
   };
 
   const [poForm, setPoForm] = useState(defaultPOForm);
@@ -388,24 +388,24 @@ export default function Stage5() {
     const v = getVendorData(firstRec);
 
     setPoForm({
-      firmName: "Divine Empire",
+      firmName: "Botivate",
       supplierName: v.name !== "-" ? v.name : "",
       supplierEmail: v.name ? (VENDOR_EMAILS[v.name] || "") : "",
       supplierAddress: v.name ? (VENDOR_ADDRESSES[v.name] || "") : "",
       poDate: formatInputDate(firstRec.data.actual4),
       deliveryDate: v.delivery ? formatInputDate(v.delivery) : "",
       gstin: "",
-      quotationNumber: "", 
+      quotationNumber: "",
       quotationDate: new Date().toISOString().split("T")[0],
       enquiryNumber: "",
       enquiryDate: "",
       remarks: "",
       companyGstin: "27ABCDE1234A1Z5",
       companyPan: "ABCDE1234A",
-      billingName: "M/S Divine Empire",
-      billingAddress: "Gateway Park, HQ, Mumbai",
-      destinationName: "M/S Divine Empire",
-      destinationAddress: "Warehouse 1, Mumbai",
+      billingName: "M/S Botivate Pvt. Ltd.",
+      billingAddress: "401-402, Gateway Park, HQ, Mumbai",
+      destinationName: "M/S Botivate Pvt. Ltd.",
+      destinationAddress: "Division 1, Mumbai",
     });
 
     const matchedFormData: Record<string, any> = {};
@@ -668,7 +668,7 @@ export default function Stage5() {
         setEmailSimActiveIndex(0);
         setEmailSimSteps([
           "Generating PDF Purchase Order Document...",
-          "Connecting to SMTP server at mail.divineempire.com...",
+          "Connecting to SMTP server at mail.Botivateempire.com...",
           "Attaching Purchase Order and commercial annexures...",
           `Sending email to supplier: ${poForm.supplierEmail || "vendor@example.com"}...`,
           "Purchase Order successfully dispatched via Email!"
@@ -1162,9 +1162,9 @@ export default function Stage5() {
             <div className="mx-auto max-w-6xl space-y-5 p-6">
               <section className="overflow-hidden rounded-lg border bg-white shadow-sm">
                 <div className="flex items-center justify-center gap-8 bg-slate-50 px-6 py-6">
-                  <img src="/divine-logo.svg" alt="Logo" className="h-10 w-10 object-contain" />
+                  <img src="/Botivate-logo.svg" alt="Logo" className="h-10 w-10 object-contain" />
                   <div>
-                    <h2 className="text-2xl font-bold text-slate-900">Divine Empire</h2>
+                    <h2 className="text-2xl font-bold text-slate-900">Botivate</h2>
                     <p className="text-sm text-slate-600">Gateway Park, Mumbai, Maharashtra</p>
                     <p className="text-sm text-slate-600">Phone No: +9820012345</p>
                   </div>
@@ -1187,19 +1187,19 @@ export default function Stage5() {
                     <Select value={poForm.firmName} onValueChange={(value) => setPoForm((prev) => ({ ...prev, firmName: value }))}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Divine Empire">Divine Empire</SelectItem>
-                        <SelectItem value="Divine Services">Divine Services</SelectItem>
-                        <SelectItem value="Divine Retail">Divine Retail</SelectItem>
-                        <SelectItem value="Divine Logistics">Divine Logistics</SelectItem>
+                        <SelectItem value="Botivate">Botivate</SelectItem>
+                        <SelectItem value="Botivate Services">Botivate Services</SelectItem>
+                        <SelectItem value="Botivate Retail">Botivate Retail</SelectItem>
+                        <SelectItem value="Botivate Logistics">Botivate Logistics</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Supplier Name</Label>
-                    <Select 
-                      value={poForm.supplierName || undefined} 
-                      onValueChange={(value) => setPoForm((prev) => ({ 
-                        ...prev, 
+                    <Select
+                      value={poForm.supplierName || undefined}
+                      onValueChange={(value) => setPoForm((prev) => ({
+                        ...prev,
                         supplierName: value,
                         supplierEmail: VENDOR_EMAILS[value] || `${value.toLowerCase().replace(/\s+/g, "")}@example.com`,
                         supplierAddress: VENDOR_ADDRESSES[value] || `${value} Business Park, Mumbai`
@@ -1231,17 +1231,17 @@ export default function Stage5() {
                   )}
                   <div className={poMode === "revise" ? "space-y-1.5" : "space-y-1.5 col-span-2"}>
                     <Label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">PO Number</Label>
-                    <Input 
-                      value={commonPONumber} 
+                    <Input
+                      value={commonPONumber}
                       onChange={(e) => {
                         const val = e.target.value;
                         setCommonPONumber(val);
                         if (completedPONumbers.includes(val)) {
                           handleRevisePONumberChange(val);
                         }
-                      }} 
-                      placeholder="Divine/Store/26-27/21" 
-                      required 
+                      }}
+                      placeholder="Botivate/Store/26-27/21"
+                      required
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -1844,10 +1844,10 @@ export default function Stage5() {
                       DE
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold text-slate-900 leading-tight">Divine Empire</h2>
+                      <h2 className="text-xl font-bold text-slate-900 leading-tight">Botivate</h2>
                       <p className="text-xs text-slate-500">Gateway Park, Mumbai, Maharashtra</p>
                       <p className="text-xs text-slate-500">GSTIN: {poForm.companyGstin || "-"}</p>
-                      <p className="text-xs text-slate-500">Email: accounts@divineempire.com</p>
+                      <p className="text-xs text-slate-500">Email: accounts@Botivateempire.com</p>
                     </div>
                   </div>
                   <div className="text-right">
@@ -1985,7 +1985,7 @@ export default function Stage5() {
                 </div>
                 <div className="text-right">
                   <div className="h-10 w-32 border-b border-dashed border-slate-300 ml-auto mb-1"></div>
-                  <p className="font-bold text-slate-700">For Divine Empire</p>
+                  <p className="font-bold text-slate-700">For Botivate</p>
                   <p className="text-[9px]">Authorized Signatory</p>
                 </div>
               </div>
@@ -2013,7 +2013,7 @@ export default function Stage5() {
               <Mail className="w-8 h-8 text-indigo-400 animate-pulse" />
             )}
           </div>
-          
+
           <h2 className="text-xl font-bold tracking-tight text-white mb-2">PO Email Dispatch Simulator</h2>
           <p className="text-xs text-slate-400 max-w-xs mb-6">
             Dispatching Purchase Order Ref: <span className="text-indigo-400 font-bold font-mono">{commonPONumber}</span> to <span className="text-indigo-400 font-bold">{poForm.supplierName}</span> via SMTP relay.
@@ -2048,7 +2048,7 @@ export default function Stage5() {
 
           {/* Simple progress bar */}
           <div className="w-full bg-slate-800 rounded-full h-1.5 mb-6 overflow-hidden">
-            <div 
+            <div
               className="bg-indigo-500 h-1.5 rounded-full transition-all duration-300"
               style={{ width: `${((emailSimActiveIndex + 1) / emailSimSteps.length) * 100}%` }}
             ></div>

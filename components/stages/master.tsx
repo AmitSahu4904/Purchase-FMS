@@ -164,7 +164,7 @@ export default function MasterPage() {
         }
 
         if (whList.length === 0) {
-          whList = ["Warehouse A", "Warehouse B", "Depot Main"];
+          whList = ["Divison A", "Division B", "Depot Main"];
           setWarehouse(whList);
           needSave = true;
         } else {
@@ -883,7 +883,7 @@ export default function MasterPage() {
 
   const tabsConfig = [
     { id: "createdBy", label: "Created By", icon: Users, desc: "System operators and indent authors." },
-    { id: "warehouse", label: "Warehouse / Area", icon: MapPin, desc: "Warehouse depots and lifting destination zones." },
+    { id: "warehouse", label: "Division / Area", icon: MapPin, desc: "Warehouse depots and lifting destination zones." },
     { id: "items", label: "Product Catalog", icon: Boxes, desc: "Registered inventory items, categories, and item codes." },
     { id: "vendor", label: "Vendors", icon: Users, desc: "Approved material suppliers and service vendors." },
     { id: "approver", label: "Approvers", icon: ShieldCheck, desc: "Authorized personnel who approve indents and vendors." },

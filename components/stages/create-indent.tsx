@@ -827,7 +827,7 @@ export default function Stage1() {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="warehouseLocation">Warehouse Location <span className="text-red-500">*</span></Label>
+                <Label htmlFor="warehouseLocation">Division <span className="text-red-500">*</span></Label>
                 <Select
                   value={formData.warehouseLocation}
                   onValueChange={(val) =>
@@ -1140,7 +1140,7 @@ export default function Stage1() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Warehouse Location</Label>
+                  <Label>Division</Label>
                   <Select
                     value={editFormData.warehouseLocation}
                     onValueChange={(val) =>

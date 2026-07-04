@@ -62,7 +62,7 @@
 
 ## Assets
 
-- `public/divine-logo.svg`: favicon/logo.
+- `public/Botivate-logo.svg`: favicon/logo.
 - `public/placeholder*`: placeholder image assets.
 - `public/purchase-images`: locally uploaded purchase images.
 

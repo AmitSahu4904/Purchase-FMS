@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   description: 'Purchase App',
   generator: 'v0.app',
   icons: {
-    icon: '/divine-logo.svg',
+    icon: '/Botivate-logo.svg',
   },
 }
 
