@@ -629,6 +629,30 @@ export default function FollowUpLifting() {
         return;
       }
 
+      // Fetch latest RECEIVING-ACCOUNTS to count existing liftings and avoid duplicates
+      let existingRows: any[] = [];
+      try {
+        const checkRes = await fetch(`${API_URL}?sheet=RECEIVING-ACCOUNTS&action=getAll`);
+        const checkJson = await checkRes.json();
+        if (checkJson.success && Array.isArray(checkJson.data)) {
+          existingRows = checkJson.data.slice(6);
+        }
+      } catch (err) {
+        console.error("Error fetching RECEIVING-ACCOUNTS rows:", err);
+      }
+
+      const tempCountMap = new Map<string, number>();
+      const getUniqueLiftNumber = (indentNo: string, baseLiftNo: string) => {
+        const cleanIndent = String(indentNo).trim();
+        const sheetCount = existingRows.filter((r: any) => r && String(r[1]).trim() === cleanIndent && r[2] && String(r[2]).trim().startsWith("LIFT-")).length;
+        const batchCount = tempCountMap.get(cleanIndent) || 0;
+        const totalCount = sheetCount + batchCount;
+        tempCountMap.set(cleanIndent, batchCount + 1);
+        
+        const base = baseLiftNo || "LIFT";
+        return `${base}-${totalCount + 1}`;
+      };
+
       const rowsToInsert: any[] = [];
       const updatesToFMS: { rowIndex: number, rowData: any[] }[] = [];
 
@@ -733,6 +757,10 @@ export default function FollowUpLifting() {
         const sheetRecord = sheetRecords.find((r) => r.id === record.recordId)!;
         const v = getVendorData(sheetRecord);
         const lift = record.liftingData;
+
+        // Generate unique lift number for this lifting record
+        const uniqueLiftNo = getUniqueLiftNumber(sheetRecord.data.indentNumber, lift.liftNumber);
+        lift.liftNumber = uniqueLiftNo;
         let biltyLink = typeof lift.biltyCopy === 'string' ? lift.biltyCopy : "";
         if (record.status === "lift-material" && lift.biltyCopy instanceof File) {
           biltyLink = commonFileUrl;
@@ -1129,7 +1157,7 @@ export default function FollowUpLifting() {
               <Phone className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage 7: Follow UP & Lifting</h2>
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage : Follow UP & Lifting</h2>
             </div>
           </div>
           <div className="flex items-center gap-4">

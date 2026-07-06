@@ -450,7 +450,7 @@ export default function Stage2() {
               <CheckCircle2 className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage 2: Indent Approval</h2>
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage : Indent Approval</h2>
             </div>
           </div>
 

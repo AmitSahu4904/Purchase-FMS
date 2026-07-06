@@ -130,13 +130,38 @@ export default function Stage9() {
         // AQ (42): Checked By Acc
         rowArray[42] = formData.checkedStatus === "Yes" ? formData.checkedByAcc : "";
 
-        const params = new URLSearchParams();
+         const params = new URLSearchParams();
         params.append("action", "update");
         params.append("sheetName", "RECEIVING-ACCOUNTS");
         params.append("rowIndex", rec.rowIndex.toString());
         params.append("rowData", JSON.stringify(rowArray));
 
         await fetch(SHEET_API_URL, { method: "POST", body: params });
+
+        // If billing is checked/verified, automatically insert into VENDOR-PAYMENTS sheet
+        if (formData.checkedStatus === "Yes") {
+          const vpRow = new Array(22).fill("");
+          vpRow[0] = timestamp; // A: Timestamp
+          vpRow[1] = rec.data.invoiceNumber || ""; // B: Invoice No
+          vpRow[2] = rec.data.billAttachment || ""; // C: Invoice Copy
+          vpRow[3] = rec.data.invoiceDate || ""; // D: Invoice Date
+          vpRow[4] = rec.data.vendorName || ""; // E: Vendor Name
+          vpRow[5] = rec.data.poNumber || ""; // F: PO Number
+          vpRow[6] = rec.data.poCopy || ""; // G: PO Copy
+          vpRow[10] = rec.data.receivedQty || ""; // K: Qty
+          vpRow[11] = rec.data.totalWithTax || ""; // L: Total Value
+          vpRow[12] = rec.data.itemName || ""; // M: Received Items
+          vpRow[13] = timestamp.split(" ")[0]; // N: Planned Date (Planned Payment Date)
+          vpRow[17] = rec.data.totalWithTax || ""; // R: Pending Amount
+          vpRow[21] = rec.data.invoiceDate || ""; // V: Due Date
+
+          const vpParams = new URLSearchParams();
+          vpParams.append("action", "insert");
+          vpParams.append("sheetName", "VENDOR-PAYMENTS");
+          vpParams.append("rowData", JSON.stringify(vpRow));
+
+          await fetch(SHEET_API_URL, { method: "POST", body: vpParams });
+        }
       }
 
       toast.success(formData.checkedStatus === "Yes" ? "Billing Completed (Bulk)!" : "Billing Saved (Bulk Pending)");
@@ -263,7 +288,7 @@ export default function Stage9() {
             }
 
             return {
-              id: `${row[1] || "row"}-${originalIndex}`,
+              id: `${row[2] || "row"}-${originalIndex}`,
               rowIndex: originalIndex,
               stage: 8,
               status,
@@ -734,7 +759,7 @@ export default function Stage9() {
                 </div>
                 <div>
                   <h2 className="text-2xl font-bold text-slate-900">
-                    Stage 11: Billing
+                    Stage : Billing
                   </h2>
                 </div>
               </div>

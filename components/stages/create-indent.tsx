@@ -788,7 +788,7 @@ export default function Stage1() {
           <PlusCircle className="w-6 h-6" />
         </div>
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage 1: Create Indent</h2>
+          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage : Create Indent</h2>
           <p className="text-slate-500 text-sm">Initiate a new purchase indent by filling in the details below.</p>
         </div>
       </div>

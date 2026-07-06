@@ -183,13 +183,14 @@ export default function Stage12() {
       // Process RECEIVING-ACCOUNTS to build a lookup map for Indent Details
       const indentMap = new Map<string, any>();
       if (Array.isArray(accJson.data)) {
-        accJson.data.slice(6).forEach((row: any) => {
+        accJson.data.slice(6).forEach((row: any, i: number) => {
           const indentNo = String(row[1] || "").trim();
-          if (!indentNo) return;
+          const liftNo = String(row[2] || "").trim();
+          if (!liftNo) return;
 
-          indentMap.set(indentNo, {
+          indentMap.set(liftNo, {
             indentNumber: indentNo,
-            unitTrackingNo: row[2] || "",
+            unitTrackingNo: liftNo,
             itemName: row[7],
             vendor: row[3],
             invoiceNumber: row[24],
@@ -197,6 +198,7 @@ export default function Stage12() {
             damageQty: row[116] || "0",
             damageReason: row[117] || "-",
             damageImage: row[118] || "",
+            receivingAccountRowIndex: i + 7,
           });
         });
       }
@@ -219,7 +221,7 @@ export default function Stage12() {
           const actual7 = String(r[15] || "").trim(); // P: Actual7
           const rejectQty = parseFloat(r[12] || "0"); // M: Reject Qty
 
-          const parent = indentMap.get(indentNo) || {};
+          const parent = indentMap.get(liftNo) || {};
 
           const record = {
             id: `partial-${rowIndex}`,
@@ -440,7 +442,7 @@ export default function Stage12() {
                     <CornerUpLeft className="w-6 h-6" />
                   </div>
                   <div>
-                    <span>Stage 10: Purchase Return</span>
+                    <span>Stage : Purchase Return</span>
                     <p className="text-slate-500 text-sm font-normal mt-0.5">Process and track returns for rejected QC items</p>
                   </div>
                 </h1>

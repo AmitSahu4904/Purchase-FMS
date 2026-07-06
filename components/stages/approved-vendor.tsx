@@ -402,7 +402,7 @@ export default function ApprovedVendor() {
               <ShieldCheck className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage 4: Approved Vendor</h2>
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage : Approved Vendor</h2>
               <p className="text-slate-500 text-sm">Select the approved vendor from the submitted enquiries.</p>
             </div>
           </div>

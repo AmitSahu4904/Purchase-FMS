@@ -600,7 +600,7 @@ export default function OrderCancelPage() {
             <XCircle className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage 14: Order Cancel</h2>
+            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage : Order Cancel</h2>
             <p className="text-[13px] text-muted-foreground mt-0">Manage and track cancelled orders</p>
           </div>
         </div>

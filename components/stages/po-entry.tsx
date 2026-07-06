@@ -811,7 +811,7 @@ export default function Stage5() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage 5: Make PO</h2>
+                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage : Make PO</h2>
               </div>
               {submitError && (
                 <p className="text-red-600 text-sm mt-2 font-medium bg-red-50 p-2 rounded border border-red-100 flex items-center gap-2">

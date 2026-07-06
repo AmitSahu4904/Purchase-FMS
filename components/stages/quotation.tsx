@@ -694,7 +694,7 @@ export default function Quotation() {
               <MessagesSquare className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage 3: Quotation</h2>
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage : Quotation</h2>
               <p className="text-slate-500 text-sm">Send product details to vendors and capture commercial quotations.</p>
             </div>
           </div>

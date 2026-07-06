@@ -547,7 +547,7 @@ export default function TransporterFollowUp() {
                             <Truck className="w-6 h-6" />
                         </div>
                         <div>
-                            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage 8: Transporter Follow-Up</h2>
+                            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Stage : Transporter Follow-Up</h2>
                         </div>
                     </div>
 

@@ -701,7 +701,7 @@ export default function Stage7() {
                                     <Package className="w-6 h-6" />
                                 </div>
                                 <div>
-                                    <h2 className="text-2xl font-bold text-slate-900">Stage 9: Material Received</h2>
+                                    <h2 className="text-2xl font-bold text-slate-900">Stage : Material Received</h2>
                                 </div>
                             </div>
 

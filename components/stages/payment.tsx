@@ -688,6 +688,26 @@ export default function UnifiedPaymentHub() {
           rowData: JSON.stringify(paidRow),
         });
         await fetch(SHEET_API_URL, { method: "POST", body: paidParams });
+
+        // Update VENDOR-PAYMENTS sheet row to reflect new paid, pending, and actual completion date
+        const updatedPaid = rec.data.totalPaid + payAmount;
+        const remainingPending = Math.max(0, rec.data.totalVal - updatedPaid);
+
+        const vpRowArray = new Array(22).fill("");
+        vpRowArray[16] = updatedPaid.toString(); // Column Q (totalPaid)
+        vpRowArray[17] = remainingPending.toString(); // Column R (pendingAmount)
+        if (remainingPending <= 1) {
+          vpRowArray[14] = dateStr; // Column O (actual1 / completion date)
+        }
+
+        const updateParams = new URLSearchParams({
+          action: "update",
+          sheetName: "VENDOR-PAYMENTS",
+          rowIndex: rec.rowIndex.toString(),
+          rowData: JSON.stringify(vpRowArray),
+        });
+        await fetch(SHEET_API_URL, { method: "POST", body: updateParams });
+
         successCount++;
       }
 
