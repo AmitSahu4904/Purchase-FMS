@@ -252,6 +252,10 @@ if (typeof window !== "undefined") {
       ["2026-06-30", "L-001", "Intransit", "On the way, expected tomorrow."]
     ],
 
+    "Material-Testing": [
+      ...headers,
+      // Data rows will be inserted here when damage is reported in Material Received
+    ],
     "Serial-Generation": [
       ...headers,
       ["IND-004", "L-003", "1", "SN-987654"],
@@ -286,6 +290,18 @@ if (typeof window !== "undefined") {
     } catch (e) {
       console.error("Failed to save default mock sheets to localStorage:", e);
     }
+  }
+
+  // Ensure Material-Testing sheet exists with 6 header rows
+  if (!mockSheets["Material-Testing"] || mockSheets["Material-Testing"].length === 0) {
+    mockSheets["Material-Testing"] = [[], [], [], [], [], []];
+    saveMockSheets();
+  } else if (mockSheets["Material-Testing"].length > 0 && mockSheets["Material-Testing"].length < 6) {
+    // Pad with empty header rows if sheet exists but doesn't have 6 headers
+    while (mockSheets["Material-Testing"].length < 6) {
+      mockSheets["Material-Testing"].unshift([]);
+    }
+    saveMockSheets();
   }
 
   function saveMockSheets() {
