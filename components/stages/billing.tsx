@@ -130,7 +130,7 @@ export default function Stage9() {
         // AQ (42): Checked By Acc
         rowArray[42] = formData.checkedStatus === "Yes" ? formData.checkedByAcc : "";
 
-         const params = new URLSearchParams();
+        const params = new URLSearchParams();
         params.append("action", "update");
         params.append("sheetName", "RECEIVING-ACCOUNTS");
         params.append("rowIndex", rec.rowIndex.toString());

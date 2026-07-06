@@ -1168,7 +1168,7 @@ export default function Stage7() {
                                     : "Record Material Receipt"}
                             </DialogTitle>
                             <p className="text-xs text-slate-300 mt-1.5">
-                                {isBulkMode 
+                                {isBulkMode
                                     ? "Reconcile quantities and verify received items in bulk."
                                     : "Reconcile quantity, record image, and report damage if any."}
                             </p>
@@ -1240,13 +1240,12 @@ export default function Stage7() {
                                                             <Input
                                                                 value={differentQtyVal.toFixed(2)}
                                                                 readOnly
-                                                                className={`h-8 text-xs font-bold rounded-md text-center border transition-colors ${
-                                                                    differentQtyVal === 0
+                                                                className={`h-8 text-xs font-bold rounded-md text-center border transition-colors ${differentQtyVal === 0
                                                                         ? "bg-emerald-50/50 text-emerald-700 border-emerald-100"
                                                                         : differentQtyVal > 0
-                                                                        ? "bg-amber-50/50 text-amber-700 border-amber-100"
-                                                                        : "bg-rose-50/50 text-rose-700 border-rose-100"
-                                                                }`}
+                                                                            ? "bg-amber-50/50 text-amber-700 border-amber-100"
+                                                                            : "bg-rose-50/50 text-rose-700 border-rose-100"
+                                                                    }`}
                                                             />
                                                         </TableCell>
                                                         <TableCell>
@@ -1411,7 +1410,7 @@ export default function Stage7() {
                                 />
                             </div>
                         </form>
-                       ) : (
+                    ) : (
                         /* SINGLE FORM (Existing) */
                         <form
                             onSubmit={handleSubmit}
@@ -1444,7 +1443,7 @@ export default function Stage7() {
                                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                                     <h4 className="text-xs font-bold text-slate-805 uppercase tracking-wider">Quantity Reconciliation</h4>
                                 </div>
-                                
+
                                 <div className="grid grid-cols-3 gap-4">
                                     <div className="space-y-1.5">
                                         <Label className="text-xs text-slate-500 font-medium">Lifting Qty (Dispatched)</Label>
@@ -1475,13 +1474,12 @@ export default function Stage7() {
                                             <Input
                                                 value={singleDifferentQtyVal.toFixed(2)}
                                                 readOnly
-                                                className={`font-bold h-10 transition-colors rounded-lg ${
-                                                    singleDifferentQtyVal === 0
+                                                className={`font-bold h-10 transition-colors rounded-lg ${singleDifferentQtyVal === 0
                                                         ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                                         : singleDifferentQtyVal > 0
-                                                        ? "bg-amber-50 text-amber-700 border-amber-200"
-                                                        : "bg-rose-50 text-rose-700 border-rose-200"
-                                                }`}
+                                                            ? "bg-amber-50 text-amber-700 border-amber-200"
+                                                            : "bg-rose-50 text-rose-700 border-rose-200"
+                                                    }`}
                                             />
                                             {singleDifferentQtyVal !== 0 && (
                                                 <span className="absolute right-2.5 top-3 flex h-2 w-2">
@@ -1495,11 +1493,10 @@ export default function Stage7() {
                             </div>
 
                             {/* Card 3: Damage Assessment */}
-                            <div className={`border rounded-xl p-5 shadow-sm transition-all duration-300 space-y-4 ${
-                                form.damageReceived === "yes" 
-                                    ? "bg-red-55/10 border-red-200" 
+                            <div className={`border rounded-xl p-5 shadow-sm transition-all duration-300 space-y-4 ${form.damageReceived === "yes"
+                                    ? "bg-red-55/10 border-red-200"
                                     : "bg-white border-slate-200/80"
-                            }`}>
+                                }`}>
                                 <div className="flex items-center justify-between border-b pb-2">
                                     <div className="flex items-center gap-2">
                                         <AlertCircle className={`w-4 h-4 ${form.damageReceived === "yes" ? "text-red-650" : "text-slate-500"}`} />

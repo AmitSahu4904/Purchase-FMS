@@ -150,7 +150,7 @@ export default function ApprovedVendor() {
 
   const pending = useMemo(() => {
     const pendingRecs = sheetRecords.filter((r) => r.status === "pending");
-    
+
     // Group by actual3 timestamp
     const groupsMap: Record<string, any[]> = {};
     pendingRecs.forEach((r) => {
@@ -173,7 +173,7 @@ export default function ApprovedVendor() {
     });
 
     const searchLower = searchTerm.toLowerCase();
-    return groups.filter((g) => 
+    return groups.filter((g) =>
       g.indentNumbers.toLowerCase().includes(searchLower) ||
       g.itemNames.toLowerCase().includes(searchLower)
     );
@@ -336,7 +336,7 @@ export default function ApprovedVendor() {
       if (name && name !== "-") {
         const terms = firstRec.data[`vendor${num}Terms`];
         const delivery = firstRec.data[`vendor${num}Delivery`];
-        
+
         let totalValue = 0;
         let hasRates = false;
         currentGroup.records.forEach((rec: any) => {
