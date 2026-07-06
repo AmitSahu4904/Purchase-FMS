@@ -10,263 +10,79 @@ if (typeof window !== "undefined") {
       ["user", "Normal User", "user123", "User", "", "", "Quotation, Approved Vendor"]
     ],
     "INDENT-LIFT": [
-      ...headers,
-      // IND-001: Create Indent / Indent Approval pending
-      (() => {
-        const row = new Array(70).fill("");
-        row[0] = "2026-06-30"; // A: Timestamp
-        row[1] = "IND-001";    // B: Indent No
-        row[2] = "Admin User"; // C: Created By
-        row[3] = "Corporate";  // D: Category
-        row[4] = "Dell Laptop"; // E: Item Name
-        row[5] = "5";          // F: Qty
-        row[6] = "Warehouse A"; // G: Warehouse
-        row[7] = "IT-LAP-001"; // H: Item Code
-        row[8] = "7";          // I: Lead Time
-        row[9] = "2026-06-30"; // J: plan2
-        row[10] = "";          // K: actual2 (empty -> pending)
-        row[13] = "Pending";   // N: status
-        row[16] = "Indent created for new joinees."; // Q: Remarks
-        row[69] = "Nos";       // BR: UOM
-        return row;
-      })(),
-      // IND-002: Indent Approved, Quotation (Stage 3) pending
-      (() => {
-        const row = new Array(70).fill("");
-        row[0] = "2026-06-30"; // A: Timestamp
-        row[1] = "IND-002";    // B: Indent No
-        row[2] = "HR Manager"; // C: Created By
-        row[3] = "HR";         // D: Category
-        row[4] = "Office Chairs"; // E: Item Name
-        row[5] = "10";         // F: Qty
-        row[6] = "Warehouse B"; // G: Warehouse
-        row[7] = "HR-CHR-002"; // H: Item Code
-        row[8] = "5";          // I: Lead Time
-        row[9] = "2026-06-30"; // J: plan2
-        row[10] = "2026-06-30"; // K: actual2 (filled -> complete)
-        row[12] = "Admin User"; // M: Approver
-        row[13] = "approved";   // N: status
-        row[14] = "10";         // O: approvedQty
-        row[15] = "new vendor"; // P: vendorType
-        row[16] = "Approved by admin."; // Q: Remarks
-        row[45] = "2026-06-30"; // AT: plan3 (filled)
-        row[46] = "";           // AU: actual3 (empty -> pending Stage 3)
-        row[69] = "Sets";       // BR: UOM
-        return row;
-      })(),
-      // IND-003: Quotation completed, PO Entry (Stage 5) pending
-      (() => {
-        const row = new Array(70).fill("");
-        row[0] = "2026-06-30"; // A: Timestamp
-        row[1] = "IND-003";    // B: Indent No
-        row[2] = "IT Exec";    // C: Created By
-        row[3] = "IT";         // D: Category
-        row[4] = "Projector";  // E: Item Name
-        row[5] = "1";          // F: Qty
-        row[6] = "Warehouse C"; // G: Warehouse
-        row[7] = "IT-PROJ-003"; // H: Item Code
-        row[8] = "7";          // I: Lead Time
-        row[9] = "2026-06-30"; // J: plan2
-        row[10] = "2026-06-30"; // K: actual2
-        row[12] = "Admin User"; // M: Approver
-        row[13] = "approved";   // N: status
-        row[14] = "1";          // O: approvedQty
-        row[15] = "new vendor"; // P: vendorType
-        row[16] = "Approved by admin."; // Q: Remarks
-        // Vendor 1
-        row[21] = "Vendor A";   // V: Vendor 1 Name
-        row[22] = "31000";      // W: Rate
-        row[23] = "30 days";    // X: Terms
-        row[24] = "2026-07-10"; // Y: Delivery
-        // Vendor 2
-        row[29] = "Vendor B";   // AD: Vendor 2 Name
-        row[30] = "30000";      // AE: Rate
-        row[31] = "60 days";    // AF: Terms
-        row[32] = "2026-07-12"; // AG: Delivery
-        // Vendor 3
-        row[37] = "Vendor C";   // AL: Vendor 3 Name
-        row[38] = "30500";      // AM: Rate
-        row[39] = "Advance";    // AN: Terms
-        row[40] = "2026-07-15"; // AO: Delivery
-        row[45] = "2026-06-30"; // AT: plan3
-        row[46] = "2026-06-30"; // AU: actual3 (filled -> complete Stage 3)
-        row[48] = "Vendor B";   // AW: selectedVendorName
-        row[49] = "Director";   // AX: finalApprovedBy
-        row[50] = "Final selection vendor B."; // AY: remarks
-        row[51] = "2026-06-30"; // AZ: plan4
-        row[52] = "2026-06-30"; // BA: actual4 (filled -> complete Stage 4)
-        row[53] = "2026-06-30"; // BB: plan5
-        row[54] = "";           // BC: actual5 (empty -> pending Stage 5)
-        row[69] = "Nos";        // BR: UOM
-        return row;
-      })(),
-      // IND-004: PO Entry completed, Follow-Up Vendor pending
-      (() => {
-        const row = new Array(70).fill("");
-        row[0] = "2026-06-30"; // A: Timestamp
-        row[1] = "IND-004";    // B: Indent No
-        row[2] = "IT Admin";   // C: Created By
-        row[3] = "IT";         // D: Category
-        row[4] = "Network Switches"; // E: Item Name
-        row[5] = "2";          // F: Qty
-        row[6] = "Main Store"; // G: Warehouse
-        row[7] = "IT-SW-004";  // H: Item Code
-        row[8] = "5";          // I: Lead Time
-        row[9] = "2026-06-30"; // J: plan2
-        row[10] = "2026-06-30"; // K: actual2
-        row[12] = "Admin User"; // M: Approver
-        row[13] = "approved";   // N: status
-        row[14] = "2";          // O: approvedQty
-        row[15] = "new vendor"; // P: vendorType
-        row[16] = "Approved.";  // Q: Remarks
-        // Vendor 1
-        row[21] = "Vendor IT";  // V: Vendor 1 Name
-        row[22] = "15000";      // W: Rate
-        row[23] = "3 Years";    // X: Terms
-        row[24] = "2026-07-10"; // Y: Delivery
-        row[45] = "2026-06-30"; // AT: plan3
-        row[46] = "2026-06-30"; // AU: actual3
-        row[48] = "Vendor IT";  // AW: selectedVendorName
-        row[49] = "Director";   // AX: finalApprovedBy
-        row[50] = "Final select Vendor IT."; // AY: remarks
-        row[51] = "2026-06-30"; // AZ: plan4
-        row[52] = "2026-06-30"; // BA: actual4
-        row[53] = "2026-06-30"; // BB: plan5
-        row[54] = "2026-06-30"; // BC: actual5 (filled -> complete Stage 5)
-        row[55] = "PO-1004";    // BD: poNumber
-        row[56] = "2026-06-30"; // BE: poDate
-        row[59] = "2026-06-30"; // BJ: plan6 (filled)
-        row[60] = "";           // BK: actual6 (empty -> pending Stage 6)
-        row[67] = "Pending";    // BP: Follow-up status
-        row[69] = "Meters";     // BR: UOM
-        return row;
-      })()
+      ...headers
     ],
     "RECEIVING-ACCOUNTS": [
-      ...headers,
-      // Row 1: Transporter Follow-Up pending
-      [
-        "2026-06-30", "IND-004", "L-001", ...Array(85).fill(""),
-        "2026-06-30", "" // Index 88: Planned, Index 89: Actual
-      ],
-      // Row 2: Material Received pending
-      [
-        "2026-06-30", "IND-004", "L-002", ...Array(16).fill(""),
-        "2026-06-30", "", // Index 19: Planned, Index 20: Actual
-        ...Array(67).fill(""),
-        "2026-06-30", "2026-06-30" // Index 88, 89 (Transporter complete)
-      ],
-      // Row 3: Receipt in Tally pending
-      [
-        "2026-06-30", "IND-004", "L-003", ...Array(16).fill(""),
-        "2026-06-30", "2026-06-30", // Index 19, 20 (Received)
-        ...Array(14).fill(""),
-        "2026-06-30", "", // Index 35: Planned, Index 36: Actual
-        ...Array(50).fill(""),
-        "2026-06-30", "2026-06-30" // Index 88, 89
-      ],
-      // Row 4: Material Testing pending
-      [
-        "2026-06-30", "IND-004", "L-004", ...Array(16).fill(""),
-        "2026-06-30", "2026-06-30",
-        ...Array(14).fill(""),
-        "2026-06-30", "2026-06-30", // Index 35, 36 (Tally complete)
-        ...Array(24).fill(""),
-        "2026-06-30", "", // Index 61: Planned, Index 62: Actual (Material testing pending)
-        ...Array(25).fill(""),
-        "2026-06-30", "2026-06-30"
-      ]
+      ...headers
     ],
     "Partial QC": [
-      // 7 headers for Partial QC
-      [], [], [], [], [], [], [],
-      // Row 1: Purchase Return pending
-      [
-        "2026-06-30", "IND-004", "L-002", "Network Switches", "Nos", "rejected", ...Array(6).fill(""),
-        "return", "2026-06-30", "" // Index 12: return, Index 13: Planned, Index 14: Actual
-      ]
+      ...headers
     ],
     "VENDOR-PAYMENTS": [
-      ...headers,
-      // Row 1: Vendor Payment pending
-      [
-        "2026-06-30", "IND-004", "PO-1004", "Vendor IT", "2", "30000", "2026-07-15", ...Array(4).fill(""),
-        "30000", "", "2026-06-30", "", ...Array(2).fill(""), "30000" // Index 11: 30000, Index 13: plan1, Index 14: actual1, Index 17: currentPending
-      ]
+      ...headers
     ],
     "FREIGHT-PAYMENTS": [
-      ...headers,
-      // Row 1: Freight Payment pending
-      [
-        "2026-06-30", "IND-004", "L-001", "1500", ...Array(9).fill(""), "1500" // Index 3: 1500, Index 13: currentPending
-      ]
+      ...headers
     ],
     "Dropdown": [
       [
-        "Created By", "Warehouse Location", "Item Code", "Category", "Item Name", 
-        "", "", "", "Approver", "", "Transporter", "QC Engineer", "Accountant", 
+        "Created By", "Warehouse Location", "Item Code", "Category", "Item Name",
+        "", "", "", "Approver", "", "Transporter", "QC Engineer", "Accountant",
         "UOM", "", "Checklist Item", "Reject Reason"
       ], // Header row (index 0)
       [
-        "Admin User", "Warehouse A", "IT-LAP-001", "Corporate", "Dell Laptop", 
-        "", "", "", "Director A", "", "Express Logistics", "QC Engineer A", "Accountant A", 
+        "Admin User", "Division A", "IT-LAP-001", "Corporate", "Dell Laptop",
+        "", "", "", "Director A", "", "Express Logistics", "QC Engineer A", "Accountant A",
         "Nos", "", "Box Integrity Check", "Wrong Model Delivered"
       ],
       [
-        "HR Manager", "Warehouse B", "HR-CHR-002", "HR", "Office Chairs", 
-        "", "", "", "VP Operations", "", "BlueDart", "QC Engineer B", "Accountant B", 
+        "HR Manager", "Division B", "HR-CHR-002", "HR", "Office Chairs",
+        "", "", "", "VP Operations", "", "BlueDart", "QC Engineer B", "Accountant B",
         "Sets", "", "Functional Check", "Transit Defect"
       ],
       [
-        "IT Exec", "Warehouse C", "IT-PROJ-003", "IT", "Projector", 
-        "", "", "", "Admin User", "", "DHL Express", "QC Inspector C", "Finance Exec C", 
+        "IT Exec", "Division C", "IT-PROJ-003", "IT", "Projector",
+        "", "", "", "Admin User", "", "DHL Express", "QC Inspector C", "Finance Exec C",
         "Kgs", "", "Visual Inspection", "Damage on Box"
       ],
       [
-        "IT Admin", "Main Store", "IT-SW-004", "IT", "Network Switches", 
-        "", "", "", "Finance Head", "", "VRL Logistics", "", "", 
+        "IT Admin", "Main Store", "IT-SW-004", "IT", "Network Switches",
+        "", "", "", "Finance Head", "", "VRL Logistics", "", "",
         "Meters", "", "Quantity Check", "Functional Defect"
       ],
       [
-        "Purchase Manager", "Delhi Depot", "IT-MOU-005", "IT", "Wireless Mouse", 
-        "", "", "", "", "", "SafeExpress", "", "", 
+        "Purchase Manager", "Delhi Depot", "IT-MOU-005", "IT", "Wireless Mouse",
+        "", "", "", "", "", "SafeExpress", "", "",
         "Boxes", "", "", ""
       ],
       [
-        "Project Manager", "Mumbai Warehouse", "OFF-PEN-006", "Office Supplies", "Ball Pens (Box of 10)", 
-        "", "", "", "", "", "", "", "", 
+        "Project Manager", "Mumbai Warehouse", "OFF-PEN-006", "Office Supplies", "Ball Pens (Box of 10)",
+        "", "", "", "", "", "", "", "",
         "Pack", "", "", ""
       ]
     ],
     "Order-Cancel": [
-      [], // header
-      ["2026-06-30", "IND-003", "PO-1003", "Projector", "1", "PO Entry", "Duplicate Indent", "admin"]
+      []
     ],
     "PAID-DATA": [
-      [],
-      ["2026-06-30", "Vendor Payment", "PO-1004", "Vendor IT", "30000", "Paid", "2026-07-15", "NEFT", "http://proof.com"],
-      ["2026-06-30", "Freight Payments", "L-001", "Transporter X", "1500", "Paid", "2026-06-30", "Cash", ""]
+      []
     ],
     "Transport Flw-Up": [
-      [],
-      ["2026-06-30", "L-001", "Intransit", "On the way, expected tomorrow."]
+      []
     ],
 
     "Material-Testing": [
-      ...headers,
-      // Data rows will be inserted here when damage is reported in Material Received
+      ...headers
     ],
     "Serial-Generation": [
-      ...headers,
-      ["IND-004", "L-003", "1", "SN-987654"],
-      ["IND-004", "L-003", "2", "SN-987655"]
+      ...headers
     ]
   };
 
   // Load mockSheets from localStorage or default
-  const STORAGE_KEY = "mockSheets_data";
+  const STORAGE_KEY = "mockSheets_data_clean_v1";
   let mockSheets: Record<string, any[][]> = {};
-  
+
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
@@ -282,7 +98,7 @@ if (typeof window !== "undefined") {
   } catch (e) {
     console.error("Failed to load mock sheets from localStorage:", e);
   }
-  
+
   if (Object.keys(mockSheets).length === 0) {
     mockSheets = JSON.parse(JSON.stringify(defaultSheets));
     try {
@@ -361,10 +177,10 @@ if (typeof window !== "undefined") {
       try {
         const urlObj = new URL(url, window.location.origin);
         const method = (init?.method || "GET").toUpperCase();
-        
+
         let sheet = urlObj.searchParams.get("sheet");
         let action = urlObj.searchParams.get("action") || "getAll";
-        
+
         let bodyParams: Record<string, any> = {};
         if (method === "POST" && init?.body) {
           bodyParams = await parseBody(init.body);
@@ -375,7 +191,7 @@ if (typeof window !== "undefined") {
 
         if (sheet || action === "insertIndent" || action === "insertLift" || action === "uploadFile") {
           console.log(`[Mock Fetch] Intercepted: method=${method}, sheet="${sheet}", action="${action}"`);
-          
+
           if (method === "GET" || action === "getAll") {
             const sheetData = mockSheets[sheet || ""] || [
               [], [], [], [], [], [],
@@ -393,22 +209,22 @@ if (typeof window !== "undefined") {
               }
             );
           }
-          
+
           if (method === "POST") {
             if (action === "update") {
               const rowIndex = parseInt(bodyParams.rowIndex || urlObj.searchParams.get("rowIndex") || "", 10);
               let rowData = bodyParams.rowData;
               if (typeof rowData === "string") {
-                try { rowData = JSON.parse(rowData); } catch {}
+                try { rowData = JSON.parse(rowData); } catch { }
               }
-              
+
               if (!isNaN(rowIndex) && Array.isArray(rowData)) {
                 if (!mockSheets[sheet || ""]) mockSheets[sheet || ""] = [];
                 const idx = rowIndex - 1;
                 while (mockSheets[sheet || ""].length <= idx) {
                   mockSheets[sheet || ""].push([]);
                 }
-                
+
                 // Sparse merge to preserve other columns
                 const existingRow = mockSheets[sheet || ""][idx] || [];
                 const mergedRow = [...existingRow];
@@ -422,7 +238,7 @@ if (typeof window !== "undefined") {
                 if (sheet === "INDENT-LIFT") {
                   const finalStatus = mergedRow[13]; // N: Status
                   const vendorType = mergedRow[15];  // P: Vendor Type
-                  
+
                   if (finalStatus === "approved" && !mergedRow[45] && !mergedRow[51]) {
                     const timestamp = getFmsTimestamp();
                     if (vendorType === "regular") {
@@ -437,19 +253,19 @@ if (typeof window !== "undefined") {
                       mergedRow[51] = ""; // clear plan4 (AZ)
                     }
                   }
-                  
+
                   // 1. Stage 5 (Make PO) -> Payment (Advance) OR Follow-Up (Other)
                   const actual4 = mergedRow[52]; // BA: actual4 (PO Entry completed date)
                   const planPayment = mergedRow[72]; // plan_payment
                   const planned5 = mergedRow[60]; // BI: planned5 (Follow-Up Vendor plan date)
-                  
+
                   if (actual4 && !planPayment && !planned5) {
                     const selectedVendor = String(mergedRow[47] || "").trim();
                     let terms = "";
                     if (selectedVendor === "vendor1") terms = String(mergedRow[23] || "").trim();
                     else if (selectedVendor === "vendor2") terms = String(mergedRow[31] || "").trim();
                     else if (selectedVendor === "vendor3") terms = String(mergedRow[39] || "").trim();
-                    
+
                     const timestamp = getFmsTimestamp();
                     if (terms === "Advance") {
                       // Next workflow is Payment
@@ -483,13 +299,13 @@ if (typeof window !== "undefined") {
                 );
               }
             }
-            
+
             if (action === "insert" || action === "append") {
               let rowData = bodyParams.rowData;
               if (typeof rowData === "string") {
-                try { rowData = JSON.parse(rowData); } catch {}
+                try { rowData = JSON.parse(rowData); } catch { }
               }
-              
+
               if (Array.isArray(rowData)) {
                 if (!mockSheets[sheet || ""]) mockSheets[sheet || ""] = [];
                 mockSheets[sheet || ""].push(rowData);
@@ -501,16 +317,16 @@ if (typeof window !== "undefined") {
                 );
               }
             }
-            
+
             if (action === "batchInsert") {
               let rowsData = bodyParams.rowsData;
               if (typeof rowsData === "string") {
-                try { rowsData = JSON.parse(rowsData); } catch {}
+                try { rowsData = JSON.parse(rowsData); } catch { }
               }
-              
+
               const startRow = parseInt(bodyParams.startRow || urlObj.searchParams.get("startRow") || "", 10);
               const startIdx = !isNaN(startRow) ? startRow - 1 : (mockSheets[sheet || ""]?.length || 0);
-              
+
               if (Array.isArray(rowsData)) {
                 if (!mockSheets[sheet || ""]) mockSheets[sheet || ""] = [];
                 rowsData.forEach((row: any, i: number) => {
@@ -528,12 +344,12 @@ if (typeof window !== "undefined") {
                 );
               }
             }
-            
+
             if (action === "updateCell") {
               const rowIndex = parseInt(bodyParams.rowIndex || urlObj.searchParams.get("rowIndex") || "", 10);
               const columnIndex = parseInt(bodyParams.columnIndex || bodyParams.column || urlObj.searchParams.get("columnIndex") || "", 10);
               const value = bodyParams.value !== undefined ? bodyParams.value : urlObj.searchParams.get("value");
-              
+
               if (!isNaN(rowIndex) && !isNaN(columnIndex)) {
                 if (!mockSheets[sheet || ""]) mockSheets[sheet || ""] = [];
                 const rIdx = rowIndex - 1;
@@ -555,16 +371,16 @@ if (typeof window !== "undefined") {
                 );
               }
             }
-            
+
             if (action === "insertIndent") {
               let rowsData = bodyParams.rowsData;
               if (typeof rowsData === "string") {
-                try { rowsData = JSON.parse(rowsData); } catch {}
+                try { rowsData = JSON.parse(rowsData); } catch { }
               }
-              
+
               if (Array.isArray(rowsData)) {
                 if (!mockSheets["INDENT-LIFT"]) mockSheets["INDENT-LIFT"] = [];
-                
+
                 // Find max indent number
                 let maxNum = 0;
                 mockSheets["INDENT-LIFT"].forEach(r => {
@@ -576,7 +392,7 @@ if (typeof window !== "undefined") {
                     }
                   }
                 });
-                
+
                 const generatedIds: string[] = [];
                 rowsData.forEach((row: any) => {
                   maxNum++;
@@ -593,13 +409,13 @@ if (typeof window !== "undefined") {
                 );
               }
             }
-            
+
             if (action === "insertLift") {
               let rowsData = bodyParams.rowsData;
               if (typeof rowsData === "string") {
-                try { rowsData = JSON.parse(rowsData); } catch {}
+                try { rowsData = JSON.parse(rowsData); } catch { }
               }
-              
+
               if (Array.isArray(rowsData)) {
                 if (!mockSheets["RECEIVING-ACCOUNTS"]) mockSheets["RECEIVING-ACCOUNTS"] = [];
                 rowsData.forEach((row: any) => {

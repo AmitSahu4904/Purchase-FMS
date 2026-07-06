@@ -1125,7 +1125,7 @@ export default function Stage5() {
             <div className="mx-auto max-w-6xl space-y-5 p-6">
               <section className="overflow-hidden rounded-lg border bg-white shadow-sm">
                 <div className="flex items-center justify-center gap-8 bg-slate-50 px-6 py-6">
-                  <img src="/Botivate-logo.svg" alt="Logo" className="h-10 w-10 object-contain" />
+                  <img src="null" alt="Logo" className="h-10 w-10 object-contain" />
                   <div>
                     <h2 className="text-2xl font-bold text-slate-900">Botivate</h2>
                     <p className="text-sm text-slate-600">Gateway Park, Mumbai, Maharashtra</p>

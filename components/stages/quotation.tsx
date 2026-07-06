@@ -886,7 +886,7 @@ export default function Quotation() {
               <div className="space-y-6">
                 {/* BOTIVATE SERVICES header card */}
                 <div className="flex items-center justify-center gap-8 bg-slate-50 px-6 py-6 border rounded-xl shadow-sm">
-                  <img src="/Botivate-logo.svg" alt="Logo" className="h-10 w-10 object-contain" />
+                  <img src="null" alt="Logo" className="h-10 w-10 object-contain" />
                   <div>
                     <h2 className="text-xl font-bold text-slate-900">Botivate</h2>
                     <p className="text-sm text-slate-600">Gateway Park, Mumbai, Maharashtra</p>
