@@ -917,7 +917,6 @@ export default function Stage5() {
                       <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase">Rate</TableHead>
                       <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase whitespace-nowrap">Payment Terms</TableHead>
                       <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase whitespace-nowrap">Exp. Delivery</TableHead>
-                      <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase">Attachment</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -954,23 +953,6 @@ export default function Stage5() {
                           <TableCell>
                             {v.delivery ? new Date(v.delivery).toLocaleDateString("en-IN") : "-"}
                           </TableCell>
-                          <TableCell>
-                            {v.attachment ? (
-                              <a
-                                href={typeof v.attachment === 'string' ? v.attachment : undefined}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1 text-blue-600 hover:underline text-xs"
-                              >
-                                <FileText className="w-3.5 h-3.5" />
-                                <span className="truncate max-w-20">
-                                  {typeof v.attachment === 'string' ? "View File" : (v.attachment as any).name}
-                                </span>
-                              </a>
-                            ) : (
-                              "-"
-                            )}
-                          </TableCell>
                         </TableRow>
                       );
                     })}
@@ -1003,9 +985,8 @@ export default function Stage5() {
                     <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase whitespace-nowrap">Actual</TableHead>
                     <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase">Vendor Info</TableHead>
                     <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase whitespace-nowrap">Terms & Delivery</TableHead>
-                    <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase whitespace-nowrap">Quotation</TableHead>
                     <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase">PO Details (Incl. HSN)</TableHead>
-                    <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase">Financials (Incl. GST%)</TableHead>
+                    <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase whitespace-nowrap">Financials (Incl. GST%)</TableHead>
                     <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase whitespace-nowrap">Total Amount</TableHead>
                     <TableHead className="sticky top-0 z-20 bg-slate-200 border-none px-4 py-3 text-[13px] font-bold text-slate-700 uppercase whitespace-nowrap">Actions</TableHead>
                   </TableRow>
@@ -1047,24 +1028,6 @@ export default function Stage5() {
                                 {v.delivery ? formatDate(parseSheetDate(v.delivery)) : "-"}
                               </span>
                             </div>
-                          </div>
-                        </TableCell>
-
-                        <TableCell>
-                          <div className="space-y-1">
-                            {v.attachment ? (
-                              <a
-                                href={typeof v.attachment === 'string' ? v.attachment : undefined}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1 text-blue-600 hover:underline text-[10px]"
-                              >
-                                <FileText className="w-3 h-3" />
-                                <span>Quot.</span>
-                              </a>
-                            ) : (
-                              <span className="text-xs text-gray-400">-</span>
-                            )}
                           </div>
                         </TableCell>
 

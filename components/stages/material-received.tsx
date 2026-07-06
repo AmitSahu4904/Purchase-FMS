@@ -103,7 +103,6 @@ const PENDING_COLUMNS = [
     { key: "transporterName", label: "Transporter" },
     { key: "vehicleNo", label: "Vehicle No" },
     { key: "contactNo", label: "Contact No" },
-    { key: "lrNo", label: "LR No" },
     { key: "dispatchDate", label: "Dispatch Date" },
     { key: "freightAmount", label: "Freight Amt" },
     { key: "advanceAmount", label: "Advance Amt" },

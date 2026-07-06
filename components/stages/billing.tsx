@@ -431,7 +431,6 @@ export default function Stage9() {
     { key: "invoiceNumber", label: "Invoice No." },
     { key: "invoiceDate", label: "Invoice Date" },
     { key: "srnNumber", label: "SRN No." },
-    { key: "qcRequirement", label: "QC Required" },
     { key: "receivedItemImage", label: "Rec. Item Img" },
     { key: "billAttachment", label: "Bill Attach" },
     { key: "plan8", label: "Planned" },

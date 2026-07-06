@@ -221,9 +221,7 @@ export default function TransporterFollowUp() {
                     r.data.vendorName?.toLowerCase().includes(searchLower) ||
                     r.data.transporterName?.toLowerCase().includes(searchLower) ||
                     String(r.data.poNumber || "").toLowerCase().includes(searchLower) ||
-                    String(r.data.invoiceNumber || "").toLowerCase().includes(searchLower) ||
-                    String(r.data.lrCopy || "").toLowerCase().includes(searchLower) ||
-                    String(r.data.lrNo || "").toLowerCase().includes(searchLower)
+                    String(r.data.invoiceNumber || "").toLowerCase().includes(searchLower)
                 );
             });
 
@@ -259,9 +257,7 @@ export default function TransporterFollowUp() {
                 r.data.vendorName?.toLowerCase().includes(searchLower) ||
                 r.data.transporterName?.toLowerCase().includes(searchLower) ||
                 String(r.data.poNumber || "").toLowerCase().includes(searchLower) ||
-                String(r.data.invoiceNumber || "").toLowerCase().includes(searchLower) ||
-                String(r.data.lrCopy || "").toLowerCase().includes(searchLower) ||
-                String(r.data.lrNo || "").toLowerCase().includes(searchLower)
+                String(r.data.invoiceNumber || "").toLowerCase().includes(searchLower)
             );
         });
     }, [records, searchTerm]);
@@ -282,8 +278,6 @@ export default function TransporterFollowUp() {
         { key: "freightAmt", label: "Freight Amt" },
         { key: "vehicleNo", label: "Vehicle No" },
         { key: "contactNo", label: "Contact Number" },
-        { key: "lrNo", label: "LR No." },
-        { key: "lrCopy", label: "LR Copy" },
     ];
 
     const historyColumns = [
@@ -302,8 +296,6 @@ export default function TransporterFollowUp() {
         { key: "freightAmt", label: "Freight Amt" },
         { key: "vehicleNo", label: "Vehicle No" },
         { key: "contactNo", label: "Contact Number" },
-        { key: "lrNo", label: "LR No." },
-        { key: "lrCopy", label: "LR Copy" },
     ];
 
     // -----------------------------------------------------------------
@@ -675,23 +667,7 @@ export default function TransporterFollowUp() {
                                             {pendingColumns.map((c) => {
                                                 const val = rec.data[c.key];
 
-                                                // LR Copy Logic
-                                                if (c.key === "lrCopy") {
-                                                    return (
-                                                        <TableCell key={c.key} className="text-center border-b px-4 py-2">
-                                                            {val && val.trim() !== "" ? (
-                                                                <a
-                                                                    href={val}
-                                                                    target="_blank"
-                                                                    rel="noreferrer"
-                                                                    className="text-blue-600 underline"
-                                                                >
-                                                                    View
-                                                                </a>
-                                                            ) : "-"}
-                                                        </TableCell>
-                                                    );
-                                                }
+
 
                                                 // Planned & Expected Date Logic
                                                 if (c.key === "plannedDate" || c.key === "expectedDate") {
@@ -728,23 +704,7 @@ export default function TransporterFollowUp() {
                                             {historyColumns.map((c) => {
                                                 const val = rec.data[c.key];
 
-                                                // LR Copy Logic
-                                                if (c.key === "lrCopy") {
-                                                    return (
-                                                        <TableCell key={c.key} className="text-center border-b px-4 py-2">
-                                                            {val && val.trim() !== "" ? (
-                                                                <a
-                                                                    href={val}
-                                                                    target="_blank"
-                                                                    rel="noreferrer"
-                                                                    className="text-blue-600 underline"
-                                                                >
-                                                                    View
-                                                                </a>
-                                                            ) : "-"}
-                                                        </TableCell>
-                                                    );
-                                                }
+
 
                                                 // Planned, Actual & Expected Date Logic
                                                 if (c.key === "plannedDate" || c.key === "actualDate" || c.key === "expectedDate") {
